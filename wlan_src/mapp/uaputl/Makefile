@@ -1,6 +1,6 @@
 # File : uaputl/Makefile
 #
-# Copyright (C) 2008-2016, Marvell International Ltd. All Rights Reserved
+# Copyright (C) 2008-2018, Marvell International Ltd. All Rights Reserved
 
 # Path to the top directory of the wlan distribution
 PATH_TO_TOP = ../..
@@ -14,7 +14,7 @@ INSTALLPATH := $(PATH_TO_TOP)/$(RELPATH)
 endif
 
 # Override CFLAGS for application sources, remove __ kernel namespace defines
-CFLAGS := $(filter-out -D__%, $(EXTRA_CFLAGS))
+CFLAGS := $(filter-out -D__%, $(ccflags-y))
 # remove KERNEL include dir
 CFLAGS := $(filter-out -I$(KERNELDIR)%, $(CFLAGS))
 

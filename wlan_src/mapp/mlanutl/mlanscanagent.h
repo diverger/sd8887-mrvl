@@ -2,7 +2,7 @@
   *
   * @brief This files contains mlanutl scanagent command handling.
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -47,8 +47,10 @@ typedef struct {
 
 	t_u8 tlv_buffer[1]; /**< Rest is TLV buffer */
 
-	/* MrvlIEtypes_SsIdParamSet_t MrvlIEtypes_Bssid_List_t
-	   MrvlIEtypes_ConfigScanTiming_t */
+	/*  MrvlIEtypes_SsIdParamSet_t
+	 *  MrvlIEtypes_Bssid_List_t
+	 *  MrvlIEtypes_ConfigScanTiming_t
+	 */
 } __ATTRIB_PACK__ HostCmd_DS_SCANAGENT_SCAN_EXEC;
 
 typedef struct {
@@ -82,7 +84,9 @@ typedef struct {
     /** TLV Buffer follows */
 	t_u8 tlv_buffer[1];
 
-	/* MrvlIEtypes_SsIdParamSet_t MrvlIEtypes_Bssid_List_t */
+	/*  MrvlIEtypes_SsIdParamSet_t
+	 *  MrvlIEtypes_Bssid_List_t
+	 */
 } __ATTRIB_PACK__ HostCmd_DS_SCANAGENT_TABLE_MAINTENANCE;
 
 /** ENUM definition: Scanagent Table Maintenance */

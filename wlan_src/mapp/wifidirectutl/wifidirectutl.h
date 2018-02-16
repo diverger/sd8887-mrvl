@@ -2,7 +2,7 @@
  *
  *  @brief Header file for wifidirectutl application
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -198,41 +198,41 @@ extern struct option cmd_options[2];
 /** TLV type ID definition */
 #define PROPRIETARY_TLV_BASE_ID              0x0100
 /** TLV: Management IE list */
-#define MRVL_MGMT_IE_LIST_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0x69)	// 0x0169
+#define MRVL_MGMT_IE_LIST_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0x69)	//0x0169
 /** TLV: WifiDirect Discovery Period */
-#define MRVL_WIFIDIRECT_DISC_PERIOD_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x7c)	// 0x017c
+#define MRVL_WIFIDIRECT_DISC_PERIOD_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x7c)	//0x017c
 /** TLV: WifiDirect Scan Enable */
-#define MRVL_WIFIDIRECT_SCAN_ENABLE_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x7d)	// 0x017d
+#define MRVL_WIFIDIRECT_SCAN_ENABLE_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x7d)	//0x017d
 /** TLV: WifiDirect Peer Device  */
-#define MRVL_WIFIDIRECT_PEER_DEVICE_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x7e)	// 0x017e
+#define MRVL_WIFIDIRECT_PEER_DEVICE_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x7e)	//0x017e
 /** TLV: WifiDirect Scan Request Peer Device  */
-#define MRVL_WIFIDIRECT_SCAN_REQ_DEVICE_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x7f)	// 0x017f
+#define MRVL_WIFIDIRECT_SCAN_REQ_DEVICE_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x7f)	//0x017f
 /** TLV: WifiDirect Device State */
-#define MRVL_WIFIDIRECT_DEVICE_STATE_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x80)	// 0x0180
+#define MRVL_WIFIDIRECT_DEVICE_STATE_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x80)	//0x0180
 /** TLV: WifiDirect Intent */
-#define MRVL_WIFIDIRECT_INTENT_TLV_ID               (PROPRIETARY_TLV_BASE_ID + 0x81)	// 0x0181
+#define MRVL_WIFIDIRECT_INTENT_TLV_ID               (PROPRIETARY_TLV_BASE_ID + 0x81)	//0x0181
 /** TLV: WifiDirect Capability */
-#define MRVL_WIFIDIRECT_CAPABILITY_TLV_ID           (PROPRIETARY_TLV_BASE_ID + 0x82)	// 0x0182
+#define MRVL_WIFIDIRECT_CAPABILITY_TLV_ID           (PROPRIETARY_TLV_BASE_ID + 0x82)	//0x0182
 /** TLV: WifiDirect Notice of Absence */
-#define MRVL_WIFIDIRECT_NOA_TLV_ID                  (PROPRIETARY_TLV_BASE_ID + 0x83)	// 0x0183
+#define MRVL_WIFIDIRECT_NOA_TLV_ID                  (PROPRIETARY_TLV_BASE_ID + 0x83)	//0x0183
 /** TLV: WifiDirect Opportunistic Power Save */
-#define MRVL_WIFIDIRECT_OPP_PS_TLV_ID               (PROPRIETARY_TLV_BASE_ID + 0x84)	// 0x0184
+#define MRVL_WIFIDIRECT_OPP_PS_TLV_ID               (PROPRIETARY_TLV_BASE_ID + 0x84)	//0x0184
 /** TLV: WifiDirect Invitation list */
-#define MRVL_WIFIDIRECT_INVITATION_LIST_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x85)	// 0x0185
+#define MRVL_WIFIDIRECT_INVITATION_LIST_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x85)	//0x0185
 /** TLV: WifiDirect Listen channel */
-#define MRVL_WIFIDIRECT_LISTEN_CHANNEL_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x86)	// 0x0186
+#define MRVL_WIFIDIRECT_LISTEN_CHANNEL_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x86)	//0x0186
 /** TLV: WifiDirect Operating Channel */
-#define MRVL_WIFIDIRECT_OPERATING_CHANNEL_TLV_ID    (PROPRIETARY_TLV_BASE_ID + 0x87)	// 0x0187
+#define MRVL_WIFIDIRECT_OPERATING_CHANNEL_TLV_ID    (PROPRIETARY_TLV_BASE_ID + 0x87)	//0x0187
 /** TLV: WifiDirect Persistent Group */
-#define MRVL_WIFIDIRECT_PERSISTENT_GROUP_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x88)	// 0x0188
+#define MRVL_WIFIDIRECT_PERSISTENT_GROUP_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x88)	//0x0188
 /** TLV: WifiDirect Presence request parameters */
-#define MRVL_WIFIDIRECT_PRESENCE_REQ_PARAMS_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 0x8d)	// 0x018d
+#define MRVL_WIFIDIRECT_PRESENCE_REQ_PARAMS_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 0x8d)	//0x018d
 /** TLV: WifiDirect Extended Listen Time */
-#define MRVL_WIFIDIRECT_EXTENDED_LISTEN_TIME_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0x8e)	// 0x018e
+#define MRVL_WIFIDIRECT_EXTENDED_LISTEN_TIME_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0x8e)	//0x018e
 /** TLV: WifiDirect Provisioning parameters */
-#define MRVL_WIFIDIRECT_PROVISIONING_PARAMS_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 0x8f)	// 0x018f
+#define MRVL_WIFIDIRECT_PROVISIONING_PARAMS_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 0x8f)	//0x018f
 /** TLV: WifiDirect WPS parameters */
-#define MRVL_WIFIDIRECT_WPS_PARAMS_TLV_ID           (PROPRIETARY_TLV_BASE_ID + 0x90)	// 0x0190
+#define MRVL_WIFIDIRECT_WPS_PARAMS_TLV_ID           (PROPRIETARY_TLV_BASE_ID + 0x90)	//0x0190
 
 /** Max Device capability */
 #define MAX_DEV_CAPABILITY                 255
@@ -1400,8 +1400,23 @@ unsigned char hexc2bin(char chr);
 char *config_get_line(char *s, int size, FILE * stream, int *line, char **_pos);
 int parse_line(char *line, char *args[]);
 int mac2raw(char *mac, t_u8 *raw);
-inline int ISDIGIT(char *x);
 int wifidirect_ioctl(t_u8 *cmd, t_u16 *size, t_u16 buf_size);
 unsigned int a2hex(char *s);
 
+/**
+ *    @brief isdigit for String.
+ *
+ *    @param x            Char string
+ *    @return             FAILURE for non-digit.
+ *                        SUCCESS for digit
+ */
+static inline int
+ISDIGIT(char *x)
+{
+	unsigned int i;
+	for (i = 0; i < strlen(x); i++)
+		if (isdigit(x[i]) == 0)
+			return FAILURE;
+	return SUCCESS;
+}
 #endif /* _WIFIDIRECT_H */

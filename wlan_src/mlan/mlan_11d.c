@@ -2,7 +2,7 @@
  *
  *  @brief This file contains functions for 802.11D.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -50,17 +50,17 @@ typedef struct _region_code_mapping {
 
 /** Region code mapping table */
 static region_code_mapping_t region_code_mapping[] = {
-	{"US ", 0x10},		/* US FCC */
-	{"CA ", 0x20},		/* IC Canada */
-	{"SG ", 0x10},		/* Singapore */
-	{"EU ", 0x30},		/* ETSI */
-	{"AU ", 0x30},		/* Australia */
+	{"US ", 0x10},		/* US FCC      */
+	{"CA ", 0x20},		/* IC Canada   */
+	{"SG ", 0x10},		/* Singapore   */
+	{"EU ", 0x30},		/* ETSI        */
+	{"AU ", 0x30},		/* Australia   */
 	{"KR ", 0x30},		/* Republic Of Korea */
-	{"FR ", 0x32},		/* France */
-	{"JP ", 0x40},		/* Japan */
-	{"JP ", 0x41},		/* Japan */
-	{"CN ", 0x50},		/* China */
-	{"JP ", 0xFE},		/* Japan */
+	{"FR ", 0x32},		/* France      */
+	{"JP ", 0x40},		/* Japan       */
+	{"JP ", 0x41},		/* Japan       */
+	{"CN ", 0x50},		/* China       */
+	{"JP ", 0xFE},		/* Japan       */
 	{"JP ", 0xFF},		/* Japan special */
 };
 
@@ -200,8 +200,7 @@ wlan_11d_channel_known(pmlan_adapter pmadapter,
 			ret = MTRUE;
 
 			if (band & BAND_A) {
-				/* If chan is a DFS channel, we need to see an
-				   AP on it */
+				/* If chan is a DFS channel, we need to see an AP on it */
 				pmpriv = wlan_get_priv(pmadapter,
 						       MLAN_BSS_ROLE_STA);
 				if (pmpriv &&
@@ -530,7 +529,7 @@ wlan_11d_process_country_info(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc)
 			}
 
 			if (j == parsed_region_chan->no_of_chan &&
-			    j < MAX_NO_OF_CHAN) {
+			    (j + num_chan_added) < MAX_NO_OF_CHAN) {
 				/*
 				 * Channel does not exist in the channel power
 				 * table, update this new chan and tx_power
@@ -995,8 +994,7 @@ wlan_11d_parse_domain_info(pmlan_adapter pmadapter,
 	for (j = 0, last_chan = 0; j < no_of_sub_band; j++) {
 
 		if (country_info->sub_band[j].first_chan <= last_chan) {
-			/* Step2&3: Check First Chan Num increment and no
-			   overlap */
+			/* Step2&3: Check First Chan Num increment and no overlap */
 			PRINTM(MINFO, "11D: Chan[%d>%d] Overlap\n",
 			       country_info->sub_band[j].first_chan, last_chan);
 			continue;
@@ -1457,6 +1455,28 @@ wlan_11d_prepare_dnld_domain_info_cmd(mlan_private *pmpriv)
 }
 
 /**
+ *  @brief This function checks country code and maps it when needed
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pcountry_code Pointer to the country code string
+ *
+ *  @return             Pointer to the mapped country code string
+ */
+static t_u8 *
+wlan_11d_map_country_code(IN pmlan_adapter pmadapter, IN t_u8 *pcountry_code)
+{
+	/* Since firmware can only recognize EU as ETSI domain and there is no memory left
+	 * for some devices to convert it in firmware, driver need to convert it before
+	 * passing country code to firmware through tlv
+	 */
+
+	if (wlan_is_etsi_country(pmadapter, pcountry_code))
+		return ("EU ");
+	else
+		return pcountry_code;
+}
+
+/**
  *  @brief This function sets up domain_reg and downloads CMD to FW
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -1481,7 +1501,9 @@ wlan_11d_cfg_domain_info(IN pmlan_adapter pmadapter,
 	memcpy(pmadapter, pmadapter->country_code, domain_info->country_code,
 	       COUNTRY_CODE_LEN);
 	wlan_11d_set_domain_info(pmpriv, domain_info->band,
-				 domain_info->country_code,
+				 wlan_11d_map_country_code(pmadapter,
+							   domain_info->
+							   country_code),
 				 domain_info->no_of_sub_band,
 				 (IEEEtypes_SubbandSet_t *)domain_info->
 				 sub_band);
@@ -1568,8 +1590,9 @@ wlan_11d_handle_uap_domain_info(mlan_private *pmpriv,
 		((pdomain_tlv->header.len -
 		  COUNTRY_CODE_LEN) / sizeof(IEEEtypes_SubbandSet_t));
 
-	/* TODO: don't just clobber pmadapter->domain_reg.  Add some checking
-	   or merging between STA & UAP domain_info */
+	/* TODO: don't just clobber pmadapter->domain_reg.
+	 *       Add some checking or merging between STA & UAP domain_info
+	 */
 	wlan_11d_set_domain_info(pmpriv, band, pdomain_tlv->country_code,
 				 num_sub_band, pdomain_tlv->sub_band);
 	ret = wlan_11d_send_domain_info(pmpriv, pioctl_buf);

@@ -2,7 +2,7 @@
   *
   * @brief This file contains the STA CFG80211 specific defines.
   *
-  * Copyright (C) 2014-2016, Marvell International Ltd.
+  * Copyright (C) 2014-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -21,11 +21,6 @@
 
 #ifndef _MOAL_STA_CFG80211_H_
 #define _MOAL_STA_CFG80211_H_
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-#define IEEE80211_CHAN_PASSIVE_SCAN IEEE80211_CHAN_NO_IR
-#define IEEE80211_CHAN_NO_IBSS IEEE80211_CHAN_NO_IR
-#endif
 
 /** Convert RSSI signal strength from dBm to mBm (100*dBm) */
 #define RSSI_DBM_TO_MDM(x)          ((x) * 100)

@@ -4,7 +4,7 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -125,10 +125,10 @@ typedef MLAN_PACK_START struct {
 #define IS_SUPPORT_MULTI_BANDS(_adapter)        \
 	(_adapter->fw_cap_info & FW_MULTI_BANDS_SUPPORT)
 /** Get default bands of the firmware */
- /* need to shift bit 12 and bit 13 in fw_cap_info from the firmware to bit 13
-    and 14 for 11ac so that bit 11 is for GN, bit 12 for AN, bit 13 for GAC,
-    and bit 14 for AAC, in order to be compatible with the band capability
-    defined in the driver after right shift of 8 bits */
+ /* need to shift bit 12 and bit 13 in fw_cap_info from the firmware
+  * to bit 13 and 14 for 11ac so that bit 11 is for GN, bit 12 for AN,
+  * bit 13 for GAC, and bit 14 for AAC, in order to be compatible with
+  * the band capability defined in the driver after right shift of 8 bits */
 #define GET_FW_DEFAULT_BANDS(_adapter)  \
 	(((((_adapter->fw_cap_info & 0x3000) << 1) | \
 	  (_adapter->fw_cap_info & ~0xF000)) >> 8) & ALL_802_11_BANDS)
@@ -143,12 +143,24 @@ extern t_u8 AdhocRates_B[B_SUPPORTED_RATES];
 extern t_u8 AdhocRates_BG[BG_SUPPORTED_RATES];
 extern t_u8 AdhocRates_A[A_SUPPORTED_RATES];
 
+/** Firmware wakeup method : Unchanged */
+#define WAKEUP_FW_UNCHANGED                     0
+/** Firmware wakeup method : Through interface */
+#define WAKEUP_FW_THRU_INTERFACE                1
+/** Firmware wakeup method : Through GPIO*/
+#define WAKEUP_FW_THRU_GPIO                     2
+/** Default value of GPIO */
+#define DEF_WAKEUP_FW_GPIO                      0
+
 /** Default auto deep sleep mode */
 #define DEFAULT_AUTO_DS_MODE                  MTRUE
 /** Default power save mode */
 #define DEFAULT_PS_MODE                 Wlan802_11PowerModePSP
 
 #define EVENT_NAN_GENERIC 0x00000075
+#define NAN_EVT_SUBTYPE_SD_EVENT 0
+#define NAN_EVT_SUBTYPE_NAN_STARTED 1
+#define NAN_EVT_SUBTYPE_SDF_TX_DONE 2
 
 /** WEP Key index mask */
 #define HostCmd_WEP_KEY_INDEX_MASK              0x3fff
@@ -301,162 +313,128 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type : Power capability */
 #define TLV_TYPE_POWER_CAPABILITY               0x0021
 
+#define TLV_TYPE_HT_CAPABILITY                  0x002d
+
 /** TLV type : Vendor Specific IE */
-#define TLV_TYPE_VENDOR_SPECIFIC_IE             0xdd
+#define TLV_TYPE_VENDOR_SPECIFIC_IE             0x00dd
 
 /** TLV type : Key material */
-#define TLV_TYPE_KEY_MATERIAL       (PROPRIETARY_TLV_BASE_ID + 0x00)	/* 0x0100
-									 */
+#define TLV_TYPE_KEY_MATERIAL       (PROPRIETARY_TLV_BASE_ID + 0x00)	/* 0x0100 */
 /** TLV type : Channel list */
-#define TLV_TYPE_CHANLIST           (PROPRIETARY_TLV_BASE_ID + 0x01)	/* 0x0101
-									 */
+#define TLV_TYPE_CHANLIST           (PROPRIETARY_TLV_BASE_ID + 0x01)	/* 0x0101 */
 /** TLV type : Number of probes */
-#define TLV_TYPE_NUMPROBES          (PROPRIETARY_TLV_BASE_ID + 0x02)	/* 0x0102
-									 */
+#define TLV_TYPE_NUMPROBES          (PROPRIETARY_TLV_BASE_ID + 0x02)	/* 0x0102 */
 /** TLV type : Beacon RSSI low */
-#define TLV_TYPE_RSSI_LOW           (PROPRIETARY_TLV_BASE_ID + 0x04)	/* 0x0104
-									 */
+#define TLV_TYPE_RSSI_LOW           (PROPRIETARY_TLV_BASE_ID + 0x04)	/* 0x0104 */
 /** TLV type : Beacon SNR low */
-#define TLV_TYPE_SNR_LOW            (PROPRIETARY_TLV_BASE_ID + 0x05)	/* 0x0105
-									 */
+#define TLV_TYPE_SNR_LOW            (PROPRIETARY_TLV_BASE_ID + 0x05)	/* 0x0105 */
 /** TLV type : Fail count */
-#define TLV_TYPE_FAILCOUNT          (PROPRIETARY_TLV_BASE_ID + 0x06)	/* 0x0106
-									 */
+#define TLV_TYPE_FAILCOUNT          (PROPRIETARY_TLV_BASE_ID + 0x06)	/* 0x0106 */
 /** TLV type : BCN miss */
-#define TLV_TYPE_BCNMISS            (PROPRIETARY_TLV_BASE_ID + 0x07)	/* 0x0107
-									 */
+#define TLV_TYPE_BCNMISS            (PROPRIETARY_TLV_BASE_ID + 0x07)	/* 0x0107 */
 /** TLV type : LED behavior */
-#define TLV_TYPE_LEDBEHAVIOR        (PROPRIETARY_TLV_BASE_ID + 0x09)	/* 0x0109
-									 */
+#define TLV_TYPE_LEDBEHAVIOR        (PROPRIETARY_TLV_BASE_ID + 0x09)	/* 0x0109 */
 /** TLV type : Passthrough */
-#define TLV_TYPE_PASSTHROUGH        (PROPRIETARY_TLV_BASE_ID + 0x0a)	/* 0x010a
-									 */
+#define TLV_TYPE_PASSTHROUGH        (PROPRIETARY_TLV_BASE_ID + 0x0a)	/* 0x010a */
 /** TLV type : Power TBL 2.4 Ghz */
-#define TLV_TYPE_POWER_TBL_2_4GHZ   (PROPRIETARY_TLV_BASE_ID + 0x0c)	/* 0x010c
-									 */
+#define TLV_TYPE_POWER_TBL_2_4GHZ   (PROPRIETARY_TLV_BASE_ID + 0x0c)	/* 0x010c */
 /** TLV type : Power TBL 5 GHz */
-#define TLV_TYPE_POWER_TBL_5GHZ     (PROPRIETARY_TLV_BASE_ID + 0x0d)	/* 0x010d
-									 */
+#define TLV_TYPE_POWER_TBL_5GHZ     (PROPRIETARY_TLV_BASE_ID + 0x0d)	/* 0x010d */
 /** TLV type : WMM queue status */
-#define TLV_TYPE_WMMQSTATUS         (PROPRIETARY_TLV_BASE_ID + 0x10)	/* 0x0110
-									 */
+#define TLV_TYPE_WMMQSTATUS         (PROPRIETARY_TLV_BASE_ID + 0x10)	/* 0x0110 */
 /** TLV type : Wildcard SSID */
-#define TLV_TYPE_WILDCARDSSID       (PROPRIETARY_TLV_BASE_ID + 0x12)	/* 0x0112
-									 */
+#define TLV_TYPE_WILDCARDSSID       (PROPRIETARY_TLV_BASE_ID + 0x12)	/* 0x0112 */
 /** TLV type : TSF timestamp */
-#define TLV_TYPE_TSFTIMESTAMP       (PROPRIETARY_TLV_BASE_ID + 0x13)	/* 0x0113
-									 */
+#define TLV_TYPE_TSFTIMESTAMP       (PROPRIETARY_TLV_BASE_ID + 0x13)	/* 0x0113 */
 /** TLV type : ARP filter */
-#define TLV_TYPE_ARP_FILTER         (PROPRIETARY_TLV_BASE_ID + 0x15)	/* 0x0115
-									 */
+#define TLV_TYPE_ARP_FILTER         (PROPRIETARY_TLV_BASE_ID + 0x15)	/* 0x0115 */
 /** TLV type : Beacon RSSI high */
-#define TLV_TYPE_RSSI_HIGH          (PROPRIETARY_TLV_BASE_ID + 0x16)	/* 0x0116
-									 */
+#define TLV_TYPE_RSSI_HIGH          (PROPRIETARY_TLV_BASE_ID + 0x16)	/* 0x0116 */
 /** TLV type : Beacon SNR high */
-#define TLV_TYPE_SNR_HIGH           (PROPRIETARY_TLV_BASE_ID + 0x17)	/* 0x0117
-									 */
+#define TLV_TYPE_SNR_HIGH           (PROPRIETARY_TLV_BASE_ID + 0x17)	/* 0x0117 */
 /** TLV type : Start BG scan later */
-#define TLV_TYPE_STARTBGSCANLATER   (PROPRIETARY_TLV_BASE_ID + 0x1e)	/* 0x011e
-									 */
+#define TLV_TYPE_STARTBGSCANLATER   (PROPRIETARY_TLV_BASE_ID + 0x1e)	/* 0x011e */
 /** TLV type: BG scan repeat count */
-#define TLV_TYPE_REPEAT_COUNT       (PROPRIETARY_TLV_BASE_ID + 0xb0)	/* 0x01b0
-									 */
+#define TLV_TYPE_REPEAT_COUNT       (PROPRIETARY_TLV_BASE_ID + 0xb0)	/* 0x01b0 */
 /** TLV type : Authentication type */
-#define TLV_TYPE_AUTH_TYPE          (PROPRIETARY_TLV_BASE_ID + 0x1f)	/* 0x011f
-									 */
+#define TLV_TYPE_AUTH_TYPE          (PROPRIETARY_TLV_BASE_ID + 0x1f)	/* 0x011f */
 /** TLV type : BSSID */
-#define TLV_TYPE_BSSID              (PROPRIETARY_TLV_BASE_ID + 0x23)	/* 0x0123
-									 */
+#define TLV_TYPE_BSSID              (PROPRIETARY_TLV_BASE_ID + 0x23)	/* 0x0123 */
 
 /** TLV type : Link Quality */
-#define TLV_TYPE_LINK_QUALITY       (PROPRIETARY_TLV_BASE_ID + 0x24)	/* 0x0124
-									 */
+#define TLV_TYPE_LINK_QUALITY       (PROPRIETARY_TLV_BASE_ID + 0x24)	/* 0x0124 */
 
 /** TLV type : Data RSSI low */
-#define TLV_TYPE_RSSI_LOW_DATA      (PROPRIETARY_TLV_BASE_ID + 0x26)	/* 0x0126
-									 */
+#define TLV_TYPE_RSSI_LOW_DATA      (PROPRIETARY_TLV_BASE_ID + 0x26)	/* 0x0126 */
 /** TLV type : Data SNR low */
-#define TLV_TYPE_SNR_LOW_DATA       (PROPRIETARY_TLV_BASE_ID + 0x27)	/* 0x0127
-									 */
+#define TLV_TYPE_SNR_LOW_DATA       (PROPRIETARY_TLV_BASE_ID + 0x27)	/* 0x0127 */
 /** TLV type : Data RSSI high */
-#define TLV_TYPE_RSSI_HIGH_DATA     (PROPRIETARY_TLV_BASE_ID + 0x28)	/* 0x0128
-									 */
+#define TLV_TYPE_RSSI_HIGH_DATA     (PROPRIETARY_TLV_BASE_ID + 0x28)	/* 0x0128 */
 /** TLV type : Data SNR high */
-#define TLV_TYPE_SNR_HIGH_DATA      (PROPRIETARY_TLV_BASE_ID + 0x29)	/* 0x0129
-									 */
+#define TLV_TYPE_SNR_HIGH_DATA      (PROPRIETARY_TLV_BASE_ID + 0x29)	/* 0x0129 */
 
 /** TLV type : Channel band list */
-#define TLV_TYPE_CHANNELBANDLIST    (PROPRIETARY_TLV_BASE_ID + 0x2a)	/* 0x012a
-									 */
+#define TLV_TYPE_CHANNELBANDLIST    (PROPRIETARY_TLV_BASE_ID + 0x2a)	/* 0x012a */
 
 /** TLV type : Passphrase */
-#define TLV_TYPE_PASSPHRASE         (PROPRIETARY_TLV_BASE_ID + 0x3c)	/* 0x013c
-									 */
+#define TLV_TYPE_PASSPHRASE         (PROPRIETARY_TLV_BASE_ID + 0x3c)	/* 0x013c */
 
 /** TLV type : Encryption Protocol TLV */
-#define TLV_TYPE_ENCRYPTION_PROTO   (PROPRIETARY_TLV_BASE_ID + 0x40)	/* 0x0140
-									 */
+#define TLV_TYPE_ENCRYPTION_PROTO   (PROPRIETARY_TLV_BASE_ID + 0x40)	/* 0x0140 */
 /** TLV type : Cipher TLV */
-#define TLV_TYPE_CIPHER             (PROPRIETARY_TLV_BASE_ID + 0x42)	/* 0x0142
-									 */
+#define TLV_TYPE_CIPHER             (PROPRIETARY_TLV_BASE_ID + 0x42)	/* 0x0142 */
 /** TLV type : PMK */
-#define TLV_TYPE_PMK                (PROPRIETARY_TLV_BASE_ID + 0x44)	/* 0x0144
-									 */
+#define TLV_TYPE_PMK                (PROPRIETARY_TLV_BASE_ID + 0x44)	/* 0x0144 */
 
 /** TLV type : BCN miss */
-#define TLV_TYPE_PRE_BCNMISS         (PROPRIETARY_TLV_BASE_ID + 0x49)	/* 0x0149
-									 */
+#define TLV_TYPE_PRE_BCNMISS         (PROPRIETARY_TLV_BASE_ID + 0x49)	/* 0x0149 */
 
 /** TLV type: WAPI IE */
-#define TLV_TYPE_WAPI_IE             (PROPRIETARY_TLV_BASE_ID + 0x5e)	/* 0x015e
-									 */
+#define TLV_TYPE_WAPI_IE             (PROPRIETARY_TLV_BASE_ID + 0x5e)	/* 0x015e */
 
 /** TLV type: MGMT IE */
-#define TLV_TYPE_MGMT_IE             (PROPRIETARY_TLV_BASE_ID + 0x69)	/* 0x0169
-									 */
+#define TLV_TYPE_MGMT_IE             (PROPRIETARY_TLV_BASE_ID + 0x69)	/* 0x0169 */
 /** TLV type: MAX_MGMT_IE */
-#define TLV_TYPE_MAX_MGMT_IE         (PROPRIETARY_TLV_BASE_ID + 0xaa)	/* 0x01aa
-									 */
+#define TLV_TYPE_MAX_MGMT_IE         (PROPRIETARY_TLV_BASE_ID + 0xaa)	/* 0x01aa */
 
 /** TLV type: key param v2 */
-#define TLV_TYPE_KEY_PARAM_V2        (PROPRIETARY_TLV_BASE_ID + 0x9C)	/* 0x019C
-									 */
+#define TLV_TYPE_KEY_PARAM_V2        (PROPRIETARY_TLV_BASE_ID + 0x9C)	/* 0x019C */
 
+/** TLV type: ps params in hs */
+#define TLV_TYPE_PS_PARAMS_IN_HS     (PROPRIETARY_TLV_BASE_ID + 0xB5)	/* 0x01b5 */
 /** TLV type: hs wake hold off */
-#define TLV_TYPE_HS_WAKE_HOLDOFF     (PROPRIETARY_TLV_BASE_ID + 0xB6)	/* 0x01b6
-									 */
+#define TLV_TYPE_HS_WAKE_HOLDOFF     (PROPRIETARY_TLV_BASE_ID + 0xB6)	/* 0x01b6 */
+/** TLV type: wake up source */
+#define TLV_TYPE_HS_WAKEUP_SOURCE_GPIO     (PROPRIETARY_TLV_BASE_ID + 0x105)	/* 0x0205 */
+/** TLV type: management filter  */
+#define TLV_TYPE_MGMT_FRAME_WAKEUP     (PROPRIETARY_TLV_BASE_ID + 0x116)	/* 0x0216 */
+/** TLV type: extend wakeup source */
+#define TLV_TYPE_WAKEUP_EXTEND       (PROPRIETARY_TLV_BASE_ID + 0x118)	/* 0x0218 */
+
+/** TLV type: robustcoex mode */
+#define TLV_TYPE_ROBUSTCOEX           (PROPRIETARY_TLV_BASE_ID + 0x11B)	/* 0x021B */
 
 /** TLV type : TDLS IDLE TIMEOUT */
-#define TLV_TYPE_TDLS_IDLE_TIMEOUT   (PROPRIETARY_TLV_BASE_ID + 0xC2)	/* 0x01C2
-									 */
+#define TLV_TYPE_TDLS_IDLE_TIMEOUT   (PROPRIETARY_TLV_BASE_ID + 0xC2)	/* 0x01C2 */
 
 /** TLV type : HT Capabilities */
-#define TLV_TYPE_HT_CAP              (PROPRIETARY_TLV_BASE_ID + 0x4a)	/* 0x014a
-									 */
+#define TLV_TYPE_HT_CAP              (PROPRIETARY_TLV_BASE_ID + 0x4a)	/* 0x014a */
 /** TLV type : HT Information */
-#define TLV_TYPE_HT_INFO             (PROPRIETARY_TLV_BASE_ID + 0x4b)	/* 0x014b
-									 */
+#define TLV_TYPE_HT_INFO             (PROPRIETARY_TLV_BASE_ID + 0x4b)	/* 0x014b */
 /** TLV type : Secondary Channel Offset */
-#define TLV_SECONDARY_CHANNEL_OFFSET (PROPRIETARY_TLV_BASE_ID + 0x4c)	/* 0x014c
-									 */
+#define TLV_SECONDARY_CHANNEL_OFFSET (PROPRIETARY_TLV_BASE_ID + 0x4c)	/* 0x014c */
 /** TLV type : 20/40 BSS Coexistence */
-#define TLV_TYPE_2040BSS_COEXISTENCE (PROPRIETARY_TLV_BASE_ID + 0x4d)	/* 0x014d
-									 */
+#define TLV_TYPE_2040BSS_COEXISTENCE (PROPRIETARY_TLV_BASE_ID + 0x4d)	/* 0x014d */
 /** TLV type : Overlapping BSS Scan Parameters */
-#define TLV_TYPE_OVERLAP_BSS_SCAN_PARAM (PROPRIETARY_TLV_BASE_ID + 0x4e)	/* 0x014e
-										 */
+#define TLV_TYPE_OVERLAP_BSS_SCAN_PARAM (PROPRIETARY_TLV_BASE_ID + 0x4e)	/* 0x014e */
 /** TLV type : Extended capabilities */
-#define TLV_TYPE_EXTCAP              (PROPRIETARY_TLV_BASE_ID + 0x4f)	/* 0x014f
-									 */
+#define TLV_TYPE_EXTCAP              (PROPRIETARY_TLV_BASE_ID + 0x4f)	/* 0x014f */
 /** TLV type : Set of MCS values that STA desires to use within the BSS */
-#define TLV_TYPE_HT_OPERATIONAL_MCS_SET (PROPRIETARY_TLV_BASE_ID + 0x50)	/* 0x0150
-										 */
+#define TLV_TYPE_HT_OPERATIONAL_MCS_SET (PROPRIETARY_TLV_BASE_ID + 0x50)	/* 0x0150 */
 /** TLV ID : Management Frame */
-#define TLV_TYPE_MGMT_FRAME          (PROPRIETARY_TLV_BASE_ID + 0x68)	/* 0x0168
-									 */
+#define TLV_TYPE_MGMT_FRAME          (PROPRIETARY_TLV_BASE_ID + 0x68)	/* 0x0168 */
 /** TLV type : RXBA_SYNC */
-#define TLV_TYPE_RXBA_SYNC           (PROPRIETARY_TLV_BASE_ID + 0x99)	/* 0x0199
-									 */
+#define TLV_TYPE_RXBA_SYNC           (PROPRIETARY_TLV_BASE_ID + 0x99)	/* 0x0199 */
 
 #ifdef WIFI_DIRECT_SUPPORT
 /** TLV type : AP PSK */
@@ -536,19 +514,21 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HWSPEC_SHORTGI40_SUPP    MBIT(24)
 /** ShortGI @ 20Mhz support */
 #define HWSPEC_SHORTGI20_SUPP    MBIT(23)
+/** RX LDPC support */
+#define HWSPEC_LDPC_SUPP         MBIT(22)
 /** Channel width 40Mhz support */
 #define HWSPEC_CHANBW40_SUPP     MBIT(17)
 /** 40Mhz intolarent enable */
 #define CAPINFO_40MHZ_INTOLARENT MBIT(8)
 
 /** Default 11n capability mask for 2.4GHz */
-#define DEFAULT_11N_CAP_MASK_BG (HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP)
+#define DEFAULT_11N_CAP_MASK_BG (HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP)
 /** Default 11n capability mask for 5GHz */
 #define DEFAULT_11N_CAP_MASK_A  (HWSPEC_CHANBW40_SUPP | HWSPEC_SHORTGI20_SUPP | \
-		HWSPEC_SHORTGI40_SUPP | HWSPEC_RXSTBC_SUPP)
+		HWSPEC_SHORTGI40_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP)
 
 /** Default 11n TX BF capability **/
-#define DEFAULT_11N_TX_BF_CAP   0x09E1E008
+#define DEFAULT_11N_TX_BF_CAP   0x19E74608
 
 /** Bits to ignore in hw_dev_cap as these bits are set in get_hw_spec */
 #define IGN_HW_DEV_CAP      (CAPINFO_40MHZ_INTOLARENT)
@@ -661,6 +641,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define SETHT_DSSSCCK40(HTCapInfo) (HTCapInfo |= MBIT(12))
 /** SET HTCapInfo : Enable 40Mhz Intolarence */
 #define SETHT_40MHZ_INTOLARANT(HTCapInfo) (HTCapInfo |= MBIT(14))
+/** SET HTCapInfo : Disable Static SM power save */
+#define SETHT_STATIC_SMPS(HTCapInfo) ((HTCapInfo) |= (MBIT(2) | MBIT(3)))
 
 /** RESET HTCapInfo : Set support for LDPC coding capability */
 #define RESETHT_LDPCCODINGCAP(HTCapInfo) (HTCapInfo &= ~MBIT(0))
@@ -682,6 +664,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define RESETHT_MAXAMSDU(HTCapInfo) (HTCapInfo &= ~MBIT(11))
 /** RESET HTCapInfo : Disable 40Mhz Intolarence */
 #define RESETHT_40MHZ_INTOLARANT(HTCapInfo) (HTCapInfo &= ~MBIT(14))
+/** RESET HTCapInfo: Enable SM power save */
+#define RESETHT_SM_POWERSAVE(HTCapInfo) ((HTCapInfo) &= ~(MBIT(2) | MBIT(3)))
 /** RESET HTExtCap : Clear RD Responder bit */
 #define RESETHT_EXTCAP_RDG(HTExtCap) (HTExtCap &= ~MBIT(11))
 /** SET MCS32 */
@@ -713,8 +697,13 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define RESET_CHANWIDTH40(Field2) (Field2 &= ~(MBIT(0) | MBIT(1) | MBIT(2)))
 /** RadioType : Get secondary channel */
 #define GET_SECONDARYCHAN(Field2) (Field2 & (MBIT(0) | MBIT(1)))
-/** RadioType : Set secondary channel */
-#define SET_SECONDARYCHAN(RadioType, SECCHAN) (RadioType |= (SECCHAN << 4))
+
+/** ExtCap : Support for FILS */
+#define ISSUPP_EXTCAP_FILS(ext_cap) (ext_cap.FILS)
+/** ExtCap : Set support FILS */
+#define SET_EXTCAP_FILS(ext_cap) (ext_cap.FILS = 1)
+/** ExtCap : Reset support FILS */
+#define RESET_EXTCAP_FILS(ext_cap) (ext_cap.FILS = 0)
 
 /** ExtCap : Support for TDLS */
 #define ISSUPP_EXTCAP_TDLS(ext_cap) (ext_cap.TDLSSupport)
@@ -771,11 +760,18 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define ISSUPP_EXTCAP_EXT_CHANNEL_SWITCH(ext_cap) (ext_cap.ExtChanSwitching)
 /** ExtCap : Set support Ext Channel Switch */
 #define SET_EXTCAP_EXT_CHANNEL_SWITCH(ext_cap) (ext_cap.ExtChanSwitching = 1)
+/** ExtCap: Set Timing Measurement */
+#define SET_EXTCAP_EXT_TIMING_MEASUREMENT(ext_cap) (ext_cap.TimingMeasurement = 1)
 /** ExtCap : Reset support Ext Channel Switch */
 #define RESET_EXTCAP_EXT_CHANNEL_SWITCH(ext_cap) (ext_cap.ExtChanSwitching = 0)
 
 /** LLC/SNAP header len   */
 #define LLC_SNAP_LEN    8
+
+/** bandwidth following HTCAP */
+#define BW_FOLLOW_HTCAP             0
+/** bandwidth following VHTCAP */
+#define BW_FOLLOW_VHTCAP            1
 
 /** HW_SPEC FwCapInfo */
 #define HWSPEC_11ACSGI80_SUPP       MBIT(5)
@@ -886,6 +882,17 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define GET_VHTCAP_MAXAMPDULENEXP(VHTCapInfo)   ((VHTCapInfo >> 23) & 0x7)
 /** GET VHT CapInfo:  VHT Link Adaptation Capable (2 bits) */
 #define GET_VHTCAP_LINKADPCAP(VHTCapInfo)  ((VHTCapInfo >> 26) & 0x3)
+/**SET OPERATING MODE:Channel Width:80M*/
+#define SET_OPER_MODE_80M(oper_mode)  (oper_mode = (oper_mode & ~MBIT(0))| MBIT(1))
+/**SET OPERATING MODE:Channel Width:40M*/
+#define SET_OPER_MODE_40M(oper_mode)  (oper_mode = (oper_mode & ~MBIT(1))| MBIT(0))
+/**SET OPERATING MODE:Channel Width:20M*/
+#define SET_OPER_MODE_20M(oper_mode)  (oper_mode &= ~(0x03))
+#define IS_OPER_MODE_20M(oper_mode) (((oper_mode) & (MBIT(0) | MBIT(1))) == 0)
+/**SET OPERATING MODE:Rx NSS:2*/
+#define SET_OPER_MODE_2NSS(oper_mode)  (oper_mode = (oper_mode &~(MBIT(5)|MBIT(6)))| MBIT(4))
+/**SET OPERATING MODE:Rx NSS:1*/
+#define SET_OPER_MODE_1NSS(oper_mode)  (oper_mode &= ~(MBIT(4)|MBIT(5)|MBIT(6)))
 
 #define GET_VHTMCS(MCSMapSet)         (MCSMapSet & 0xFFFF)
 #define GET_VHTNSSMCS(MCSMapSet, nss) ((MCSMapSet >> (2*(nss-1)))&0x3)
@@ -906,22 +913,15 @@ typedef enum _WLAN_802_11_WEP_STATUS {
             (DevMCSMap |= (value & 0x3) << (2 * (nss - 1)))
 #define RESET_DEVRXMCSMAP(DevMCSMap)    (DevMCSMap &= 0xFFFF0000)
 
-/** clear SU Beanformer and MU beanformer and MU beanformee */
-#define DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK   (MBIT(11)|MBIT(16)|MBIT(17)|MBIT(18)|MBIT(19)|MBIT(20))
-
 /** TLV type : Rate scope */
-#define TLV_TYPE_RATE_DROP_PATTERN  (PROPRIETARY_TLV_BASE_ID + 0x51)	/* 0x0151
-									 */
+#define TLV_TYPE_RATE_DROP_PATTERN  (PROPRIETARY_TLV_BASE_ID + 0x51)	/* 0x0151 */
 /** TLV type : Rate drop pattern */
-#define TLV_TYPE_RATE_DROP_CONTROL  (PROPRIETARY_TLV_BASE_ID + 0x52)	/* 0x0152
-									 */
+#define TLV_TYPE_RATE_DROP_CONTROL  (PROPRIETARY_TLV_BASE_ID + 0x52)	/* 0x0152 */
 /** TLV type : Rate scope */
-#define TLV_TYPE_RATE_SCOPE         (PROPRIETARY_TLV_BASE_ID + 0x53)	/* 0x0153
-									 */
+#define TLV_TYPE_RATE_SCOPE         (PROPRIETARY_TLV_BASE_ID + 0x53)	/* 0x0153 */
 
 /** TLV type : Power group */
-#define TLV_TYPE_POWER_GROUP        (PROPRIETARY_TLV_BASE_ID + 0x54)	/* 0x0154
-									 */
+#define TLV_TYPE_POWER_GROUP        (PROPRIETARY_TLV_BASE_ID + 0x54)	/* 0x0154 */
 
 /** Modulation class for DSSS Rates */
 #define MOD_CLASS_HR_DSSS       0x03
@@ -939,29 +939,22 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HT_BW_80    2
 
 /** TLV type : Scan Response */
-#define TLV_TYPE_BSS_SCAN_RSP        (PROPRIETARY_TLV_BASE_ID + 0x56)	/* 0x0156
-									 */
+#define TLV_TYPE_BSS_SCAN_RSP        (PROPRIETARY_TLV_BASE_ID + 0x56)	/* 0x0156 */
 /** TLV type : Scan Response Stats */
-#define TLV_TYPE_BSS_SCAN_INFO       (PROPRIETARY_TLV_BASE_ID + 0x57)	/* 0x0157
-									 */
+#define TLV_TYPE_BSS_SCAN_INFO       (PROPRIETARY_TLV_BASE_ID + 0x57)	/* 0x0157 */
 
 /** TLV type : 11h Basic Rpt */
-#define TLV_TYPE_CHANRPT_11H_BASIC   (PROPRIETARY_TLV_BASE_ID + 0x5b)	/* 0x015b
-									 */
+#define TLV_TYPE_CHANRPT_11H_BASIC   (PROPRIETARY_TLV_BASE_ID + 0x5b)	/* 0x015b */
 
 /** TLV type : Action frame */
-#define TLV_TYPE_IEEE_ACTION_FRAME   (PROPRIETARY_TLV_BASE_ID + 0x8c)	/* 0x018c
-									 */
+#define TLV_TYPE_IEEE_ACTION_FRAME   (PROPRIETARY_TLV_BASE_ID + 0x8c)	/* 0x018c */
 
 /** TLV type : SCAN channel gap */
-#define TLV_TYPE_SCAN_CHANNEL_GAP    (PROPRIETARY_TLV_BASE_ID + 0xc5)	/* 0x01c5
-									 */
+#define TLV_TYPE_SCAN_CHANNEL_GAP    (PROPRIETARY_TLV_BASE_ID + 0xc5)	/* 0x01c5 */
 /** TLV type : Channel statistics */
-#define TLV_TYPE_CHANNEL_STATS       (PROPRIETARY_TLV_BASE_ID + 0xc6)	/* 0x01c6
-									 */
+#define TLV_TYPE_CHANNEL_STATS       (PROPRIETARY_TLV_BASE_ID + 0xc6)	/* 0x01c6 */
 /** TLV type : BSS_MODE */
-#define TLV_TYPE_BSS_MODE            (PROPRIETARY_TLV_BASE_ID + 0xce)	/* 0x01ce
-									 */
+#define TLV_TYPE_BSS_MODE            (PROPRIETARY_TLV_BASE_ID + 0xce)	/* 0x01ce */
 
 /** Firmware Host Command ID Constants */
 /** Host Command ID : Get hardware specifications */
@@ -1038,6 +1031,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID : 802.11 sleep parameters */
 #define HostCmd_CMD_802_11_SLEEP_PARAMS       0x0066
 
+/** Host Command ID : 802.11 ps inactivity timeout */
+#define HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT 0x0067
+
 /** Host Command ID : 802.11 sleep period */
 #define HostCmd_CMD_802_11_SLEEP_PERIOD       0x0068
 
@@ -1055,11 +1051,15 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID : 802.11 get status */
 #define HostCmd_CMD_WMM_GET_STATUS            0x0071
 
+/** Host Command ID : 802.11 firmware wakeup method */
+#define HostCmd_CMD_802_11_FW_WAKE_METHOD     0x0074
 /** Host Command ID : 802.11 subscribe event */
 #define HostCmd_CMD_802_11_SUBSCRIBE_EVENT    0x0075
 
 /** Host Command ID : 802.11 Tx rate query */
 #define HostCmd_CMD_802_11_TX_RATE_QUERY      0x007f
+/** Host Command ID :Get timestamp value */
+#define HostCmd_CMD_GET_TSF                   0x0080
 
 /** Host Command ID : WMM queue stats */
 #define HostCmd_CMD_WMM_QUEUE_STATS           0x0081
@@ -1108,6 +1108,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID : Function shutdown */
 #define HostCmd_CMD_FUNC_SHUTDOWN             0x00aa
 
+/** Host Command ID : Robustcoex */
+#define HostCmd_CMD_802_11_ROBUSTCOEX                0x00e0
+
 /** Host Command ID :EAPOL PKT */
 #define HostCmd_CMD_802_11_EAPOL_PKT    			0x012e
 
@@ -1122,6 +1125,10 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_TYPE_MULTI_CHAN_INFO             (PROPRIETARY_TLV_BASE_ID + 0xb7)
 /** TLV ID for multi chan group info */
 #define TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0xb8)
+/** TLV ID for DRCS TimeSlice */
+#define MRVL_DRCS_TIME_SLICE_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 263)
+/** Host Command ID: DRCS config */
+#define HostCmd_CMD_DRCS_CONFIG                     0x024a
 
 #ifdef RX_PACKET_COALESCE
 /** TLV ID for RX pkt coalesce config */
@@ -1191,6 +1198,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** fw_cap_info bit23 for embedded authenticator support*/
 #define FW_CAPINFO_AUTH_SUPPORT    MBIT(22)
 
+/** fw_cap_info bit25 for adhoc support*/
+#define FW_CAPINFO_ADHOC_SUPPORT    MBIT(25)
+/** Check if adhoc is supported by firmware */
+#define IS_FW_SUPPORT_ADHOC(_adapter)    (_adapter->fw_cap_info & FW_CAPINFO_ADHOC_SUPPORT)
+
 /** Check if supplicant is supported by firmware */
 #define IS_FW_SUPPORT_SUPPLICANT(_adapter)    (_adapter->fw_cap_info & FW_CAPINFO_SUPPLICANT_SUPPORT)
 
@@ -1233,6 +1245,12 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HOST_CMD_APCMD_OPER_CTRL              0x0233
 #endif /* UAP_SUPPORT */
 
+/** Host Command id: PMIC CONFIGURE*/
+#define HOST_CMD_PMIC_CONFIGURE                0x23E
+
+/** Host Command ID: 802.11 Network Monitor */
+#define HostCmd_CMD_802_11_NET_MONITOR         0x0102
+
 /** Host Command ID: Tx data pause */
 #define HostCmd_CMD_CFG_TX_DATA_PAUSE           0x0103
 
@@ -1241,9 +1259,10 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HOST_CMD_P2P_PARAMS_CONFIG              0x00ea
 /** Host Command ID: WIFI_DIRECT_MODE_CONFIG */
 #define HOST_CMD_WIFI_DIRECT_MODE_CONFIG    0x00eb
+#endif
+
 /** Host Command ID: Remain On Channel */
 #define HostCmd_CMD_802_11_REMAIN_ON_CHANNEL     0x010d
-#endif
 
 #define HostCmd_CMD_COALESCE_CFG                 0x010a
 
@@ -1256,10 +1275,15 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID: reject addba request */
 #define HostCmd_CMD_REJECT_ADDBA_REQ         0x0119
 
+#define HostCmd_CMD_FW_DUMP_EVENT            0x0125
+
 #define HostCMD_CONFIG_LOW_POWER_MODE   0x0128
 
 /** Host Command ID : Target device access */
 #define HostCmd_CMD_TARGET_ACCESS            0x012a
+
+/** Host Command ID: Get sensor temp*/
+#define HostCmd_DS_GET_SENSOR_TEMP	0x0227
 
 /** Host Command ID : Configure ADHOC_OVER_IP parameters */
 #define HostCmd_CMD_WMM_PARAM_CONFIG                0x023a
@@ -1268,6 +1292,21 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID :  set/get sta configure */
 #define HostCmd_CMD_STA_CONFIGURE            0x023f
 #endif
+
+/** Host Command ID : GPIO independent reset configure */
+#define HostCmd_CMD_INDEPENDENT_RESET_CFG    0x0243
+
+/** Channel usability flags */
+#define MARVELL_CHANNEL_DISABLED		MBIT(7)
+#define MARVELL_CHANNEL_NOHT160			MBIT(4)
+#define MARVELL_CHANNEL_NOHT80			MBIT(3)
+#define MARVELL_CHANNEL_NOHT40			MBIT(2)
+#define MARVELL_CHANNEL_DFS				MBIT(1)
+#define MARVELL_CHANNEL_PASSIVE			MBIT(0)
+
+#define HostCmd_CMD_DYN_BW                  0x0252
+
+#define HostCmd_CMD_BOOT_SLEEP              0x0258
 
 /** Enhanced PS modes */
 typedef enum _ENH_PS_MODES {
@@ -1288,6 +1327,8 @@ typedef enum _ENH_PS_MODES {
 #define HostCmd_ACT_GEN_GET_CURRENT           0x0003
 /** General purpose action : Remove */
 #define HostCmd_ACT_GEN_REMOVE                0x0004
+/** General purpose action : Reset */
+#define HostCmd_ACT_GEN_RESET                 0x0005
 
 /** Host command action : Set Rx */
 #define HostCmd_ACT_SET_RX                    0x0001
@@ -1349,12 +1390,6 @@ typedef enum _ENH_PS_MODES {
 #define HostCmd_BSS_MODE_IBSS               0x0002
 /** Scan type : Any */
 #define HostCmd_BSS_MODE_ANY                0x0003
-
-/* Radio type definitions for the channel TLV */
-/** Radio type BG */
-#define HostCmd_SCAN_RADIO_TYPE_BG          0
-/** Radio type A */
-#define HostCmd_SCAN_RADIO_TYPE_A           1
 
 /** Define bitmap conditions for HOST_SLEEP_CFG : GPIO FF */
 #define HOST_SLEEP_CFG_GPIO_FF              0xff
@@ -1512,9 +1547,10 @@ typedef enum _ENH_PS_MODES {
 #define EVENT_WIFIDIRECT_GENERIC_EVENT         0x00000049
 /** WIFIDIRECT service discovery event */
 #define EVENT_WIFIDIRECT_SERVICE_DISCOVERY     0x0000004a
+#endif
+
 /** Remain on Channel expired event */
 #define EVENT_REMAIN_ON_CHANNEL_EXPIRED        0x0000005f
-#endif
 
 /** TDLS generic event */
 #define EVENT_TDLS_GENERIC_EVENT        0x00000052
@@ -1567,6 +1603,8 @@ typedef enum _ENH_PS_MODES {
 
 #define EVENT_BT_COEX_WLAN_PARA_CHANGE	 0x00000076
 
+#define EVENT_EXCEED_MAX_P2P_CONN     0x00000089
+
 #define EVENT_FW_DUMP_INFO      0x00000073
 /** Event ID mask */
 #define EVENT_ID_MASK                   0xffff
@@ -1618,6 +1656,7 @@ typedef MLAN_PACK_START struct _chan_switch_result {
 	t_u8 reason;
 } MLAN_PACK_END chan_switch_result;
 
+/** tdls ie data structure */
 typedef MLAN_PACK_START struct _ie_data {
     /** IE Length */
 	t_u16 ie_length;
@@ -1651,6 +1690,14 @@ typedef enum _tdls_error_code_e {
 	TDLS_LINK_NONEXISTENT,
 	TDLS_PEER_STA_UNREACHABLE = 25,
 } tdls_error_code_e;
+
+/** Event structure for generic events from NAN FW */
+typedef MLAN_PACK_START struct _event_nan_generic {
+    /** NAN Event SubType */
+	t_u16 event_sub_type;
+} MLAN_PACK_END event_nan_generic;
+
+#define RXPD_FLAG_EXTRA_HEADER             (1 << 1)
 
 /** Event_WEP_ICV_ERR structure */
 typedef MLAN_PACK_START struct _Event_WEP_ICV_ERR {
@@ -1744,6 +1791,21 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_TDLS_Idle_Timeout_t {
 /** Packet type: debugging */
 #define PKT_TYPE_DEBUG      0xEF
 
+/** channel number at bit 5-13 */
+#define RXPD_CHAN_MASK		0x3FE0
+/** Rate control mask  15-23 */
+#define TXPD_RATE_MASK		0xff8000
+/** enable bw ctrl in TxPD */
+#define TXPD_BW_ENABLE		MBIT(20)
+/** enable tx power ctrl in TxPD */
+#define TXPD_TXPW_ENABLE    MBIT(7)
+/** sign of power */
+#define TXPD_TXPW_NEGATIVE	MBIT(6)
+/** Enable Rate ctrl in TxPD */
+#define TXPD_TXRATE_ENABLE	MBIT(15)
+/** enable retry limit in TxPD */
+#define TXPD_RETRY_ENABLE	MBIT(12)
+
 /** TxPD descriptor */
 typedef MLAN_PACK_START struct _TxPD {
     /** BSS type */
@@ -1765,12 +1827,10 @@ typedef MLAN_PACK_START struct _TxPD {
     /** Amount of time the packet has been queued
       * in the driver (units = 2ms)*/
 	t_u8 pkt_delay_2ms;
-    /** Reserved */
-	t_u8 reserved1[2];
-    /** Trasnit Pkt Token Id*/
-	t_u8 tx_token_id;
-    /** reserverd */
-	t_u8 reserved[2];
+    /** reserved */
+	t_u8 reserved;
+    /** Tx Control */
+	t_u32 tx_control_1;
 } MLAN_PACK_END TxPD, *PTxPD;
 
 /** RxPD Descriptor */
@@ -1802,12 +1862,16 @@ typedef MLAN_PACK_START struct _RxPD {
      *  [Bit 6] LDPC support Enabled = 1
      *  [Bit 7] Reserved */
 	t_u8 rate_info;
-    /** Reserved */
+   /** Reserved */
 	t_u8 reserved[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
     /**For SD8887 antenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
 	t_u8 antenna;
+	/* [31:0] ToA of the rx packet, [63:32] ToD of the ack for the rx packet Both ToA and ToD are in nanoseconds */
+	t_u64 toa_tod_tstamps;
+    /** rx info */
+	t_u32 rx_info;
 } MLAN_PACK_END RxPD, *PRxPD;
 
 /** IEEEtypes_FrameCtl_t*/
@@ -1893,7 +1957,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_channel_band_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
     /** Band Configuration */
-	t_u8 band_config;
+	Band_Config_t bandcfg;
     /** channel */
 	t_u8 channel;
 } MLAN_PACK_END MrvlIEtypes_channel_band_t;
@@ -1920,12 +1984,10 @@ typedef MLAN_PACK_START struct _UapTxPD {
     /** Amount of time the packet has been queued
       * in the driver (units = 2ms)*/
 	t_u8 pkt_delay_2ms;
-    /** Reserved */
-	t_u8 reserved1[2];
-    /** Trasnit Pkt Token Id*/
-	t_u8 tx_token_id;
-    /** reserverd */
-	t_u8 reserved[2];
+    /** reserved */
+	t_u8 reserved;
+    /** Tx Control */
+	t_u32 tx_control_1;
 } MLAN_PACK_END UapTxPD, *PUapTxPD;
 
 /** RxPD Descriptor */
@@ -1957,12 +2019,16 @@ typedef MLAN_PACK_START struct _UapRxPD {
      *  [Bit 6] LDPC support Enabled = 1
      *  [Bit 7] Reserved */
 	t_u8 rate_info;
-   /** Reserved */
+    /** Reserved */
 	t_u8 reserved1[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
     /** For SD8887 ntenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
 	t_u8 antenna;
+	/* [31:0] ToA of the rx packet, [63:32] ToD of the ack for the rx packet Both ToA and ToD are in nanoseconds */
+	t_u64 toa_tod_tstamps;
+    /** rx info */
+	t_u32 rx_info;
 } MLAN_PACK_END UapRxPD, *PUapRxPD;
 
 /** IEEEtypes_AssocRqst_t */
@@ -2072,14 +2138,10 @@ typedef MLAN_PACK_START struct _ChanScanMode_t {
 #endif
 } MLAN_PACK_END ChanScanMode_t;
 
-/** secondary channel is below */
-#define SECOND_CHANNEL_BELOW    0x30
-/** secondary channel is above */
-#define SECOND_CHANNEL_ABOVE    0x10
 /** ChanScanParamSet_t */
 typedef MLAN_PACK_START struct _ChanScanParamSet_t {
-    /** Channel scan parameter : Radio type */
-	t_u8 radio_type;
+    /** Channel scan parameter : band config */
+	Band_Config_t bandcfg;
     /** Channel scan parameter : Channel number */
 	t_u8 chan_number;
     /** Channel scan parameter : Channel scan mode */
@@ -2100,8 +2162,8 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_ChanListParamSet_t {
 
 /** ChanBandParamSet_t */
 typedef struct _ChanBandParamSet_t {
-    /** Channel scan parameter : Radio type */
-	t_u8 radio_type;
+    /** Channel scan parameter : band config */
+	Band_Config_t bandcfg;
     /** Channel number */
 	t_u8 chan_number;
 } ChanBandParamSet_t;
@@ -2259,9 +2321,12 @@ typedef MLAN_PACK_START struct {
 	MrvlIEtypesHeader_t header;
 				  /**< Header */
 
+    /** Source Address */
 	t_u8 srcAddr[MLAN_MAC_ADDR_LENGTH];
+    /** Destination Address */
 	t_u8 dstAddr[MLAN_MAC_ADDR_LENGTH];
 
+    /** IEEEtypes Action frame structure */
 	IEEEtypes_ActionFrame_t actionFrame;
 
 } MLAN_PACK_END MrvlIETypes_ActionFrame_t;
@@ -2289,7 +2354,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_RsnParamSet_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
     /** RSN IE */
-	t_u8 rsn_ie[1];
+	t_u8 rsn_ie[0];
 } MLAN_PACK_END MrvlIEtypes_RsnParamSet_t;
 
 /** Key Info flag for multicast key */
@@ -2614,6 +2679,8 @@ typedef MLAN_PACK_START struct __sleep_confirm_param {
 #define BITMAP_AUTO_DS         0x01
 /** bitmap for sta power save */
 #define BITMAP_STA_PS          0x10
+/** bitmap for beacon timeout */
+#define BITMAP_BCN_TMO         0x20
 /** bitmap for uap inactivity based PS */
 #define BITMAP_UAP_INACT_PS    0x100
 /** bitmap for uap DTIM PS */
@@ -2622,19 +2689,21 @@ typedef MLAN_PACK_START struct __sleep_confirm_param {
 typedef MLAN_PACK_START struct _auto_ps_param {
     /** bitmap for enable power save mode */
 	t_u16 ps_bitmap;
-	/* auto deep sleep parameter, sta power save parameter uap inactivity
-	   parameter uap DTIM parameter */
+	/* auto deep sleep parameter,
+	 * sta power save parameter
+	 * uap inactivity parameter
+	 * uap DTIM parameter */
 } MLAN_PACK_END auto_ps_param;
 
 /** fix size for auto ps */
 #define AUTO_PS_FIX_SIZE    4
 
 /** TLV type : auto ds param */
-#define TLV_TYPE_AUTO_DS_PARAM        (PROPRIETARY_TLV_BASE_ID + 0x71)	/* 0x0171
-									 */
+#define TLV_TYPE_AUTO_DS_PARAM        (PROPRIETARY_TLV_BASE_ID + 0x71)	/* 0x0171 */
 /** TLV type : ps param */
-#define TLV_TYPE_PS_PARAM             (PROPRIETARY_TLV_BASE_ID + 0x72)	/* 0x0172
-									 */
+#define TLV_TYPE_PS_PARAM             (PROPRIETARY_TLV_BASE_ID + 0x72)	/* 0x0172 */
+/** TLV type : beacon timeout */
+#define TLV_TYPE_BCN_TIMEOUT          (PROPRIETARY_TLV_BASE_ID + 0x11F)	/* 0x011F */
 
 /** MrvlIEtypes_auto_ds_param_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_auto_ds_param_t {
@@ -2652,22 +2721,38 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_ps_param_t {
 	ps_param param;
 } MLAN_PACK_END MrvlIEtypes_ps_param_t;
 
+/** MrvlIEtypes_bcn_timeout_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_bcn_timeout_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Beacon miss timeout period window */
+	t_u16 bcn_miss_tmo_window;
+    /** Beacon miss timeout period */
+	t_u16 bcn_miss_tmo_period;
+    /** Beacon reacquire timeout period window */
+	t_u16 bcn_rq_tmo_window;
+    /** Beacon reacquire timeout period */
+	t_u16 bcn_rq_tmo_period;
+} MLAN_PACK_END MrvlIEtypes_bcn_timeout_t;
+
 /** Structure definition for new power save command */
 typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
     /** Action */
 	t_u16 action;
     /** Data speciifc to action */
-	/* For IEEE power save data will be as UINT16 mode (0x01 - firmware to
-	   automatically choose PS_POLL or NULL mode, 0x02 - PS_POLL, 0x03 -
-	   NULL mode ) UINT16 NullpacketInterval UINT16 NumDtims UINT16
-	   BeaconMissInterval UINT16 locallisteninterval UINT16
-	   adhocawakeperiod */
+	/* For IEEE power save data will be as
+	 * UINT16 mode (0x01 - firmware to automatically choose PS_POLL or NULL mode, 0x02 - PS_POLL, 0x03 - NULL mode )
+	 * UINT16 NullpacketInterval
+	 * UINT16 NumDtims
+	 * UINT16 BeaconMissInterval
+	 * UINT16 locallisteninterval
+	 * UINT16 adhocawakeperiod */
 
 	/* For auto deep sleep */
 	/* UINT16 Deep sleep inactivity timeout */
 
-	/* For PS sleep confirm UINT16 responeCtrl - 0x00 - reponse from fw not
-	   needed, 0x01 - response from fw is needed */
+	/* For PS sleep confirm
+	 * UINT16 responeCtrl - 0x00 - reponse from fw not needed, 0x01 - response from fw is needed */
 
 	union {
     /** PS param definition */
@@ -2684,8 +2769,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_PS_MODE_ENH {
 } MLAN_PACK_END HostCmd_DS_802_11_PS_MODE_ENH;
 
 /** FW VERSION tlv */
-#define TLV_TYPE_FW_VER_INFO        (PROPRIETARY_TLV_BASE_ID + 0xC7)	/* 0x1C7
-									 */
+#define TLV_TYPE_FW_VER_INFO        (PROPRIETARY_TLV_BASE_ID + 0xC7)	/* 0x1C7 */
 
 /** MrvlIEtypes_fw_ver_info_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_fw_ver_info_t {
@@ -2782,8 +2866,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RSSI_INFO_EXT {
 } MLAN_PACK_END HostCmd_DS_802_11_RSSI_INFO_EXT;
 
 /** TLV rssi info */
-#define TLV_TYPE_RSSI_INFO      (PROPRIETARY_TLV_BASE_ID + 0xe5)	/* 0x01E5
-									 */
+#define TLV_TYPE_RSSI_INFO      (PROPRIETARY_TLV_BASE_ID + 0xe5)	/* 0x01E5 */
 
 /** MrvlIEtypes_eapol_pkt_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_RSSI_EXT_t {
@@ -2869,6 +2952,18 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MAC_CONTROL {
     /** Action */
 	t_u32 action;
 } MLAN_PACK_END HostCmd_DS_MAC_CONTROL;
+
+/** HostCmd_DS_802_11_NET_MONITOR */
+typedef MLAN_PACK_START struct _HostCmd_802_11_DS_NET_MONITOR {
+    /** Action */
+	t_u16 action;
+    /** Enable/disable net monitor */
+	t_u16 enable_net_mon;
+    /** set net monitor filer flag */
+	t_u16 filter_flag;
+    /** Channel to monitor */
+	MrvlIEtypes_ChanBandListParamSet_t monitor_chan;
+} MLAN_PACK_END HostCmd_DS_802_11_NET_MONITOR;
 
 /** HostCmd_DS_CMD_TX_DATA_PAUSE */
 typedef MLAN_PACK_START struct _HostCmd_DS_CMD_TX_DATA_PAUSE {
@@ -3111,8 +3206,20 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_GET_LOG {
 	t_u32 qos_mpdus_rx_cnt[8];
     /** Qos retry rx count */
 	t_u32 qos_retries_rx_cnt[8];
+    /** CMAC ICV errors count */
+	t_u32 cmacicv_errors;
+    /** CMAC replays count */
+	t_u32 cmac_replays;
     /** mgmt CCMP replays count */
 	t_u32 mgmt_ccmp_replays;
+    /** TKIP ICV errors count */
+	t_u32 tkipicv_errors;
+    /** TKIP replays count */
+	t_u32 tkip_replays;
+    /** CCMP decrypt errors count */
+	t_u32 ccmp_decrypt_errors;
+    /** CCMP replays count */
+	t_u32 ccmp_replays;
     /** Tx amsdu count */
 	t_u32 tx_amsdu_cnt;
     /** failed amsdu count */
@@ -3200,6 +3307,22 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_HS_CFG_ENH {
 	} params;
 } MLAN_PACK_END HostCmd_DS_802_11_HS_CFG_ENH;
 
+/** HostCmd_CMD_802_11_FW_WAKE_METHOD */
+typedef MLAN_PACK_START struct _HostCmd_DS_802_11_FW_WAKEUP_METHOD {
+    /** Action */
+	t_u16 action;
+    /** Method */
+	t_u16 method;
+} MLAN_PACK_END HostCmd_DS_802_11_FW_WAKEUP_METHOD;
+
+/** HostCmd_CMD_802_11_ROBUSTCOEX */
+typedef MLAN_PACK_START struct _HostCmd_DS_802_11_ROBUSTCOEX {
+    /** Action */
+	t_u16 action;
+    /** RSVD */
+	t_u16 rsvd;
+} MLAN_PACK_END HostCmd_DS_802_11_ROBUSTCOEX;
+
 /** SNMP_MIB_INDEX */
 typedef enum _SNMP_MIB_INDEX {
 	OpRateSet_i = 1,
@@ -3215,6 +3338,7 @@ typedef enum _SNMP_MIB_INDEX {
 	NullPktPeriod_i = 37,
 	SignalextEnable_i = 41,
 	ECSAEnable_i = 42,
+	StopDeauth_i = 44,
 } SNMP_MIB_INDEX;
 
 /** max SNMP buf size */
@@ -3257,6 +3381,7 @@ typedef MLAN_PACK_START struct _MrvlRateScope_t {
 	t_u16 ofdm_rate_bitmap;
     /** Bitmap of HT-MCSs allowed for initial rate */
 	t_u16 ht_mcs_rate_bitmap[8];
+    /** VHT MCS rate bitmap */
 	t_u16 vht_mcs_rate_bitmap[8];
 } MLAN_PACK_END MrvlRateScope_t;
 
@@ -3275,8 +3400,10 @@ typedef MLAN_PACK_START struct _MrvlRateDropPattern_t {
 typedef MLAN_PACK_START struct _HostCmd_DS_TX_RATE_CFG {
     /** Action */
 	t_u16 action;
+    /** Reserved */
 	t_u16 reserved_1;
-	/* MrvlRateScope_t RateScope; MrvlRateDropPattern_t RateDrop; */
+	/* MrvlRateScope_t RateScope;
+	 * MrvlRateDropPattern_t RateDrop; */
 } MLAN_PACK_END HostCmd_DS_TX_RATE_CFG;
 
 /** Power_Group_t */
@@ -3348,22 +3475,6 @@ typedef MLAN_PACK_START struct _HostCmd_DS_SET_BSS_MODE {
 } MLAN_PACK_END HostCmd_DS_SET_BSS_MODE;
 
 #ifdef WIFI_DIRECT_SUPPORT
-/** HostCmd_DS_REMAIN_ON_CHANNEL */
-typedef MLAN_PACK_START struct _HostCmd_DS_REMAIN_ON_CHANNEL {
-    /** Action 0-GET, 1-SET, 4 CLEAR*/
-	t_u16 action;
-    /** Not used set to zero */
-	t_u8 status;
-    /** Not used set to zero */
-	t_u8 reserved;
-    /** Band cfg */
-	t_u8 bandcfg;
-    /** channel */
-	t_u8 channel;
-    /** remain time: Unit ms*/
-	t_u32 remain_period;
-} MLAN_PACK_END HostCmd_DS_REMAIN_ON_CHANNEL;
-
 /** HostCmd_DS_WIFI_DIRECT_MODE */
 typedef MLAN_PACK_START struct _HostCmd_DS_WIFI_DIRECT_MODE {
     /** Action 0-GET, 1-SET*/
@@ -3396,7 +3507,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_OPP_PS_setting_t {
 	t_u8 enable;
 } MLAN_PACK_END MrvlIEtypes_OPP_PS_setting_t;
 
-/** HostCmd_DS_REMAIN_ON_CHANNEL */
+/** HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG */
 typedef MLAN_PACK_START struct _HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG {
     /** Action 0-GET, 1-SET */
 	t_u16 action;
@@ -3406,17 +3517,27 @@ typedef MLAN_PACK_START struct _HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG {
 } MLAN_PACK_END HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG;
 #endif
 
+/** Coalesce filter field parameter */
 MLAN_PACK_START struct coalesce_filt_field_param {
+    /** Operation */
 	t_u8 operation;
+    /** Operation length */
 	t_u8 operand_len;
+    /** Offset */
 	t_u16 offset;
+    /** Operand byte stream */
 	t_u8 operand_byte_stream[4];
 } MLAN_PACK_END;
 
+/** Coalesce receive filter rule */
 MLAN_PACK_START struct coalesce_receive_filt_rule {
+    /** header */
 	MrvlIEtypesHeader_t header;
+    /** Number of fields */
 	t_u8 num_of_fields;
+    /** packet type */
 	t_u8 pkt_type;
+    /** maximum coalescing delay */
 	t_u16 max_coalescing_delay;
 	struct coalesce_filt_field_param params[0];
 } MLAN_PACK_END;
@@ -3425,9 +3546,34 @@ MLAN_PACK_START struct coalesce_receive_filt_rule {
 typedef MLAN_PACK_START struct _HostCmd_DS_COALESCE_CONFIG {
     /** Action 0-GET, 1-SET */
 	t_u16 action;
+    /** Number of rules */
 	t_u16 num_of_rules;
 	struct coalesce_receive_filt_rule rule[0];
 } MLAN_PACK_END HostCmd_DS_COALESCE_CONFIG;
+
+/** TLV type : FW support max connection TLV */
+#define TLV_TYPE_MAX_CONN      (PROPRIETARY_TLV_BASE_ID + 0x117)	/* 0x0217 */
+/** MrvlIEtypes_Max_Conn_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_Max_Conn_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** FW support max P2P connection */
+	t_u8 max_p2p_conn;
+    /** FW support max STA connection */
+	t_u8 max_sta_conn;
+} MLAN_PACK_END MrvlIEtypes_Max_Conn_t;
+
+/** exceed max p2p connection event */
+typedef MLAN_PACK_START struct _event_exceed_max_p2p_conn {
+    /** Event ID */
+	t_u16 event_id;
+    /** BSS index number for multiple BSS support */
+	t_u8 bss_index;
+    /** BSS type */
+	t_u8 bss_type;
+    /** When exceed max, the mac address who request p2p connect */
+	t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+} MLAN_PACK_END event_exceed_max_p2p_conn;
 
 #ifdef STA_SUPPORT
 
@@ -3469,8 +3615,7 @@ typedef MLAN_PACK_START struct _wlan_scan_cmd_config {
      *  TLV_TYPE_CHANLIST, MrvlIEtypes_ChanListParamSet_t
      *  TLV_TYPE_SSID, MrvlIEtypes_SsIdParamSet_t
      */
-	t_u8 tlv_buf[1];	/* SSID TLV(s) and ChanList TLVs are stored
-				   here */
+	t_u8 tlv_buf[1];	/* SSID TLV(s) and ChanList TLVs are stored here */
 } MLAN_PACK_END wlan_scan_cmd_config;
 
 /**
@@ -3592,7 +3737,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_Bss_Scan_Info_t {
     /** Channel load (parts per 255) */
 	t_u8 cca_busy_fraction;
     /** Band */
-	t_u8 band;
+	Band_Config_t bandcfg;
     /** Channel */
 	t_u8 channel;
     /** Reserved */
@@ -3661,8 +3806,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_BG_SCAN_QUERY_RSP {
 typedef MLAN_PACK_START struct _MrvlIEtypes_StartLater_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
-	/* 0 - BGScan start immediately, 1 - BGScan will start later after
-	   "Scan Interval" */
+	/* 0 - BGScan start immediately, 1 - BGScan will start later after "Scan Interval" */
 	t_u16 value;
 } MLAN_PACK_END MrvlIEtypes_StartLater_t;
 
@@ -3872,9 +4016,6 @@ typedef MLAN_PACK_START struct {
 /** Size of a TSPEC.  Used to allocate necessary buffer space in commands */
 #define WMM_TSPEC_SIZE              63
 
-/** Maximum number of AC QOS queues available in the driver/firmware */
-#define MAX_AC_QUEUES               4
-
 /** Extra IE bytes allocated in messages for appended IEs after a TSPEC */
 #define WMM_ADDTS_EXTRA_IE_BYTES    256
 
@@ -4067,6 +4208,24 @@ typedef MLAN_PACK_START struct _MrvlIETypes_ExtCap_t {
 	ExtCap_t ext_cap;
 } MLAN_PACK_END MrvlIETypes_ExtCap_t;
 
+/** Supported operating classes element */
+typedef MLAN_PACK_START struct _MrvlIETypes_SuppOperClass_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Current operationg class **/
+	t_u8 current_oper_class;
+    /** Operating class list */
+	t_u8 oper_class[1];
+} MLAN_PACK_END MrvlIETypes_SuppOperClass_t;
+
+/** Oper_class channel bandwidth element */
+typedef MLAN_PACK_START struct _MrvlIEtypes_chan_bw_oper_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** channel oper bandwidth*/
+	mlan_ds_bw_chan_oper ds_chan_bw_oper;
+} MLAN_PACK_END MrvlIEtypes_chan_bw_oper_t;
+
 /** Qos Info */
 typedef MLAN_PACK_START struct _MrvlIETypes_qosinfo_t {
     /** Header */
@@ -4107,8 +4266,11 @@ typedef MLAN_PACK_START struct _MrvlIETypes_VHTOprat_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
 
+    /** Channel width */
 	t_u8 chan_width;
+    /** Channel center frequency 1 */
 	t_u8 chan_center_freq_1;
+    /** Channel center frequency 2 */
 	t_u8 chan_center_freq_2;
     /** Basic MCS set map, each 2 bits stands for a Nss */
 	t_u16 basic_MCS_map;
@@ -4119,8 +4281,11 @@ typedef MLAN_PACK_START struct _MrvlIETypes_VHTtxpower_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
 
+    /** Maximum tx power */
 	t_u8 max_tx_power;
+    /** Channel center frequency */
 	t_u8 chan_center_freq;
+    /** Channel width */
 	t_u8 chan_width;
 } MLAN_PACK_END MrvlIETypes_VHTtxpower_t;
 
@@ -4140,10 +4305,15 @@ typedef MLAN_PACK_START struct _MrvlIETypes_ExtBSSload_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
 
+    /** MIMO Capability count */
 	t_u8 MU_MIMO_capa_count;
+    /** Stream under utilization */
 	t_u8 stream_underutilization;
+    /** VHT40 util */
 	t_u8 VHT40_util;
+    /** VHT80 util */
 	t_u8 VHT80_util;
+    /** VHT160 util */
 	t_u8 VHT160_util;
 } MLAN_PACK_END MrvlIETypes_ExtBSSload_t;
 
@@ -4152,10 +4322,15 @@ typedef MLAN_PACK_START struct _MrvlIETypes_QuietChan_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
 
+    /** AP quiet mode */
 	t_u8 AP_quiet_mode;
+    /** Quiet count */
 	t_u8 quiet_count;
+    /** Quiet period */
 	t_u8 quiet_period;
+    /** Quiet duration */
 	t_u16 quiet_dur;
+    /** Quiet offset */
 	t_u16 quiet_offset;
 } MLAN_PACK_END MrvlIETypes_QuietChan_t;
 
@@ -4164,8 +4339,11 @@ typedef MLAN_PACK_START struct _MrvlIETypes_BWSwitch_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
 
+    /** New Channel width */
 	t_u8 new_chan_width;
+    /** New Channel center frequency 1 */
 	t_u8 new_chan_center_freq_1;
+    /** New channel center frequency 2 */
 	t_u8 new_chan_center_freq_2;
 } MLAN_PACK_END MrvlIETypes_BWSwitch_t;
 
@@ -4383,6 +4561,14 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_SUPPLICANT_PROFILE {
 	/* MrvlIEtypes_EncrProto_t */
 } MLAN_PACK_END HostCmd_DS_802_11_SUPPLICANT_PROFILE;
 
+/** RFType */
+typedef MLAN_PACK_START struct _RFType_t {
+	/** band info */
+	Band_Config_t bandcfg;
+	/** reserved */
+	t_u8 reserved;
+} MLAN_PACK_END RFType_t;
+
 /** HostCmd_CMD_802_11_RF_CHANNEL */
 typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_CHANNEL {
     /** Action */
@@ -4390,7 +4576,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_CHANNEL {
     /** Current channel */
 	t_u16 current_channel;
     /** RF type */
-	t_u16 rf_type;
+	RFType_t rf_type;
     /** Reserved field */
 	t_u16 reserved;
 #ifdef STA_SUPPORT
@@ -4582,6 +4768,105 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_HsWakeHoldoff_t {
 	t_u16 min_wake_holdoff;
 } MLAN_PACK_END MrvlIEtypes_HsWakeHoldoff_t;
 
+/** MrvlIEtypes_PsParamsInHs_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_PsParamsInHs_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Host sleep wake interval(in msec) */
+	t_u32 hs_wake_interval;
+    /** Host sleep inactivity timeout (in msec) */
+	t_u32 hs_inactivity_timeout;
+} MLAN_PACK_END MrvlIEtypes_PsParamsInHs_t;
+
+/** MrvlIEtypes_WakeupSourceGPIO_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_WakeupSourceGPIO_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** GPIO for indication of wakeup source */
+	t_u8 ind_gpio;
+    /** Level on ind_gpio for normal wakeup source */
+	t_u8 level;
+} MLAN_PACK_END MrvlIEtypes_WakeupSourceGPIO_t;
+
+/** MrvlIEtypes_RobustcoexSourceGPIO_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_RobustcoexSourceGPIO_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** GPIO cfg for external bt request */
+	t_u8 enable;
+    /** GPIO number */
+	t_u8 gpio_num;
+    /** GPIO Polarity */
+	t_u8 gpio_polarity;
+} MLAN_PACK_END MrvlIEtypes_RobustcoexSourceGPIO_t;
+
+typedef MLAN_PACK_START struct _MrvlIEtypes_WakeupExtend_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Events that will be forced ignore **/
+	t_u32 event_force_ignore;
+    /** Events that will use extend gap to inform host*/
+	t_u32 event_use_ext_gap;
+    /** Extend gap*/
+	t_u8 ext_gap;
+    /** GPIO wave level*/
+	t_u8 gpio_wave;
+} MLAN_PACK_END MrvlIEtypes_WakeupExtend_t;
+
+#define EVENT_MANAGEMENT_FRAME_WAKEUP 136
+typedef MLAN_PACK_START struct _mgmt_frame_filter {
+    /** action - bitmap
+     ** On matching rx'd pkt and filter during NON_HOSTSLEEP mode:
+     **   Action[1]=0  Discard
+     **   Action[1]=1  Allow
+     ** Note that default action on non-match is "Allow".
+     **
+     ** On matching rx'd pkt and filter during HOSTSLEEP mode:
+     **   Action[1:0]=00  Discard and Not Wake host
+     **   Action[1:0]=01  Discard and Wake host
+     **   Action[1:0]=10  Invalid
+     ** Note that default action on non-match is "Discard and Not Wake host".
+     **/
+	t_u8 action;
+    /** Frame type(p2p...)
+     ** type=0: invalid
+     ** type=1: p2p
+     ** type=0xff: management frames(assoc req/rsp, probe req/rsp,...)
+     ** type=others: reserved
+     **/
+	t_u8 type;
+    /** Frame mask according to each type
+     ** When type=1 for p2p, frame-mask have following define:
+     **    Bit      Frame
+     **     0       GO Negotiation Request
+     **     1       GO Negotiation Response
+     **     2       GO Negotiation Confirmation
+     **     3       P2P Invitation Request
+     **     4       P2P Invitation Response
+     **     5       Device Discoverability Request
+     **     6       Device Discoverability Response
+     **     7       Provision Discovery Request
+     **     8       Provision Discovery Response
+     **     9       Notice of Absence
+     **     10      P2P Presence Request
+     **     11      P2P Presence Response
+     **     12      GO Discoverability Request
+     **     13-31   Reserved
+     **
+     ** When type=others, frame-mask is reserved.
+     **/
+	t_u32 frame_mask;
+} MLAN_PACK_END mgmt_frame_filter;
+
+#define MAX_MGMT_FRAME_FILTER 2
+/** MrvlIEtypes_MgmtFrameFilter_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_MgmtFrameFilter_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** management frame filters */
+	mgmt_frame_filter filter[MAX_MGMT_FRAME_FILTER];
+} MLAN_PACK_END MrvlIEtypes_MgmtFrameFilter_t;
+
 /** HostCmd_DS_INACTIVITY_TIMEOUT_EXT */
 typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {
     /** ACT_GET/ACT_SET */
@@ -4598,9 +4883,26 @@ typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {
 	t_u16 reserved;
 } MLAN_PACK_END HostCmd_DS_INACTIVITY_TIMEOUT_EXT;
 
+/** HostCmd_DS_INDEPENDENT_RESET_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_INDEPENDENT_RESET_CFG {
+    /** ACT_GET/ACT_SET */
+	t_u16 action;
+    /** out band independent reset */
+	t_u8 ir_mode;
+    /** gpio pin */
+	t_u8 gpio_pin;
+} MLAN_PACK_END HostCmd_DS_INDEPENDENT_RESET_CFG;
+
+/** HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT */
+typedef MLAN_PACK_START struct _HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT {
+    /** ACT_GET/ACT_SET */
+	t_u16 action;
+    /** ps inactivity timeout value */
+	t_u16 inact_tmo;
+} MLAN_PACK_END HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT;
+
 /** TLV type : STA Mac address */
-#define TLV_TYPE_STA_MAC_ADDRESS      (PROPRIETARY_TLV_BASE_ID + 0x20)	/* 0x0120
-									 */
+#define TLV_TYPE_STA_MAC_ADDRESS      (PROPRIETARY_TLV_BASE_ID + 0x20)	/* 0x0120 */
 
 /** MrvlIEtypes_MacAddr_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_MacAddr_t {
@@ -4731,6 +5033,10 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_MacAddr_t {
 /** TLV type :  AP WMM params */
 #define TLV_TYPE_AP_WMM_PARAM\
 		(PROPRIETARY_TLV_BASE_ID + 0xd0)	/* 0x01d0 */
+
+/** TLV type : AP Tx beacon rate */
+#define TLV_TYPE_UAP_TX_BEACON_RATE\
+		(PROPRIETARY_TLV_BASE_ID + 288)	/* 0x0220 */
 
 /** MrvlIEtypes_beacon_period_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_beacon_period_t {
@@ -5139,8 +5445,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_STA_LIST {
 } MLAN_PACK_END HostCmd_DS_STA_LIST;
 
 /** TLV ID : WAPI Information */
-#define TLV_TYPE_AP_WAPI_INFO         (PROPRIETARY_TLV_BASE_ID + 0x67)	/* 0x0167
-									 */
+#define TLV_TYPE_AP_WAPI_INFO         (PROPRIETARY_TLV_BASE_ID + 0x67)	/* 0x0167 */
 
 /** MrvlIEtypes_sta_info_t */
 typedef MLAN_PACK_START struct _MrvlIEtypes_wapi_info_t {
@@ -5158,6 +5463,22 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_2040_coex_enable_t {
     /** Enable */
 	t_u8 enable_2040coex;
 } MLAN_PACK_END MrvlIEtypes_2040_coex_enable_t;
+
+/** HostCmd_DS_REMAIN_ON_CHANNEL */
+typedef MLAN_PACK_START struct _HostCmd_DS_REMAIN_ON_CHANNEL {
+    /** Action 0-GET, 1-SET, 4 CLEAR*/
+	t_u16 action;
+    /** Not used set to zero */
+	t_u8 status;
+    /** Not used set to zero */
+	t_u8 reserved;
+    /** Band cfg */
+	Band_Config_t bandcfg;
+    /** channel */
+	t_u8 channel;
+    /** remain time: Unit ms*/
+	t_u32 remain_period;
+} MLAN_PACK_END HostCmd_DS_REMAIN_ON_CHANNEL;
 
 /**BT coexit scan time setting*/
 typedef MLAN_PACK_START struct _MrvlIEtypes_BtCoexScanTime_t {
@@ -5214,6 +5535,21 @@ typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
 } MLAN_PACK_END HostCmd_DS_RX_PKT_COAL_CFG;
 #endif
 
+typedef MLAN_PACK_START struct _MrvlTypes_DrcsTimeSlice_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Channel Index*/
+	t_u16 chan_idx;
+	/** Channel time (in TU) for chan_idx*/
+	t_u8 chantime;
+	/** Channel swith time (in TU) for chan_idx*/
+	t_u8 switchtime;
+	/** Undoze time (in TU) for chan_idx*/
+	t_u8 undozetime;
+	/** Rx traffic control scheme when channel switch*/
+	/** only valid for GC/STA interface*/
+	t_u8 mode;
+} MLAN_PACK_END MrvlTypes_DrcsTimeSlice_t;
 typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_CFG {
 	/** Action */
 	t_u16 action;
@@ -5226,6 +5562,16 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_CFG {
 	/* t_u8 *tlv_buf; */
 } MLAN_PACK_END HostCmd_DS_MULTI_CHAN_CFG;
 
+typedef MLAN_PACK_START struct _HostCmd_DS_DRCS_CFG {
+	/** Action */
+	t_u16 action;
+	/** TLV buffer */
+	MrvlTypes_DrcsTimeSlice_t time_slicing;
+	/** TLV buffer */
+	MrvlTypes_DrcsTimeSlice_t drcs_buf[0];
+	/* t_u8 *tlv_buf; */
+} MLAN_PACK_END HostCmd_DS_DRCS_CFG;
+
 typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_POLICY {
 	/** Action */
 	t_u16 action;
@@ -5236,7 +5582,7 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_POLICY {
 /** Channel band info */
 typedef MLAN_PACK_START struct _ChannelBandInfo {
 	/* band config */
-	t_u8 band_config;
+	Band_Config_t bandcfg;
     /** channel num for specificed band */
 	t_u8 chan_num;
 } MLAN_PACK_END ChannelBandInfo;
@@ -5275,11 +5621,36 @@ typedef MLAN_PACK_START struct _MrvlIETypes_mutli_chan_info_t {
 	t_u8 tlv_buffer[0];
 } MLAN_PACK_END MrvlIEtypes_multi_chan_info_t;
 
+/** HostCmd_DS_DYN_BW */
+typedef MLAN_PACK_START struct _HostCmd_DS_DYN_BW {
+	/** Action */
+	t_u16 action;
+	/** Dynamic bandwidth */
+	t_u16 dyn_bw;
+} MLAN_PACK_END HostCmd_DS_DYN_BW;
+
 /** HostCmd_CONFIG_LOW_PWR_MODE */
 typedef MLAN_PACK_START struct _HostCmd_CONFIG_LOW_PWR_MODE {
     /** Enable LPM */
 	t_u8 enable;
 } MLAN_PACK_END HostCmd_CONFIG_LOW_PWR_MODE;
+
+/** HostCmd_CMD_GET_TSF */
+typedef MLAN_PACK_START struct _HostCmd_DS_TSF {
+    /** tsf value*/
+	t_u64 tsf;
+} MLAN_PACK_END HostCmd_DS_TSF;
+/* WLAN_GET_TSF*/
+
+/* DFS Repeater Mode */
+
+/** HostCmd_DS_BOOT_SLEEP */
+typedef MLAN_PACK_START struct _HostCmd_DS_BOOT_SLEEP {
+    /** Set or Get */
+	t_u16 action;
+    /** 1 on or 0 off */
+	t_u16 enable;
+} MLAN_PACK_END HostCmd_DS_BOOT_SLEEP;
 
 /**
  * @brief 802.11h Local Power Constraint Marvell extended TLV
@@ -5524,10 +5895,11 @@ typedef MLAN_PACK_START struct {
 
 } MLAN_PACK_END HostCmd_DS_MEASUREMENT_REPORT;
 
+/** Marvell channel descriptor */
 typedef MLAN_PACK_START struct {
-	t_u16 startFreq;
-	Band_Config_t bandcfg;
-	t_u8 chanNum;
+	t_u16 startFreq;		/**< Start Frequency */
+	Band_Config_t bandcfg;		/**< bandcfg */
+	t_u8 chanNum;			/**< channel no */
 
 } MLAN_PACK_END MrvlChannelDesc_t;
 
@@ -5589,7 +5961,14 @@ typedef MLAN_PACK_START struct {
 	t_u16 link_tx_lantency_freq;
 } MLAN_PACK_END MrvlIEtypes_LinkQualityThreshold_t;
 
+/** HostCmd_DS_SENSOR_TEMP structure */
+typedef MLAN_PACK_START struct _HostCmd_DS_SENSOR_TEMP {
+	/** Temperature */
+	t_u32 temperature;
+} MLAN_PACK_END HostCmd_DS_SENSOR_TEMP;
+
 #ifdef STA_SUPPORT
+/** HostCmd_DS_STA_CONFIGURE structure */
 typedef MLAN_PACK_START struct _HostCmd_DS_STA_CONFIGURE {
     /** Action Set or get */
 	t_u16 action;
@@ -5655,9 +6034,11 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 
 	/** RF antenna */
 		HostCmd_DS_802_11_RF_ANTENNA antenna;
+
 	/** Enhanced power save command */
 		HostCmd_DS_802_11_PS_MODE_ENH psmode_enh;
 		HostCmd_DS_802_11_HS_CFG_ENH opt_hs_cfg;
+		HostCmd_DS_802_11_FW_WAKEUP_METHOD fwwakeupmethod;
 	/** Scan */
 		HostCmd_DS_802_11_SCAN scan;
 	/** Extended Scan */
@@ -5785,9 +6166,10 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_SDIO_GPIO_INT_CONFIG sdio_gpio_int;
 		HostCmd_DS_SDIO_PULL_CTRL sdio_pull_ctl;
 		HostCmd_DS_SET_BSS_MODE bss_mode;
+		HostCmd_DS_802_11_NET_MONITOR net_mon;
 		HostCmd_DS_CMD_TX_DATA_PAUSE tx_data_pause;
-#ifdef WIFI_DIRECT_SUPPORT
 		HostCmd_DS_REMAIN_ON_CHANNEL remain_on_chan;
+#ifdef WIFI_DIRECT_SUPPORT
 		HostCmd_DS_WIFI_DIRECT_MODE wifi_direct_mode;
 		HostCmd_DS_WIFI_DIRECT_PARAM_CONFIG p2p_params_config;
 #endif
@@ -5795,14 +6177,24 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_HS_WAKEUP_REASON hs_wakeup_reason;
 		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
 		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;
+		HostCmd_DS_DRCS_CFG drcs_cfg;
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
+		HostCmd_DS_TSF tsf;
 #ifdef RX_PACKET_COALESCE
 		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;
 #endif
 		HostCmd_DS_EAPOL_PKT eapol_pkt;
+		HostCmd_DS_SENSOR_TEMP temp_sensor;
 #ifdef STA_SUPPORT
 		HostCmd_DS_STA_CONFIGURE sta_cfg;
 #endif
+    /** GPIO Independent reset configure */
+		HostCmd_DS_INDEPENDENT_RESET_CFG ind_rst_cfg;
+		HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT ps_inact_tmo;
+		HostCmd_DS_DYN_BW dyn_bw;
+		HostCmd_DS_802_11_ROBUSTCOEX robustcoexparams;
+    /** boot sleep configure */
+		HostCmd_DS_BOOT_SLEEP boot_sleep;
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND;
 
@@ -5825,6 +6217,10 @@ typedef MLAN_PACK_START struct _OPT_Confirm_Sleep {
 typedef struct MLAN_PACK_START _opt_sleep_confirm_buffer {
     /** Header for interface */
 	t_u8 hdr[4];
+#ifdef SPI_SUPPORT
+    /** Header for interface */
+	t_u16 hdr;
+#endif
     /** New power save command used to send
      *  sleep confirmation to the firmware */
 	OPT_Confirm_Sleep ps_cfm_sleep;

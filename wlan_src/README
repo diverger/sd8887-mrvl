@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright (C) 2008-2016, Marvell International Ltd.
+ Copyright (C) 2008-2018, Marvell International Ltd.
  All Rights Reserved
 
 1) FOR DRIVER BUILD
@@ -9,7 +9,7 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel up to 3.4.
+	The driver code supports Linux kernel up to 4.14.
 
 2) FOR DRIVER INSTALL
 
@@ -85,7 +85,7 @@
 		Bit 1: uAP WEXT
 		Bit 2: STA CFG80211
 		Bit 3: uAP CFG80211
-	  cfg80211_drcs=1|0 <Enable DRCS support (default) | Disable DRCS support>
+	cfg80211_drcs=1|0 <Enable DRCS support (default) | Disable DRCS support>
 	  reg_alpha2=<Regulatory alpha2 (default NULL)>
 	  wq_sched_prio: Priority for work queue
 	  wq_sched_policy: Scheduling policy for work queue
@@ -97,6 +97,17 @@
 	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
 	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
 	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
+      indrstcfg=<2-byte IR configuration>
+      gpio pin (high byte): GPIO pin no to be used as trigger for out band reset
+        (0xFF: default pin configuration)
+      ir_mode (low byte) : independent reset mode
+        (0: disable, 1: enable out band, 2: enable in band)
+      For example, to enable out band reset via gpio_pin 14
+       indrstcfg=0x0e01
+      To enable out band reset via default gpio_pin
+       indrstcfg=0xff01
+      To enable in band reset and disable out band reset
+       indrstcfg=0x02
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -284,9 +295,11 @@ SYNOPSIS
 	iwpriv mlanX scancfg [t] [m] [p] [s] [a] [b] [ext]
 	iwpriv mlanX sleeppd [n]
 	iwpriv mlanX pscfg [k] [d] [l] ...
+        iwpriv mlanX fwwakeupmethod [n] [g]
 	iwpriv mlanX getkey
 	iwpriv mlanX associate "<bssid> <ssid>"
 	iwpriv mlanX sleepparams [<p1> <p2> <p3> <p4> <p5> <p6>]
+	iwpriv mlanX netmon [<act> [<filter> <band> <chan> [offset]]]
 	iwpriv mlanX authtype [n]
 	iwpriv mlanX powercons [n]
 	iwpriv mlanX htstreamcfg [n]
@@ -294,6 +307,7 @@ SYNOPSIS
 	iwpriv mlanX macctrl [n]
 	iwpriv mlanX dfstesting [<user_cac_pd> <user_nop_pd> <no_chan_change> <fixed_chan_num>]
 	iwpriv mlanX thermal
+    iwpriv mlanX indrstcfg <ir_mode> [gpio_pin]
 
 DESCRIPTION
 	Those commands are used to send additional commands to the Marvell MLAN
@@ -1237,11 +1251,13 @@ sysclock
 
 	Examples:
 		iwpriv mlan0 sysclock           : Get system clocks
-		80 80 128 128 128 5 11 16 20 22 32 40 44 64 80 106 128 160
+		80 80 128 128 128 5 11 16 20 22 32 40 44 64 80 106 128 160 ...
 		(The current system clock is 80 MHz.
 		 The configurable system clocks of non-security, security, non-security
 		 A-MPDU and security A-MPDU are 80 MHz, 128 MHz, 128 MHz and 128 MHz.
-		 The supported system clocks are 5 MHz, 11 MHz, ..., 160 MHz.)
+		 The supported system clocks are 5 MHz, 11 MHz, ..., 160 MHz, 182 MHz,
+		 213 MHz, 256 MHz, 320 Mhz, 366 MHz , ... . the Max system clocks is different
+		 for different chips, you could use this command to get the supported system clock)
 
 		iwpriv mlanX sysclock 80        : Set system clock in non-security mode
 		                                  to 80 MHz, no change for others
@@ -1468,6 +1484,21 @@ pscfg
 		                                  all the other configurations are unchanged
 		iwpriv mlan0 pscfg 0 0 0 0 0 50 : Set delay to PS to 50 ms, keep the others unchanged
 
+fwwakeupmethod
+	This command is used to set/get the firmware wakeup method.
+
+	where value is:
+	        [n]:
+		1	-- Firmware wakeup through the interface command interrupt
+			    -- (default setting for SDIO/PCIe/USB)
+		2	-- Firmware wakeup through the GPIO pin
+		[g]:If firware wakeup throug GPIO pin, [g] is GPIO pin number
+
+	Examples:
+		iwpriv mlan0 fwwakeupmethod     : Get current firmware wakeup method
+		iwpriv mlan0 fwwakeupmethod 1    : Set firmware wakeup method to Interface mode
+		iwpriv mlan0 fwwakeupmethod 2 5  : Set firmware wakeup method to GPIO mode, GPIO_pin=5
+
 getkey
 	This command is used to get PTK/GTK
 
@@ -1496,6 +1527,43 @@ sleepparams
 	Examples:
 		iwpriv mlan0 sleepparams                      : Get current sleepclock configuration
 		iwpriv mlan0 sleepparams 10 1000 2000 1 0 128 : Set sleepclock configuration
+
+netmon
+	This command is used to set/get network monitor configuration.
+	Note: The configuration should be issued when STA is disconnected.
+
+	Usage:
+		iwpriv mlanX netmon [<act> [<filter> <band> <chan> [offset]]]
+
+	Where the parameters are:
+		<act>    : (1/0) enable/disable the network monitor activity
+		<filter> : network monitor filer flag
+		    bit 0: (1/0) enable/disable management frame
+		    bit 1: (1/0) enable/disable control frame
+		    bit 2: (1/0) enable/disable data frame
+		<band>   : 802.11 band
+		    bit 0: B
+		    bit 1: G
+		    bit 2: A
+		    bit 3: GN
+		    bit 4: AN
+			 bit 5: AC 2.4G
+			 bit 6: AC 5G
+		<chan>   : channel to monitor
+		[offset] : secondary channel bandwidth
+			0 - Bandwidth 20Mhz
+			1 - HT Bandwidth 40Mhz sec channel above
+			3 - HT Bandwidth 40Mhz sec channel below
+			4 - VHT Bandwidth 80Mhz
+
+	Examples:
+		iwpriv mlan0 netmon             : Get the current network monitor configuration
+		iwpriv mlan0 netmon 0           : Disable network monitor activity
+		iwpriv mlan0 netmon 1 4 11 6    : Enable network monitor activity, set filter
+		                                  data frame, band B/G/GN and channel 6
+		iwpriv mlan0 netmon 1 7 20 64 1 : Enable network monitor activity, set filter
+		                                  management, control and data frame, band A/AN,
+		                                  channel 64 and secondary channel above
 
 authtype
 	This command is used to set/get authentication type.
@@ -1616,6 +1684,27 @@ thermal
 	Examples:
 		iwpriv mlan0 thermal            : Get thermal reading
 
+indrstcfg
+    This command is used to set/get settings for independent reset mode
+
+    Usage:
+        iwpriv mlanX indrstcfg <ir_mode> [gpio_pin]
+
+    where <ir_mode>  is independent reset mode
+                     0 = disable independent reset
+                     1 = enable out band and disable in band
+                     2 = enable in band and disable out band
+    where <gpio_pin> is user-configured gpio pin number to be used for oob mode
+                     0xFF = use FW default gpio assignment
+                     0-15 = gpio pin number
+
+    Examples:
+        iwpriv mlan0 indrstcfg              : Get current settings
+        iwpriv mlan0 indrstcfg 1 14         : Enable oob_mode with gpio pin 14
+        iwpriv mlan0 indrstcfg 1 0xff       : Enable oob_mode with default gpio pin
+        iwpriv mlan0 indrstcfg 0            : Disable ir_mode
+        iwpriv mlan0 indrstcfg 2            : Enable in band reset mode
+
 
 ===============================================================================
 		U S E R  M A N U A L  F O R  M L A N C O N F I G
@@ -1647,6 +1736,12 @@ mlanconfig mlanX hostcmd <11n_2040coex.conf> 2040coex
 mlanconfig mlanX hostcmd <robust_btc.conf> mode_get
 mlanconfig mlanX hostcmd <robust_btc.conf> mode_timeshare
 mlanconfig mlanX hostcmd <robust_btc.conf> mode_spatial
+mlanconfig mlanX hostcmd <robust_btc.conf> generictime
+mlanconfig mlanX hostcmd <robust_btc.conf> a2dptime
+mlanconfig mlanX hostcmd <robust_btc.conf> inquirytim
+mlanconfig mlanX hostcmd <robust_btc.conf> ap_generictime
+mlanconfig mlanX hostcmd <robust_btc.conf> ap_a2dptime
+mlanconfig mlanX hostcmd <robust_btc.conf> ap_inquirytime
 mlanconfig mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_get
 mlanconfig mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_set
 mlanconfig mlanX hostcmd <sdio_pulldown.conf> sdio_pulldown_disable
@@ -1794,6 +1889,28 @@ hostcmd mode_spatial
 		mlanconfig mlanX hostcmd config/robust_btc.conf mode_get
 		mlanconfig mlanX hostcmd config/robust_btc.conf mode_timeshare
 		mlanconfig mlanX hostcmd config/robust_btc.conf mode_spatial
+
+hostcmd generictime
+hostcmd a2dptime
+hostcmd inquirytime
+hostcmd ap_generictime
+hostcmd ap_a2dptime
+hostcmd ap_inquirytime
+        This command is used to configure the time slice of COEX (only works in timeshare mode)
+        generictime:       configure the Bttime and Wlantime in Station Generic case
+        a2dptime:          configure the Bttime and Wlantime in Station A2DP case
+        inquirytime:       configure the Bttime and Wlantime in Station Inquiry case
+        ap_generictime:    configure the Bttime and Wlantime in Ap Generic case
+        ap_a2dptime:       configure the Bttime and Wlantime in Ap A2DP case
+        ap_inquirytime:    configure the Bttime and Wlantime in Ap Inquiry case
+
+    Usage:
+                mlanutl mlanX hostcmd config/robust_btc.conf generictime
+                mlanutl mlanX hostcmd config/robust_btc.conf a2dptime
+                mlanutl mlanX hostcmd config/robust_btc.conf inquirytim
+                mlanutl mlanX hostcmd config/robust_btc.conf ap_generictime
+                mlanutl mlanX hostcmd config/robust_btc.conf ap_a2dptime
+                mlanutl mlanX hostcmd config/robust_btc.conf ap_inquirytime
 
 hostcmd sdio_pulldown_get
 hostcmd sdio_pulldown_set
@@ -2164,6 +2281,7 @@ mgmtframetx
 
 	Usage:
 		mlanconfig mlanX mgmtframetx <mgmt_frame.conf>
+
 
 ===============================================================================
 		U S E R  M A N U A L  F O R  M L A N 2 0 4 0 C O E X

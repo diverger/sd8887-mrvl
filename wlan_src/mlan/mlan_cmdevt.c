@@ -3,7 +3,7 @@
  *
  *  @brief This file contains the handling of CMD/EVENT in MLAN
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -41,6 +41,7 @@ Change Log:
 #include "mlan_11ac.h"
 #include "mlan_11h.h"
 #include "mlan_sdio.h"
+
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -53,6 +54,32 @@ Change Log:
 			Local Functions
 ********************************************************/
 #ifdef STA_SUPPORT
+/**
+ *  @brief This function inserts scan command node to scan_pending_q.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param pcmd_node    A pointer to cmd_ctrl_node structure
+ *  @return             N/A
+ */
+static t_void
+wlan_queue_scan_cmd(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
+{
+	mlan_adapter *pmadapter = pmpriv->adapter;
+
+	ENTER();
+
+	if (pcmd_node == MNULL)
+		goto done;
+	pcmd_node->cmd_flag |= CMD_F_SCAN;
+
+	util_enqueue_list_tail(pmadapter->pmoal_handle,
+			       &pmadapter->scan_pending_q,
+			       (pmlan_linked_list)pcmd_node, MNULL, MNULL);
+
+done:
+	LEAVE();
+}
+
 /**
  *  @brief Internal function used to flush the scan pending queue
  *
@@ -69,10 +96,7 @@ wlan_check_scan_queue(IN pmlan_adapter pmadapter)
 	pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->scan_pending_q,
-						pmadapter->callbacks.
-						moal_spin_lock,
-						pmadapter->callbacks.
-						moal_spin_unlock);
+						MNULL, MNULL);
 	if (!pcmd_node) {
 		PRINTM(MERROR, "No pending scan command\n");
 		return;
@@ -103,10 +127,7 @@ wlan_dump_pending_commands(pmlan_adapter pmadapter)
 	pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->cmd_pending_q,
-						pmadapter->callbacks.
-						moal_spin_lock,
-						pmadapter->callbacks.
-						moal_spin_unlock);
+						MNULL, MNULL);
 	if (!pcmd_node) {
 		wlan_release_cmd_lock(pmadapter);
 		LEAVE();
@@ -119,10 +140,10 @@ wlan_dump_pending_commands(pmlan_adapter pmadapter)
 		       wlan_le16_to_cpu(pcmd->command), pcmd_node->pioctl_buf);
 		pcmd_node = pcmd_node->pnext;
 	}
-	wlan_release_cmd_lock(pmadapter);
 #ifdef STA_SUPPORT
 	wlan_check_scan_queue(pmadapter);
 #endif
+	wlan_release_cmd_lock(pmadapter);
 	LEAVE();
 	return;
 }
@@ -132,6 +153,9 @@ wlan_dump_pending_commands(pmlan_adapter pmadapter)
 #define REASON_CODE_CMD_TO_CARD_FAILURE 3
 /**
  *  @brief This function dump debug info
+ *
+ *  @param pmadapter    A pointer to mlan_adapter
+ *  @param reason        Reason code
  *
  *  @return     N/A
  */
@@ -416,6 +440,155 @@ wlan_parse_cal_cfg(t_u8 *src, t_size len, t_u8 *dst)
 }
 
 /**
+ *  @brief This function finds first occurrence of a char in a string
+ *
+ *  @param s            A pointer to the string to be searched
+ *  @param c            The character to search for
+ *
+ *  @return             Location of the first occurrence of the char
+ *                      if found, else NULL
+ */
+t_u8 *
+wlan_strchr(t_u8 *s, int c)
+{
+	t_u8 *pos = s;
+	while (*pos != '\0') {
+		if (*pos == (t_u8)c)
+			return pos;
+		pos++;
+	}
+	return MNULL;
+}
+
+#define CFG_TYPE_HOSTCMD        0
+#define CFG_TYPE_DPDFILE          1
+
+/**
+ *    @brief WOAL parse ASCII format raw data to hex format
+ *
+ *    @param pmpriv       MOAL handle
+ *    @param cfg_type     Conf file type
+ *    @param data         Source data
+ *    @param size         data length
+ *    @return             MLAN_STATUS_SUCCESS--success, otherwise--fail
+ */
+static t_u32
+wlan_process_hostcmd_cfg(IN pmlan_private pmpriv, IN t_u16 cfg_type,
+			 IN t_u8 *data, IN t_size size)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u8 *pos = data;
+	t_u8 *intf_s, *intf_e;
+	t_u8 *buf = MNULL;
+	t_u8 *ptr = MNULL;
+	t_u32 cmd_len = 0;
+	t_u8 start_raw = MFALSE;
+	mlan_ds_misc_cmd *hostcmd;
+	HostCmd_DS_GEN *pcmd = MNULL;
+	HostCmd_DS_802_11_CFG_DATA *pcfg_cmd = MNULL;
+	mlan_adapter *pmadapter = pmpriv->adapter;
+	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
+
+	ENTER();
+	ret = pcb->moal_malloc(pmadapter->pmoal_handle,
+			       sizeof(mlan_ds_misc_cmd), MLAN_MEM_DEF,
+			       (t_u8 **)&hostcmd);
+	if (ret || !hostcmd) {
+		PRINTM(MERROR, "Could not allocate buffer space!\n");
+		LEAVE();
+		return ret;
+	}
+	buf = hostcmd->cmd;
+	ptr = buf;
+	while ((pos - data) < size) {
+		while (*pos == ' ' || *pos == '\t')
+			pos++;
+		if (*pos == '#') {	/* Line comment */
+			while (*pos != '\n')
+				pos++;
+			pos++;
+		}
+		if ((*pos == '\r' && *(pos + 1) == '\n') ||
+		    *pos == '\n' || *pos == '\0') {
+			pos++;
+			continue;	/* Needn't process this line */
+		}
+
+		if (*pos == '}') {
+			if (cfg_type == CFG_TYPE_DPDFILE && pcmd) {
+				/* Fill command head for DPD RAW data conf */
+				hostcmd->len = ptr - buf;
+				pcmd->command =
+					wlan_cpu_to_le16(HostCmd_CMD_CFG_DATA);
+				pcmd->size = wlan_cpu_to_le16(hostcmd->len);
+				pcfg_cmd =
+					(HostCmd_DS_802_11_CFG_DATA *)((t_u8 *)
+								       pcmd +
+								       S_DS_GEN);
+				pcfg_cmd->action =
+					wlan_cpu_to_le16(HostCmd_ACT_GEN_SET);
+				pcfg_cmd->type = wlan_cpu_to_le16(OID_TYPE_DPD);
+				pcfg_cmd->data_len =
+					wlan_cpu_to_le16(hostcmd->len -
+							 S_DS_GEN -
+							 sizeof
+							 (HostCmd_DS_802_11_CFG_DATA));
+				pcmd = MNULL;
+				pcfg_cmd = MNULL;
+			} else {
+				/* For hostcmd data conf */
+				cmd_len = *((t_u16 *)(buf + sizeof(t_u16)));
+				hostcmd->len = cmd_len;
+			}
+			ret = wlan_prepare_cmd(pmpriv, 0, 0, 0, MNULL,
+					       (t_void *)hostcmd);
+			memset(pmadapter, buf, 0, MLAN_SIZE_OF_CMD_BUFFER);
+			ptr = buf;
+			start_raw = MFALSE;
+			pos++;
+			continue;
+		}
+
+		if (start_raw == MFALSE) {
+			intf_s = wlan_strchr(pos, '=');
+			if (intf_s)
+				intf_e = wlan_strchr(intf_s, '{');
+			else
+				intf_e = MNULL;
+
+			if (intf_s && intf_e) {
+				start_raw = MTRUE;
+				pos = intf_e + 1;
+				/* Reserve command head for DPD RAW data conf */
+				if (cfg_type == CFG_TYPE_DPDFILE) {
+					pcmd = (HostCmd_DS_GEN *)ptr;
+					ptr += S_DS_GEN +
+						sizeof
+						(HostCmd_DS_802_11_CFG_DATA);
+				}
+				continue;
+			}
+		}
+
+		if (start_raw) {
+			/* Raw data block exists */
+			while (*pos != '\n') {
+				if ((*pos <= 'f' && *pos >= 'a') ||
+				    (*pos <= 'F' && *pos >= 'A') ||
+				    (*pos <= '9' && *pos >= '0')) {
+					*ptr++ = wlan_atox(pos);
+					pos += 2;
+				} else
+					pos++;
+			}
+		}
+	}
+	pcb->moal_mfree(pmadapter->pmoal_handle, (t_u8 *)hostcmd);
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function initializes the command node.
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -478,25 +651,21 @@ wlan_get_cmd_node(mlan_adapter *pmadapter)
 		LEAVE();
 		return MNULL;
 	}
-
+	wlan_request_cmd_lock(pmadapter);
 	if (util_peek_list(pmadapter->pmoal_handle, &pmadapter->cmd_free_q,
-			   pmadapter->callbacks.moal_spin_lock,
-			   pmadapter->callbacks.moal_spin_unlock)) {
+			   MNULL, MNULL)) {
 		pcmd_node =
 			(cmd_ctrl_node *)util_dequeue_list(pmadapter->
 							   pmoal_handle,
 							   &pmadapter->
-							   cmd_free_q,
-							   pmadapter->callbacks.
-							   moal_spin_lock,
-							   pmadapter->callbacks.
-							   moal_spin_unlock);
+							   cmd_free_q, MNULL,
+							   MNULL);
 	} else {
 		PRINTM(MERROR,
 		       "GET_CMD_NODE: cmd_ctrl_node is not available\n");
 		pcmd_node = MNULL;
 	}
-
+	wlan_release_cmd_lock(pmadapter);
 	LEAVE();
 	return pcmd_node;
 }
@@ -551,10 +720,7 @@ wlan_get_pending_scan_cmd(pmlan_adapter pmadapter)
 	pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->cmd_pending_q,
-						pmadapter->callbacks.
-						moal_spin_lock,
-						pmadapter->callbacks.
-						moal_spin_unlock);
+						MNULL, MNULL);
 	if (!pcmd_node) {
 		LEAVE();
 		return MNULL;
@@ -590,10 +756,7 @@ wlan_get_pending_ioctl_cmd(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 	pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->cmd_pending_q,
-						pmadapter->callbacks.
-						moal_spin_lock,
-						pmadapter->callbacks.
-						moal_spin_unlock);
+						MNULL, MNULL);
 	if (!pcmd_node) {
 		LEAVE();
 		return MNULL;
@@ -629,10 +792,7 @@ wlan_get_bss_pending_ioctl_cmd(pmlan_adapter pmadapter, t_u32 bss_index)
 	pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->cmd_pending_q,
-						pmadapter->callbacks.
-						moal_spin_lock,
-						pmadapter->callbacks.
-						moal_spin_unlock);
+						MNULL, MNULL);
 	if (!pcmd_node) {
 		LEAVE();
 		return MNULL;
@@ -752,7 +912,9 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 		       "Not sending\n");
 		if (pioctl_buf)
 			pioctl_buf->status_code = MLAN_ERROR_CMD_DNLD_FAIL;
+		wlan_request_cmd_lock(pmadapter);
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
+		wlan_release_cmd_lock(pmadapter);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
@@ -805,15 +967,15 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
 			pioctl_buf->status_code = MLAN_ERROR_CMD_DNLD_FAIL;
 		}
-		wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
 
 		wlan_request_cmd_lock(pmadapter);
+		wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
 		pmadapter->curr_cmd = MNULL;
+		wlan_release_cmd_lock(pmadapter);
 		if (pmadapter->dbg.last_cmd_index)
 			pmadapter->dbg.last_cmd_index--;
 		else
 			pmadapter->dbg.last_cmd_index = DBG_CMD_NUM - 1;
-		wlan_release_cmd_lock(pmadapter);
 
 		pmadapter->dbg.num_cmd_host_to_card_failure++;
 		wlan_dump_info(pmadapter, REASON_CODE_CMD_TO_CARD_FAILURE);
@@ -823,17 +985,20 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 
 	/* Clear BSS_NO_BITS from HostCmd */
 	cmd_code &= HostCmd_CMD_ID_MASK;
-	/* soft_reset command has no command response, we should return here */
-	if (cmd_code == HostCmd_CMD_SOFT_RESET) {
-		PRINTM(MCMND, "DNLD_CMD: SoftReset\n");
+
+	/* For the command who has no command response, we should return here */
+	if (cmd_code == HostCmd_CMD_FW_DUMP_EVENT
+	    || cmd_code == HostCmd_CMD_SOFT_RESET) {
 		if (pcmd_node->pioctl_buf) {
+			PRINTM(MMSG,
+			       "CMD(0x%x) has no cmd resp: free curr_cmd and do ioctl_complete\n",
+			       cmd_code);
 			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
 			wlan_request_cmd_lock(pmadapter);
-			pmadapter->curr_cmd->pioctl_buf = MNULL;
+			wlan_insert_cmd_to_free_q(pmadapter,
+						  pmadapter->curr_cmd);
+			pmadapter->curr_cmd = MNULL;
 			wlan_release_cmd_lock(pmadapter);
-			pcb->moal_ioctl_complete(pmadapter->pmoal_handle,
-						 pioctl_buf,
-						 MLAN_STATUS_SUCCESS);
 		}
 		goto done;
 	}
@@ -903,8 +1068,7 @@ wlan_dnld_sleep_confirm_cmd(mlan_adapter *pmadapter)
 #ifdef STA_SUPPORT
 		if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_STA) {
 			if (!sleep_cfm_buf->ps_cfm_sleep.sleep_cfm.resp_ctrl) {
-				/* Response is not needed for sleep confirm
-				   command */
+				/* Response is not needed for sleep confirm command */
 				pmadapter->ps_state = PS_STATE_SLEEP;
 			} else {
 				pmadapter->ps_state = PS_STATE_SLEEP_CFM;
@@ -1026,9 +1190,10 @@ wlan_alloc_cmd_buffer(IN mlan_adapter *pmadapter)
 			goto done;
 		}
 	}
-
+	wlan_request_cmd_lock(pmadapter);
 	for (i = 0; i < MRVDRV_NUM_OF_CMD_BUFFER; i++)
 		wlan_insert_cmd_to_free_q(pmadapter, &pcmd_array[i]);
+	wlan_release_cmd_lock(pmadapter);
 	ret = MLAN_STATUS_SUCCESS;
 done:
 	LEAVE();
@@ -1304,13 +1469,16 @@ wlan_prepare_cmd(IN mlan_private *pmpriv,
 		PRINTM(MERROR, "PREP_CMD: Command 0x%x preparation failed\n",
 		       cmd_no);
 		pcmd_node->pioctl_buf = MNULL;
-		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 		if (pioctl_req)
 			pioctl_req->status_code = MLAN_ERROR_CMD_DNLD_FAIL;
+		wlan_request_cmd_lock(pmadapter);
+		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
+		wlan_release_cmd_lock(pmadapter);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
 
+	wlan_request_cmd_lock(pmadapter);
 	/* Send command */
 #ifdef STA_SUPPORT
 	if (cmd_no == HostCmd_CMD_802_11_SCAN
@@ -1329,6 +1497,7 @@ wlan_prepare_cmd(IN mlan_private *pmpriv,
 #ifdef STA_SUPPORT
 	}
 #endif
+	wlan_release_cmd_lock(pmadapter);
 done:
 	LEAVE();
 	return ret;
@@ -1369,9 +1538,7 @@ wlan_insert_cmd_to_free_q(IN mlan_adapter *pmadapter,
 
 	/* Insert node into cmd_free_q */
 	util_enqueue_list_tail(pmadapter->pmoal_handle, &pmadapter->cmd_free_q,
-			       (pmlan_linked_list)pcmd_node,
-			       pmadapter->callbacks.moal_spin_lock,
-			       pmadapter->callbacks.moal_spin_unlock);
+			       (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 done:
 	LEAVE();
 }
@@ -1417,14 +1584,12 @@ wlan_insert_cmd_to_pending_q(IN mlan_adapter *pmadapter,
 		util_enqueue_list_tail(pmadapter->pmoal_handle,
 				       &pmadapter->cmd_pending_q,
 				       (pmlan_linked_list)pcmd_node,
-				       pmadapter->callbacks.moal_spin_lock,
-				       pmadapter->callbacks.moal_spin_unlock);
+				       MNULL, MNULL);
 	} else {
 		util_enqueue_list_head(pmadapter->pmoal_handle,
 				       &pmadapter->cmd_pending_q,
 				       (pmlan_linked_list)pcmd_node,
-				       pmadapter->callbacks.moal_spin_lock,
-				       pmadapter->callbacks.moal_spin_unlock);
+				       MNULL, MNULL);
 	}
 
 	PRINTM_NETINTF(MCMND, pcmd_node->priv);
@@ -1473,10 +1638,7 @@ wlan_exec_next_cmd(mlan_adapter *pmadapter)
 	pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->cmd_pending_q,
-						pmadapter->callbacks.
-						moal_spin_lock,
-						pmadapter->callbacks.
-						moal_spin_unlock);
+						MNULL, MNULL);
 
 	if (pcmd_node) {
 		pcmd = (HostCmd_DS_COMMAND *)(pcmd_node->cmdbuf->pbuf +
@@ -1492,16 +1654,12 @@ wlan_exec_next_cmd(mlan_adapter *pmadapter)
 
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->cmd_pending_q,
-				 (pmlan_linked_list)pcmd_node,
-				 pmadapter->callbacks.moal_spin_lock,
-				 pmadapter->callbacks.moal_spin_unlock);
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 		wlan_release_cmd_lock(pmadapter);
 		ret = wlan_dnld_cmd_to_fw(priv, pcmd_node);
 		priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
-		/* Any command sent to the firmware when host is in sleep mode,
-		   should de-configure host sleep */
-		/* We should skip the host sleep configuration command itself
-		   though */
+		/* Any command sent to the firmware when host is in sleep mode, should de-configure host sleep */
+		/* We should skip the host sleep configuration command itself though */
 		if (priv &&
 		    (pcmd->command !=
 		     wlan_cpu_to_le16(HostCmd_CMD_802_11_HS_CFG_ENH))) {
@@ -1586,12 +1744,12 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 	if (pmadapter->curr_cmd->cmd_flag & CMD_F_CANCELED) {
 		cmd_ctrl_node *free_cmd = pmadapter->curr_cmd;
 		pmadapter->curr_cmd = MNULL;
-		wlan_release_cmd_lock(pmadapter);
 		PRINTM(MCMND, "CMD_RESP: 0x%x been canceled!\n",
 		       wlan_le16_to_cpu(resp->command));
-		wlan_insert_cmd_to_free_q(pmadapter, free_cmd);
 		if (pioctl_buf)
 			pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
+		wlan_insert_cmd_to_free_q(pmadapter, free_cmd);
+		wlan_release_cmd_lock(pmadapter);
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	} else {
@@ -1635,8 +1793,8 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 		PRINTM(MERROR, "CMD_RESP: Invalid response to command!\n");
 		if (pioctl_buf)
 			pioctl_buf->status_code = MLAN_ERROR_FW_CMDRESP;
-		wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
 		wlan_request_cmd_lock(pmadapter);
+		wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
 		pmadapter->curr_cmd = MNULL;
 		wlan_release_cmd_lock(pmadapter);
 		ret = MLAN_STATUS_FAILURE;
@@ -1655,7 +1813,8 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 	}
 
 	/* Check init command response */
-	if (pmadapter->hw_status == WlanHardwareStatusInitializing) {
+	if (pmadapter->hw_status == WlanHardwareStatusInitializing ||
+	    pmadapter->hw_status == WlanHardwareStatusGetHwSpec) {
 		if (ret == MLAN_STATUS_FAILURE) {
 #if defined(STA_SUPPORT)
 			if (pmadapter->pwarm_reset_ioctl_req) {
@@ -1684,8 +1843,6 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 		cmd_ctrl_node *free_cmd = pmadapter->curr_cmd;
 		pioctl_buf = (mlan_ioctl_req *)pmadapter->curr_cmd->pioctl_buf;
 		pmadapter->curr_cmd = MNULL;
-		wlan_release_cmd_lock(pmadapter);
-
 		if (pioctl_buf && (ret == MLAN_STATUS_SUCCESS))
 			pioctl_buf->status_code = MLAN_ERROR_NO_ERROR;
 		else if (pioctl_buf && (ret == MLAN_STATUS_FAILURE) &&
@@ -1694,9 +1851,8 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 
 		/* Clean up and put current command back to cmd_free_q */
 		wlan_insert_cmd_to_free_q(pmadapter, free_cmd);
-	} else {
-		wlan_release_cmd_lock(pmadapter);
 	}
+	wlan_release_cmd_lock(pmadapter);
 
 	if ((pmadapter->hw_status == WlanHardwareStatusInitializing) &&
 	    (pmadapter->last_init_cmd == cmdresp_no)) {
@@ -1706,6 +1862,7 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 			|| pmpriv_next->bss_virtual))
 			i++;
 		if (!pmpriv_next || i >= pmadapter->priv_num) {
+
 #if defined(STA_SUPPORT)
 			if (pmadapter->pwarm_reset_ioctl_req) {
 				/* warm reset complete */
@@ -1724,8 +1881,10 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 			/* Issue init commands for the next interface */
 			ret = pmpriv_next->ops.init_cmd(pmpriv_next, MFALSE);
 		}
+	} else if ((pmadapter->hw_status == WlanHardwareStatusGetHwSpec) &&
+		   (HostCmd_CMD_GET_HW_SPEC == cmdresp_no)) {
+		pmadapter->hw_status = WlanHardwareStatusGetHwSpecdone;
 	}
-
 done:
 	LEAVE();
 	return ret;
@@ -1789,7 +1948,8 @@ wlan_cmd_timeout_func(t_void *function_context)
 		       pmpriv->bss_role);
 	wlan_dump_info(pmadapter, REASON_CODE_CMD_TIMEOUT);
 
-	if (pmadapter->hw_status == WlanHardwareStatusInitializing)
+	if (pmadapter->hw_status == WlanHardwareStatusInitializing ||
+	    pmadapter->hw_status == WlanHardwareStatusGetHwSpec)
 		wlan_init_fw_complete(pmadapter);
 	else {
 		/* Signal MOAL to perform extra handling for debugging */
@@ -1819,24 +1979,23 @@ exit:
 t_void
 wlan_flush_scan_queue(IN pmlan_adapter pmadapter)
 {
-	mlan_callbacks *pcb = (pmlan_callbacks)&pmadapter->callbacks;
+
 	cmd_ctrl_node *pcmd_node = MNULL;
 
 	ENTER();
 
+	wlan_request_cmd_lock(pmadapter);
 	while ((pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->scan_pending_q,
-						pcb->moal_spin_lock,
-						pcb->moal_spin_unlock))) {
+						MNULL, MNULL))) {
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->scan_pending_q,
-				 (pmlan_linked_list)pcmd_node,
-				 pcb->moal_spin_lock, pcb->moal_spin_unlock);
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 		pcmd_node->pioctl_buf = MNULL;
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 	}
-	wlan_request_cmd_lock(pmadapter);
+
 	pmadapter->scan_processing = MFALSE;
 	wlan_release_cmd_lock(pmadapter);
 
@@ -1847,21 +2006,23 @@ wlan_flush_scan_queue(IN pmlan_adapter pmadapter)
  *  @brief Cancel pending SCAN ioctl cmd.
  *
  *  @param pmadapter    A pointer to mlan_adapter
+ *  @param pioctl_req   A pointer to pmlan_ioctl_req
  *
- *  @return             N/A
+ *  @return             MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING
  */
-t_void
-wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter)
+mlan_status
+wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter,
+			     pmlan_ioctl_req pioctl_req)
 {
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	cmd_ctrl_node *pcmd_node = MNULL;
 	mlan_ioctl_req *pioctl_buf = MNULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
 	ENTER();
 
 	PRINTM(MIOCTL, "Cancel scan command\n");
 	wlan_request_cmd_lock(pmadapter);
-	/* IOCTL will be completed, avoid calling IOCTL complete again from
-	   EVENT/CMDRESP */
+	/* IOCTL will be completed, avoid calling IOCTL complete again from EVENT/CMDRESP */
 	if (pmadapter->pscan_ioctl_req) {
 		pioctl_buf = pmadapter->pscan_ioctl_req;
 		pmadapter->pscan_ioctl_req = MNULL;
@@ -1888,18 +2049,14 @@ wlan_cancel_pending_scan_cmd(pmlan_adapter pmadapter)
 		       "wlan_cancel_scan: find scan command in cmd_pending_q\n");
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->cmd_pending_q,
-				 (pmlan_linked_list)pcmd_node,
-				 pmadapter->callbacks.moal_spin_lock,
-				 pmadapter->callbacks.moal_spin_unlock);
-		wlan_release_cmd_lock(pmadapter);
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
-		wlan_request_cmd_lock(pmadapter);
 	}
 	wlan_release_cmd_lock(pmadapter);
 	/* Cancel all pending scan command */
 	wlan_flush_scan_queue(pmadapter);
 	LEAVE();
-	return;
+	return status;
 }
 #endif
 
@@ -1920,8 +2077,7 @@ wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
 	/* Cancel current cmd */
 	wlan_request_cmd_lock(pmadapter);
 #ifdef STA_SUPPORT
-	/* IOCTL will be completed, avoid calling IOCTL complete again from
-	   EVENT/CMDRESP */
+	/* IOCTL will be completed, avoid calling IOCTL complete again from EVENT/CMDRESP */
 	if (pmadapter->pscan_ioctl_req) {
 		pioctl_buf = pmadapter->pscan_ioctl_req;
 		pmadapter->pscan_ioctl_req = MNULL;
@@ -1933,7 +2089,6 @@ wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
 	if (pmadapter->curr_cmd) {
 		pcmd_node = pmadapter->curr_cmd;
 		pmadapter->curr_cmd = MNULL;
-		wlan_release_cmd_lock(pmadapter);
 		if (pcmd_node->pioctl_buf) {
 			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
 			pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
@@ -1943,19 +2098,16 @@ wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
 			pcmd_node->pioctl_buf = MNULL;
 		}
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
-	} else {
-		wlan_release_cmd_lock(pmadapter);
 	}
+
 	/* Cancel all pending command */
 	while ((pcmd_node =
 		(cmd_ctrl_node *)util_peek_list(pmadapter->pmoal_handle,
 						&pmadapter->cmd_pending_q,
-						pcb->moal_spin_lock,
-						pcb->moal_spin_unlock))) {
+						MNULL, MNULL))) {
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->cmd_pending_q,
-				 (pmlan_linked_list)pcmd_node,
-				 pcb->moal_spin_lock, pcb->moal_spin_unlock);
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 		if (pcmd_node->pioctl_buf) {
 			pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
 			pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
@@ -1966,6 +2118,7 @@ wlan_cancel_all_pending_cmd(pmlan_adapter pmadapter)
 		}
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
 	}
+	wlan_release_cmd_lock(pmadapter);
 #ifdef STA_SUPPORT
 	/* Cancel all pending scan command */
 	wlan_flush_scan_queue(pmadapter);
@@ -1997,8 +2150,7 @@ wlan_cancel_bss_pending_cmd(pmlan_adapter pmadapter, t_u32 bss_index)
 #ifdef STA_SUPPORT
 	if (pmadapter->pscan_ioctl_req &&
 	    (pmadapter->pscan_ioctl_req->bss_index == bss_index)) {
-		/* IOCTL will be completed, avoid calling IOCTL complete again
-		   from EVENT/CMDRESP */
+		/* IOCTL will be completed, avoid calling IOCTL complete again from EVENT/CMDRESP */
 		flash_scan = MTRUE;
 		pioctl_buf = pmadapter->pscan_ioctl_req;
 		pmadapter->pscan_ioctl_req = MNULL;
@@ -2028,9 +2180,7 @@ wlan_cancel_bss_pending_cmd(pmlan_adapter pmadapter, t_u32 bss_index)
 					       bss_index)) != MNULL) {
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->cmd_pending_q,
-				 (pmlan_linked_list)pcmd_node,
-				 pmadapter->callbacks.moal_spin_lock,
-				 pmadapter->callbacks.moal_spin_unlock);
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 		pioctl_buf = (mlan_ioctl_req *)pcmd_node->pioctl_buf;
 		pcmd_node->pioctl_buf = MNULL;
 #ifdef STA_SUPPORT
@@ -2040,9 +2190,7 @@ wlan_cancel_bss_pending_cmd(pmlan_adapter pmadapter, t_u32 bss_index)
 		pioctl_buf->status_code = MLAN_ERROR_CMD_CANCEL;
 		pcb->moal_ioctl_complete(pmadapter->pmoal_handle, pioctl_buf,
 					 MLAN_STATUS_FAILURE);
-		wlan_release_cmd_lock(pmadapter);
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
-		wlan_request_cmd_lock(pmadapter);
 	}
 	wlan_release_cmd_lock(pmadapter);
 #ifdef STA_SUPPORT
@@ -2078,8 +2226,7 @@ wlan_cancel_pending_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 
 	wlan_request_cmd_lock(pmadapter);
 #ifdef STA_SUPPORT
-	/* IOCTL will be completed, avoid calling IOCTL complete again from
-	   EVENT/CMDRESP */
+	/* IOCTL will be completed, avoid calling IOCTL complete again from EVENT/CMDRESP */
 	if (pmadapter->pscan_ioctl_req == pioctl_req) {
 		pmadapter->pscan_ioctl_req = MNULL;
 		find = MTRUE;
@@ -2097,14 +2244,10 @@ wlan_cancel_pending_ioctl(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 		wlan_get_pending_ioctl_cmd(pmadapter, pioctl_req)) != MNULL) {
 		util_unlink_list(pmadapter->pmoal_handle,
 				 &pmadapter->cmd_pending_q,
-				 (pmlan_linked_list)pcmd_node,
-				 pmadapter->callbacks.moal_spin_lock,
-				 pmadapter->callbacks.moal_spin_unlock);
+				 (pmlan_linked_list)pcmd_node, MNULL, MNULL);
 		pcmd_node->pioctl_buf = MNULL;
 		find = MTRUE;
-		wlan_release_cmd_lock(pmadapter);
 		wlan_insert_cmd_to_free_q(pmadapter, pcmd_node);
-		wlan_request_cmd_lock(pmadapter);
 	}
 	wlan_release_cmd_lock(pmadapter);
 #ifdef STA_SUPPORT
@@ -2283,8 +2426,8 @@ wlan_ret_802_11_hs_cfg(IN pmlan_private pmpriv,
 		if (pioctl_buf)
 			pioctl_buf->status_code = MLAN_ERROR_NO_ERROR;
 		/* Clean up and put current command back to cmd_free_q */
-		wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
 		wlan_request_cmd_lock(pmadapter);
+		wlan_insert_cmd_to_free_q(pmadapter, pmadapter->curr_cmd);
 		pmadapter->curr_cmd = MNULL;
 		wlan_release_cmd_lock(pmadapter);
 		wlan_host_sleep_activated_event(pmpriv, MTRUE);
@@ -2453,6 +2596,32 @@ wlan_cmd_enh_power_mode(pmlan_private pmpriv,
 				wlan_cpu_to_le16(pmadapter->delay_to_ps);
 			ps_mode->mode =
 				wlan_cpu_to_le16(pmadapter->enhanced_ps_mode);
+		}
+		if (ps_bitmap & BITMAP_BCN_TMO) {
+			MrvlIEtypes_bcn_timeout_t *bcn_tmo_tlv =
+				(MrvlIEtypes_bcn_timeout_t *) tlv;
+			mlan_ds_bcn_timeout *bcn_tmo =
+				(mlan_ds_bcn_timeout *) pdata_buf;
+			bcn_tmo_tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_BCN_TIMEOUT);
+			bcn_tmo_tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_bcn_timeout_t) -
+						 sizeof(MrvlIEtypesHeader_t));
+			bcn_tmo_tlv->bcn_miss_tmo_window =
+				wlan_cpu_to_le16(bcn_tmo->bcn_miss_tmo_window);
+			bcn_tmo_tlv->bcn_miss_tmo_period =
+				wlan_cpu_to_le16(bcn_tmo->bcn_miss_tmo_period);
+			bcn_tmo_tlv->bcn_rq_tmo_window =
+				wlan_cpu_to_le16(bcn_tmo->bcn_rq_tmo_window);
+			bcn_tmo_tlv->bcn_rq_tmo_period =
+				wlan_cpu_to_le16(bcn_tmo->bcn_rq_tmo_period);
+			cmd_size += sizeof(MrvlIEtypes_bcn_timeout_t);
+			tlv += sizeof(MrvlIEtypes_bcn_timeout_t);
+
+			psmode_enh->params.auto_ps.ps_bitmap =
+				wlan_cpu_to_le16((ps_bitmap & (~BITMAP_BCN_TMO))
+						 | BITMAP_STA_PS);
 		}
 		if (ps_bitmap & BITMAP_AUTO_DS) {
 			MrvlIEtypes_auto_ds_param_t *auto_ps_tlv =
@@ -2782,11 +2951,10 @@ wlan_ret_802_11_tx_rate_query(IN pmlan_private pmpriv,
 						MLAN_RATE_INDEX_MCS0;
 				else
 					/* LG rate */
-					/* For
-					   HostCmd_CMD_802_11_TX_RATE_QUERY,
-					   there is a hole (0x4) in rate table
-					   between HR/DSSS and OFDM rates, so
-					   minus 1 for OFDM rate index */
+					/* For HostCmd_CMD_802_11_TX_RATE_QUERY,
+					 * there is a hole (0x4) in rate table
+					 * between HR/DSSS and OFDM rates,
+					 * so minus 1 for OFDM rate index */
 					rate->param.rate_cfg.rate =
 						(pmpriv->tx_rate >
 						 MLAN_RATE_INDEX_OFDM0) ?
@@ -2840,9 +3008,10 @@ wlan_ret_802_11_tx_rate_query(IN pmlan_private pmpriv,
 				/* LG rate */
 				rate->param.data_rate.tx_rate_format =
 					MLAN_RATE_FORMAT_LG;
-				/* For HostCmd_CMD_802_11_TX_RATE_QUERY, there
-				   is a hole in rate table between HR/DSSS and
-				   OFDM rates, so minus 1 for OFDM rate index */
+				/* For HostCmd_CMD_802_11_TX_RATE_QUERY,
+				 * there is a hole in rate table
+				 * between HR/DSSS and OFDM rates,
+				 * so minus 1 for OFDM rate index */
 				rate->param.data_rate.tx_data_rate =
 					(pmpriv->tx_rate >
 					 MLAN_RATE_INDEX_OFDM0) ? pmpriv->
@@ -2890,9 +3059,10 @@ wlan_ret_802_11_tx_rate_query(IN pmlan_private pmpriv,
 				/* LG rate */
 				rate->param.data_rate.rx_rate_format =
 					MLAN_RATE_FORMAT_LG;
-				/* For rate index in RxPD, there is a hole in
-				   rate table between HR/DSSS and OFDM rates,
-				   so minus 1 for OFDM rate index */
+				/* For rate index in RxPD,
+				 * there is a hole in rate table
+				 * between HR/DSSS and OFDM rates,
+				 * so minus 1 for OFDM rate index */
 				rate->param.data_rate.rx_data_rate =
 					(pmpriv->rxpd_rate >
 					 MLAN_RATE_INDEX_OFDM0) ? pmpriv->
@@ -2902,6 +3072,164 @@ wlan_ret_802_11_tx_rate_query(IN pmlan_private pmpriv,
 		pioctl_buf->data_read_written = sizeof(mlan_data_rate) +
 			MLAN_SUB_COMMAND_SIZE;
 	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ * @brief This function prepares command of fw_wakeup_method.
+ *
+ * @param pmpriv       A pointer to mlan_private structure
+ * @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ * @param cmd_action   The action: GET or SET
+ * @param pdata_buf    A pointer to data buffer
+ *
+ * @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_802_11_fw_wakeup_method(IN pmlan_private pmpriv,
+				 IN HostCmd_DS_COMMAND *cmd,
+				 IN t_u16 cmd_action, IN t_u16 *pdata_buf)
+{
+	HostCmd_DS_802_11_FW_WAKEUP_METHOD *fwwm = &cmd->params.fwwakeupmethod;
+	mlan_fw_wakeup_params *fw_wakeup_params = MNULL;
+	MrvlIEtypes_WakeupSourceGPIO_t *tlv =
+		(MrvlIEtypes_WakeupSourceGPIO_t *) ((t_u8 *)fwwm +
+						    sizeof
+						    (HostCmd_DS_802_11_FW_WAKEUP_METHOD));
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_11_FW_WAKE_METHOD);
+	cmd->size = sizeof(HostCmd_DS_802_11_FW_WAKEUP_METHOD) + S_DS_GEN;
+	fwwm->action = wlan_cpu_to_le16(cmd_action);
+	switch (cmd_action) {
+	case HostCmd_ACT_GEN_SET:
+		fw_wakeup_params = (mlan_fw_wakeup_params *) pdata_buf;
+		fwwm->method = wlan_cpu_to_le16(fw_wakeup_params->method);
+
+		if (fw_wakeup_params->method == WAKEUP_FW_THRU_GPIO) {
+			cmd->size += sizeof(MrvlIEtypes_WakeupSourceGPIO_t);
+			tlv->header.type =
+				wlan_cpu_to_le16
+				(TLV_TYPE_HS_WAKEUP_SOURCE_GPIO);
+			tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_WakeupSourceGPIO_t)
+						 - sizeof(MrvlIEtypesHeader_t));
+			tlv->ind_gpio = (t_u8)fw_wakeup_params->gpio_pin;
+		}
+
+		break;
+	case HostCmd_ACT_GEN_GET:
+	default:
+		fwwm->method = wlan_cpu_to_le16(WAKEUP_FW_UNCHANGED);
+		break;
+	}
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of fw_wakeup_method
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_fw_wakeup_method(IN pmlan_private pmpriv,
+			  IN HostCmd_DS_COMMAND *resp,
+			  IN mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_802_11_FW_WAKEUP_METHOD *fwwm = &resp->params.fwwakeupmethod;
+	t_u16 action;
+	MrvlIEtypes_WakeupSourceGPIO_t *gpio_tlv =
+		(MrvlIEtypes_WakeupSourceGPIO_t *) ((t_u8 *)fwwm +
+						    sizeof
+						    (HostCmd_DS_802_11_FW_WAKEUP_METHOD));
+	mlan_ds_pm_cfg *pmcfg = MNULL;
+
+	ENTER();
+
+	action = wlan_le16_to_cpu(fwwm->action);
+
+	pmpriv->adapter->fw_wakeup_method = wlan_le16_to_cpu(fwwm->method);
+	pmpriv->adapter->fw_wakeup_gpio_pin = 0;
+
+	if ((resp->size -
+	     (sizeof(HostCmd_DS_802_11_FW_WAKEUP_METHOD) + S_DS_GEN))
+	    == sizeof(MrvlIEtypes_WakeupSourceGPIO_t)) {
+		pmpriv->adapter->fw_wakeup_gpio_pin = gpio_tlv->ind_gpio;
+	}
+	PRINTM(MCMND, "FW wakeup method=%d, gpio=%d\n",
+	       pmpriv->adapter->fw_wakeup_method,
+	       pmpriv->adapter->fw_wakeup_gpio_pin);
+
+	if (pioctl_buf) {
+		pmcfg = (mlan_ds_pm_cfg *)pioctl_buf->pbuf;
+		pmcfg->param.fw_wakeup_params.method =
+			pmpriv->adapter->fw_wakeup_method;
+		pmcfg->param.fw_wakeup_params.gpio_pin =
+			pmpriv->adapter->fw_wakeup_gpio_pin;
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ * @brief This function prepares command of robustcoex.
+ *
+ * @param pmpriv       A pointer to mlan_private structure
+ * @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ * @param cmd_action   The action: GET or SET
+ * @param pdata_buf    A pointer to data buffer
+ *
+ * @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_robustcoex(IN pmlan_private pmpriv,
+		    IN HostCmd_DS_COMMAND *cmd,
+		    IN t_u16 cmd_action, IN t_u16 *pdata_buf)
+{
+	HostCmd_DS_802_11_ROBUSTCOEX *rbstcx = &cmd->params.robustcoexparams;
+	mlan_ds_misc_robustcoex_params *robustcoex_params = MNULL;
+	MrvlIEtypes_RobustcoexSourceGPIO_t *tlv =
+		(MrvlIEtypes_RobustcoexSourceGPIO_t *) ((t_u8 *)rbstcx +
+							sizeof
+							(HostCmd_DS_802_11_ROBUSTCOEX));
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_11_ROBUSTCOEX);
+	cmd->size = sizeof(HostCmd_DS_802_11_ROBUSTCOEX) + S_DS_GEN;
+	rbstcx->action = wlan_cpu_to_le16(cmd_action);
+	switch (cmd_action) {
+	case HostCmd_ACT_GEN_SET:
+		robustcoex_params =
+			(mlan_ds_misc_robustcoex_params *) pdata_buf;
+		if (robustcoex_params->method == ROBUSTCOEX_GPIO_CFG) {
+			cmd->size += sizeof(MrvlIEtypes_RobustcoexSourceGPIO_t);
+			tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_ROBUSTCOEX);
+			tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_RobustcoexSourceGPIO_t)
+						 - sizeof(MrvlIEtypesHeader_t));
+			tlv->enable = (t_u8)robustcoex_params->enable;
+			tlv->gpio_num = (t_u8)robustcoex_params->gpio_num;
+			tlv->gpio_polarity =
+				(t_u8)robustcoex_params->gpio_polarity;
+		}
+		break;
+	case HostCmd_ACT_GEN_GET:
+	default:
+		break;
+	}
+	cmd->size = wlan_cpu_to_le16(cmd->size);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -3118,6 +3446,7 @@ wlan_ret_tx_rate_cfg(IN pmlan_private pmpriv,
 					MLAN_RATE_FORMAT_VHT;
 				ds_rate->param.rate_cfg.rate = index % 16;
 				ds_rate->param.rate_cfg.nss = index / 16;
+				ds_rate->param.rate_cfg.nss += MLAN_RATE_NSS1;
 			}
 			PRINTM(MINFO, "Rate index is %d\n",
 			       ds_rate->param.rate_cfg.rate);
@@ -3129,6 +3458,85 @@ wlan_ret_tx_rate_cfg(IN pmlan_private pmpriv,
 
 	}
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief  This function issues adapter specific commands
+ *          to initialize firmware
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *
+ *  @return             MLAN_STATUS_PENDING or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_adapter_get_hw_spec(IN pmlan_adapter pmadapter)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_private priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+	/*
+	 * This should be issued in the very first to config
+	 *   SDIO_GPIO interrupt mode.
+	 */
+	if (wlan_set_sdio_gpio_int(priv) != MLAN_STATUS_SUCCESS) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_FUNC_INIT,
+			       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+
+    /** DPD data dnld cmd prepare */
+	if ((pmadapter->pdpd_data) && (pmadapter->dpd_data_len > 0)) {
+		ret = wlan_process_hostcmd_cfg(priv, CFG_TYPE_DPDFILE,
+					       pmadapter->pdpd_data,
+					       pmadapter->dpd_data_len);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		pmadapter->pdpd_data = MNULL;
+		pmadapter->dpd_data_len = 0;
+	}
+	if ((pmadapter->ptxpwr_data) && (pmadapter->txpwr_data_len > 0)) {
+		ret = wlan_process_hostcmd_cfg(priv, CFG_TYPE_HOSTCMD,
+					       pmadapter->ptxpwr_data,
+					       pmadapter->txpwr_data_len);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		pmadapter->ptxpwr_data = MNULL;
+		pmadapter->txpwr_data_len = 0;
+	}
+    /** Cal data dnld cmd prepare */
+	if ((pmadapter->pcal_data) && (pmadapter->cal_data_len > 0)) {
+		ret = wlan_prepare_cmd(priv, HostCmd_CMD_CFG_DATA,
+				       HostCmd_ACT_GEN_SET, OID_TYPE_CAL, MNULL,
+				       MNULL);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+		pmadapter->pcal_data = MNULL;
+		pmadapter->cal_data_len = 0;
+	}
+	/*
+	 * Get HW spec
+	 */
+	ret = wlan_prepare_cmd(priv, HostCmd_CMD_GET_HW_SPEC,
+			       HostCmd_ACT_GEN_GET, 0, MNULL, MNULL);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+	ret = MLAN_STATUS_PENDING;
+done:
 	LEAVE();
 	return ret;
 }
@@ -3157,112 +3565,150 @@ wlan_adapter_init_cmd(IN pmlan_adapter pmadapter)
 	pmpriv_sta = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_STA);
 #endif
 
-	/*
-	 * This should be issued in the very first to config
-	 *   SDIO_GPIO interrupt mode.
-	 */
-	if (wlan_set_sdio_gpio_int(pmpriv) != MLAN_STATUS_SUCCESS) {
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
+	/* Get fw wakeup method */
+	if (pmpriv) {
+		ret = wlan_prepare_cmd(pmpriv,
+				       HostCmd_CMD_802_11_FW_WAKE_METHOD,
+				       HostCmd_ACT_GEN_GET, 0, MNULL, MNULL);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
 	}
-
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_FUNC_INIT,
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_SDIO_PULL_CTRL,
 			       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+}
+#endif
 
-    /** Cal data dnld cmd prepare */
-	if ((pmadapter->pcal_data) && (pmadapter->cal_data_len > 0)) {
-		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_CFG_DATA,
-				       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-		pmadapter->pcal_data = MNULL;
-		pmadapter->cal_data_len = 0;
-	}
-
-	/*
-	 * Get HW spec
-	 */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_GET_HW_SPEC,
-			       HostCmd_ACT_GEN_GET, 0, MNULL, MNULL);
+    /* Reconfigure tx buf size */
+ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_RECONFIGURE_TX_BUFF,
+		       HostCmd_ACT_GEN_SET, 0, MNULL,
+		       &pmadapter->max_tx_buf_size);
+if (ret) {
+	ret = MLAN_STATUS_FAILURE;
+	goto done;
+}
+#if defined(STA_SUPPORT)
+if (pmpriv_sta && (pmpriv_sta->state_11d.user_enable_11d == ENABLE_11D)) {
+	/* Send command to FW to enable 11d */
+	ret = wlan_prepare_cmd(pmpriv_sta,
+			       HostCmd_CMD_802_11_SNMP_MIB,
+			       HostCmd_ACT_GEN_SET,
+			       Dot11D_i,
+			       MNULL, &pmpriv_sta->state_11d.user_enable_11d);
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+}
+#endif
 
-	/* Reconfigure tx buf size */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_RECONFIGURE_TX_BUFF,
-			       HostCmd_ACT_GEN_SET, 0, MNULL,
-			       &pmadapter->max_tx_buf_size);
+#if defined(STA_SUPPORT)
+if (pmpriv_sta && (pmadapter->ps_mode == Wlan802_11PowerModePSP)) {
+	ret = wlan_prepare_cmd(pmpriv_sta, HostCmd_CMD_802_11_PS_MODE_ENH,
+			       EN_AUTO_PS, BITMAP_STA_PS, MNULL, MNULL);
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-#if defined(STA_SUPPORT)
-	if (pmpriv_sta && (pmpriv_sta->state_11d.user_enable_11d == ENABLE_11D)) {
-		/* Send command to FW to enable 11d */
-		ret = wlan_prepare_cmd(pmpriv_sta,
-				       HostCmd_CMD_802_11_SNMP_MIB,
-				       HostCmd_ACT_GEN_SET,
-				       Dot11D_i,
-				       MNULL,
-				       &pmpriv_sta->state_11d.user_enable_11d);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-	}
+}
 #endif
 
-#if defined(STA_SUPPORT)
-	if (pmpriv_sta && (pmadapter->ps_mode == Wlan802_11PowerModePSP)) {
-		ret = wlan_prepare_cmd(pmpriv_sta,
-				       HostCmd_CMD_802_11_PS_MODE_ENH,
-				       EN_AUTO_PS, BITMAP_STA_PS, MNULL, MNULL);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmadapter->init_auto_ds) {
+	mlan_ds_auto_ds auto_ds;
+	/* Enable auto deep sleep */
+	auto_ds.idletime = pmadapter->idle_time;
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_MODE_ENH,
+			       EN_AUTO_PS, BITMAP_AUTO_DS, MNULL, &auto_ds);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
-#endif
-
-	if (pmadapter->init_auto_ds) {
-		mlan_ds_auto_ds auto_ds;
-		/* Enable auto deep sleep */
-		auto_ds.idletime = pmadapter->idle_time;
-		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_MODE_ENH,
-				       EN_AUTO_PS, BITMAP_AUTO_DS, MNULL,
-				       &auto_ds);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
-	}
+}
 #define DEF_AUTO_NULL_PKT_PERIOD    30
-	if (pmpriv_sta) {
-		t_u32 value = DEF_AUTO_NULL_PKT_PERIOD;
-		ret = wlan_prepare_cmd(pmpriv,
-				       HostCmd_CMD_802_11_SNMP_MIB,
-				       HostCmd_ACT_GEN_SET,
-				       NullPktPeriod_i, MNULL, &value);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmpriv_sta) {
+	t_u32 value = DEF_AUTO_NULL_PKT_PERIOD;
+	ret = wlan_prepare_cmd(pmpriv_sta,
+			       HostCmd_CMD_802_11_SNMP_MIB,
+			       HostCmd_ACT_GEN_SET,
+			       NullPktPeriod_i, MNULL, &value);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
+}
+if (pmadapter->init_para.indrstcfg != 0xffffffff) {
+	mlan_ds_ind_rst_cfg ind_rst_cfg;
+	ind_rst_cfg.ir_mode = pmadapter->init_para.indrstcfg & 0xff;
+	ind_rst_cfg.gpio_pin = (pmadapter->init_para.indrstcfg & 0xff00) >> 8;
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_INDEPENDENT_RESET_CFG,
+			       HostCmd_ACT_GEN_SET,
+			       0, MNULL, (t_void *)&ind_rst_cfg);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+}
 
-	ret = MLAN_STATUS_PENDING;
+if (pmadapter->inact_tmo) {
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT,
+			       HostCmd_ACT_GEN_SET, 0, MNULL,
+			       &pmadapter->inact_tmo);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+}
+if (pmadapter->init_para.drcs_chantime_mode) {
+	mlan_ds_drcs_cfg drcs_init_cfg[2];
+	drcs_init_cfg[0].chan_idx = 0x1;
+	drcs_init_cfg[0].chantime =
+		(t_u8)(pmadapter->init_para.drcs_chantime_mode >> 8);
+	/* switchtime use default value in fw */
+	drcs_init_cfg[0].switchtime = 10;
+	drcs_init_cfg[0].undozetime = 5;
+	drcs_init_cfg[0].mode = (t_u8)(pmadapter->init_para.drcs_chantime_mode);
+	drcs_init_cfg[1].chan_idx = 0x2;
+	drcs_init_cfg[1].chantime =
+		(t_u8)(pmadapter->init_para.drcs_chantime_mode >> 24);
+	/* switchtime use default value in fw */
+	drcs_init_cfg[1].switchtime = 10;
+	drcs_init_cfg[1].undozetime = 5;
+	drcs_init_cfg[1].mode =
+		(t_u8)(pmadapter->init_para.drcs_chantime_mode >> 16);
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_DRCS_CONFIG,
+			       HostCmd_ACT_GEN_SET, 0, MNULL,
+			       (t_void *)drcs_init_cfg);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
+}
+ret = MLAN_STATUS_PENDING;
 done:
-	LEAVE();
-	return ret;
+LEAVE();
+return ret;
 }
 
 #ifdef RX_PACKET_COALESCE
+/**
+ *  @brief This function prepares command of rx_pkt_coalesce_cfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+
 mlan_status
 wlan_cmd_rx_pkt_coalesce_cfg(IN pmlan_private pmpriv,
 			     IN HostCmd_DS_COMMAND *cmd,
@@ -3430,8 +3876,9 @@ done:
  *  @brief This function prepares the command MULTI_CHAN_CFG
  *
  *  @param pmpriv       A pointer to mlan_private structure
- *  @param resp         A pointer to HostCmd_DS_COMMAND
- *  @param pioctl_buf   A pointer to command buffer
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
  *
  *  @return             MLAN_STATUS_SUCCESS
  */
@@ -3518,8 +3965,9 @@ wlan_ret_multi_chan_cfg(IN pmlan_private pmpriv,
  *  @brief This function prepares the command MULTI_CHAN_POLICY
  *
  *  @param pmpriv       A pointer to mlan_private structure
- *  @param resp         A pointer to HostCmd_DS_COMMAND
- *  @param pioctl_buf   A pointer to command buffer
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
  *
  *  @return             MLAN_STATUS_SUCCESS
  */
@@ -3586,6 +4034,175 @@ wlan_ret_multi_chan_policy(IN pmlan_private pmpriv,
 }
 
 /**
+ *  @brief This function prepares the command DRCD_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   Command action: GET or SET
+ *  @param pdata_buf    A pointer to new setting buf
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_drcs_cfg(IN pmlan_private pmpriv,
+		  IN HostCmd_DS_COMMAND *cmd,
+		  IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	mlan_ds_drcs_cfg *drcs_cfg = (mlan_ds_drcs_cfg *) pdata_buf;
+	HostCmd_DS_DRCS_CFG *pdrcs_cfg =
+		(HostCmd_DS_DRCS_CFG *) & cmd->params.drcs_cfg;
+	MrvlTypes_DrcsTimeSlice_t *channel_time_slicing =
+		&pdrcs_cfg->time_slicing;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_DRCS_CONFIG);
+	pdrcs_cfg->action = wlan_cpu_to_le16(cmd_action);
+
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		channel_time_slicing->header.type =
+			wlan_cpu_to_le16(MRVL_DRCS_TIME_SLICE_TLV_ID);
+		channel_time_slicing->header.len =
+			wlan_cpu_to_le16(sizeof(MrvlTypes_DrcsTimeSlice_t) -
+					 sizeof(MrvlIEtypesHeader_t));
+		channel_time_slicing->chan_idx =
+			wlan_cpu_to_le16(drcs_cfg->chan_idx);
+		channel_time_slicing->chantime = drcs_cfg->chantime;
+		channel_time_slicing->switchtime = drcs_cfg->switchtime;
+		channel_time_slicing->undozetime = drcs_cfg->undozetime;
+		channel_time_slicing->mode = drcs_cfg->mode;
+		PRINTM(MCMND,
+		       "Set multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+		       channel_time_slicing->chan_idx,
+		       channel_time_slicing->chantime,
+		       channel_time_slicing->switchtime,
+		       channel_time_slicing->undozetime,
+		       channel_time_slicing->mode);
+		cmd->size =
+			wlan_cpu_to_le16(S_DS_GEN +
+					 sizeof(HostCmd_DS_DRCS_CFG));
+		/* Set two channels different parameters */
+		if (0x3 != channel_time_slicing->chan_idx) {
+			drcs_cfg++;
+			channel_time_slicing = pdrcs_cfg->drcs_buf;
+			channel_time_slicing->header.type =
+				wlan_cpu_to_le16(MRVL_DRCS_TIME_SLICE_TLV_ID);
+			channel_time_slicing->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlTypes_DrcsTimeSlice_t) -
+						 sizeof(MrvlIEtypesHeader_t));
+			channel_time_slicing->chan_idx =
+				wlan_cpu_to_le16(drcs_cfg->chan_idx);
+			channel_time_slicing->chantime = drcs_cfg->chantime;
+			channel_time_slicing->switchtime = drcs_cfg->switchtime;
+			channel_time_slicing->undozetime = drcs_cfg->undozetime;
+			channel_time_slicing->mode = drcs_cfg->mode;
+			PRINTM(MCMND,
+			       "Set multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+			       channel_time_slicing->chan_idx,
+			       channel_time_slicing->chantime,
+			       channel_time_slicing->switchtime,
+			       channel_time_slicing->undozetime,
+			       channel_time_slicing->mode);
+			cmd->size +=
+				wlan_cpu_to_le16(sizeof
+						 (MrvlTypes_DrcsTimeSlice_t));
+		}
+	} else {
+		cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(cmd_action));
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of DRCS_CFG
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_drcs_cfg(IN pmlan_private pmpriv,
+		  const IN HostCmd_DS_COMMAND *resp,
+		  OUT mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *pcfg = MNULL;
+	const HostCmd_DS_DRCS_CFG *presp_cfg = &resp->params.drcs_cfg;
+	const MrvlTypes_DrcsTimeSlice_t *channel_time_slicing =
+		&presp_cfg->time_slicing;
+	const MrvlTypes_DrcsTimeSlice_t *channel_time_slicing1 = MNULL;
+	mlan_ds_drcs_cfg *drcs_cfg1 = MNULL;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		pcfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		if (wlan_le16_to_cpu(channel_time_slicing->header.type) !=
+		    MRVL_DRCS_TIME_SLICE_TLV_ID ||
+		    wlan_le16_to_cpu(channel_time_slicing->header.len) !=
+		    sizeof(MrvlTypes_DrcsTimeSlice_t) -
+		    sizeof(MrvlIEtypesHeader_t)) {
+			LEAVE();
+			return MLAN_STATUS_FAILURE;
+		}
+		pcfg->param.drcs_cfg[0].chan_idx =
+			wlan_le16_to_cpu(channel_time_slicing->chan_idx);
+		pcfg->param.drcs_cfg[0].chantime =
+			channel_time_slicing->chantime;
+		pcfg->param.drcs_cfg[0].switchtime =
+			channel_time_slicing->switchtime;
+		pcfg->param.drcs_cfg[0].undozetime =
+			channel_time_slicing->undozetime;
+		pcfg->param.drcs_cfg[0].mode = channel_time_slicing->mode;
+		PRINTM(MCMND,
+		       "multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+		       pcfg->param.drcs_cfg[0].chan_idx,
+		       channel_time_slicing->chantime,
+		       channel_time_slicing->switchtime,
+		       channel_time_slicing->undozetime,
+		       channel_time_slicing->mode);
+		pioctl_buf->buf_len = sizeof(mlan_ds_drcs_cfg);
+		/*Channel for chan_idx 1 and 2 have different parameters */
+		if (0x3 != pcfg->param.drcs_cfg[0].chan_idx) {
+			channel_time_slicing1 = presp_cfg->drcs_buf;
+			if (wlan_le16_to_cpu(channel_time_slicing1->header.type)
+			    != MRVL_DRCS_TIME_SLICE_TLV_ID ||
+			    wlan_le16_to_cpu(channel_time_slicing1->header.
+					     len) !=
+			    sizeof(MrvlTypes_DrcsTimeSlice_t) -
+			    sizeof(MrvlIEtypesHeader_t)) {
+				LEAVE();
+				return MLAN_STATUS_FAILURE;
+			}
+			drcs_cfg1 =
+				(mlan_ds_drcs_cfg *) & pcfg->param.drcs_cfg[1];
+			drcs_cfg1->chan_idx =
+				wlan_le16_to_cpu(channel_time_slicing1->
+						 chan_idx);
+			drcs_cfg1->chantime = channel_time_slicing1->chantime;
+			drcs_cfg1->switchtime =
+				channel_time_slicing1->switchtime;
+			drcs_cfg1->undozetime =
+				channel_time_slicing1->undozetime;
+			drcs_cfg1->mode = channel_time_slicing1->mode;
+			PRINTM(MCMND,
+			       "multi-channel: chan_idx=%d chantime=%d switchtime=%d undozetime=%d mode=%d\n",
+			       drcs_cfg1->chan_idx, drcs_cfg1->chantime,
+			       drcs_cfg1->switchtime, drcs_cfg1->undozetime,
+			       drcs_cfg1->mode);
+			pioctl_buf->buf_len += sizeof(mlan_ds_drcs_cfg);
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function prepares command of get_hw_spec.
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -3623,33 +4240,35 @@ wlan_cmd_get_hw_spec(IN pmlan_private pmpriv, IN HostCmd_DS_COMMAND *pcmd)
 mlan_status
 wlan_cmd_cfg_data(IN pmlan_private pmpriv,
 		  IN HostCmd_DS_COMMAND *pcmd,
-		  IN t_u16 cmd_action, IN t_void *pdata_buf)
+		  IN t_u16 cmd_action, IN t_u32 cmd_oid, IN t_void *pdata_buf)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	HostCmd_DS_802_11_CFG_DATA *pcfg_data = &(pcmd->params.cfg_data);
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	t_u32 len;
-	t_u32 cal_data_offset;
+	t_u32 data_offset;
 	t_u8 *temp_pcmd = (t_u8 *)pcmd;
 
 	ENTER();
 
-	cal_data_offset = S_DS_GEN + sizeof(HostCmd_DS_802_11_CFG_DATA);
-	if ((pmadapter->pcal_data) && (pmadapter->cal_data_len > 0)) {
+	data_offset = S_DS_GEN + sizeof(HostCmd_DS_802_11_CFG_DATA);
+
+	if ((cmd_oid == OID_TYPE_CAL) && (pmadapter->pcal_data) &&
+	    (pmadapter->cal_data_len > 0)) {
 		len = wlan_parse_cal_cfg((t_u8 *)pmadapter->pcal_data,
 					 pmadapter->cal_data_len,
-					 (t_u8 *)(temp_pcmd + cal_data_offset));
+					 (t_u8 *)(temp_pcmd + data_offset));
 	} else {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
 
 	pcfg_data->action = cmd_action;
-	pcfg_data->type = 2;	/* cal data type */
+	pcfg_data->type = cmd_oid;
 	pcfg_data->data_len = len;
 
 	pcmd->command = HostCmd_CMD_CFG_DATA;
-	pcmd->size = pcfg_data->data_len + cal_data_offset;
+	pcmd->size = pcfg_data->data_len + data_offset;
 
 	pcmd->command = wlan_cpu_to_le16(pcmd->command);
 	pcmd->size = wlan_cpu_to_le16(pcmd->size);
@@ -3681,7 +4300,7 @@ wlan_ret_cfg_data(IN pmlan_private pmpriv,
 	ENTER();
 
 	if (resp->result != HostCmd_RESULT_OK) {
-		PRINTM(MERROR, "Cal data cmd resp failed\n");
+		PRINTM(MERROR, "CFG data cmd resp failed\n");
 		ret = MLAN_STATUS_FAILURE;
 	}
 	LEAVE();
@@ -3765,6 +4384,7 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	t_u16 api_id = 0;
 	MrvlIEtypesHeader_t *tlv = MNULL;
 	pmlan_ioctl_req pioctl_req = (mlan_ioctl_req *)pioctl_buf;
+	MrvlIEtypes_Max_Conn_t *tlv_max_conn = MNULL;
 
 	ENTER();
 
@@ -3805,6 +4425,14 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 						BAND_AAC;
 			}
 		}
+		if (pmadapter->fw_bands & BAND_GAC) {
+			pmadapter->config_bands |= BAND_GAC;
+			for (i = 0; i < pmadapter->priv_num; i++) {
+				if (pmadapter->priv[i])
+					pmadapter->priv[i]->config_bands |=
+						BAND_GAC;
+			}
+		}
 		if ((pmadapter->fw_bands & BAND_AN)
 			) {
 			pmadapter->adhoc_start_band = BAND_A | BAND_AN;
@@ -3829,7 +4457,11 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	pmadapter->fw_release_number =
 		wlan_le32_to_cpu(hw_spec->fw_release_number);
 	pmadapter->number_of_antenna =
-		wlan_le16_to_cpu(hw_spec->number_of_antenna);
+		wlan_le16_to_cpu(hw_spec->number_of_antenna) & 0x00ff;
+	pmadapter->antinfo =
+		(wlan_le16_to_cpu(hw_spec->number_of_antenna) & 0xff00) >> 8;
+	PRINTM(MCMND, "num_ant=%d, antinfo=0x%x\n",
+	       pmadapter->number_of_antenna, pmadapter->antinfo);
 
 	PRINTM(MINFO, "GET_HW_SPEC: fw_release_number- 0x%X\n",
 	       pmadapter->fw_release_number);
@@ -3842,7 +4474,8 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	if (pmpriv->curr_addr[0] == 0xff)
 		memmove(pmadapter, pmpriv->curr_addr, hw_spec->permanent_addr,
 			MLAN_MAC_ADDR_LENGTH);
-
+	memmove(pmadapter, pmadapter->permanent_addr, hw_spec->permanent_addr,
+		MLAN_MAC_ADDR_LENGTH);
 	pmadapter->hw_dot_11n_dev_cap =
 		wlan_le32_to_cpu(hw_spec->dot_11n_dev_cap);
 	pmadapter->hw_dev_mcs_support = hw_spec->dev_mcs_support;
@@ -3967,6 +4600,25 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 				break;
 			}
 			break;
+		case TLV_TYPE_MAX_CONN:
+			tlv_max_conn = (MrvlIEtypes_Max_Conn_t *) tlv;
+			PRINTM(MMSG, "max_p2p_conn = %d, max_sta_conn = %d\n",
+			       tlv_max_conn->max_p2p_conn,
+			       tlv_max_conn->max_sta_conn);
+			if (tlv_max_conn->max_p2p_conn &&
+			    tlv_max_conn->max_sta_conn)
+				pmadapter->max_sta_conn =
+					MIN(tlv_max_conn->max_sta_conn,
+					    tlv_max_conn->max_p2p_conn);
+			else if (tlv_max_conn->max_sta_conn)
+				pmadapter->max_sta_conn =
+					tlv_max_conn->max_sta_conn;
+			else if (tlv_max_conn->max_p2p_conn)
+				pmadapter->max_sta_conn =
+					tlv_max_conn->max_p2p_conn;
+			else
+				pmadapter->max_sta_conn = 0;
+			break;
 		default:
 			break;
 		}
@@ -4037,7 +4689,6 @@ wlan_ret_802_11_radio_control(IN pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
-#ifdef WIFI_DIRECT_SUPPORT
 /**
  *  @brief This function prepares command of remain_on_channel.
  *
@@ -4108,6 +4759,8 @@ wlan_ret_remain_on_channel(IN pmlan_private pmpriv,
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
+#ifdef WIFI_DIRECT_SUPPORT
 
 /**
  *  @brief This function prepares command of wifi direct mode.
@@ -4933,4 +5586,555 @@ wlan_bt_coex_wlan_param_update_event(pmlan_private priv, pmlan_buffer pevent)
 	       pmadapter->coex_rx_win_size);
 
 	LEAVE();
+}
+
+/**
+ *  @brief This function prepares command of supplicant pmk
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_cmd_802_11_supplicant_pmk(IN pmlan_private pmpriv,
+			       IN HostCmd_DS_COMMAND *cmd,
+			       IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	MrvlIEtypes_PMK_t *ppmk_tlv = MNULL;
+	MrvlIEtypes_Passphrase_t *ppassphrase_tlv = MNULL;
+	MrvlIEtypes_SsIdParamSet_t *pssid_tlv = MNULL;
+	MrvlIEtypes_Bssid_t *pbssid_tlv = MNULL;
+	HostCmd_DS_802_11_SUPPLICANT_PMK *pesupplicant_psk =
+		&cmd->params.esupplicant_psk;
+	t_u8 *ptlv_buffer = (t_u8 *)pesupplicant_psk->tlv_buffer;
+	mlan_ds_sec_cfg *sec = (mlan_ds_sec_cfg *)pdata_buf;
+	mlan_ds_passphrase *psk = MNULL;
+	t_u8 zero_mac[] = { 0, 0, 0, 0, 0, 0 };
+	t_u8 ssid_flag = 0, bssid_flag = 0, pmk_flag = 0, passphrase_flag = 0;
+
+	ENTER();
+	psk = (mlan_ds_passphrase *)&sec->param.passphrase;
+
+	/*
+	 * Parse the rest of the buf here
+	 *  1) <ssid="valid ssid"> - This will get the passphrase, AKMP
+	 *     for specified ssid, if none specified then it will get all.
+	 *     Eg: iwpriv <mlanX> passphrase 0:ssid=marvell
+	 *  2) <psk="psk">:<passphrase="passphare">:<bssid="00:50:43:ef:23:f3">
+	 *     <ssid="valid ssid"> - passphrase and psk cannot be provided to
+	 *     the same SSID, Takes one SSID at a time, If ssid= is present
+	 *     the it should contain a passphrase or psk. If no arguments are
+	 *     provided then AKMP=802.1x, and passphrase should be provided
+	 *     after association.
+	 *     End of each parameter should be followed by a ':'(except for the
+	 *     last parameter) as the delimiter. If ':' has to be used in
+	 *     an SSID then a '/' should be preceded to ':' as a escape.
+	 *     Eg:iwpriv <mlanX> passphrase
+	 *               "1:ssid=mrvl AP:psk=abcdefgh:bssid=00:50:43:ef:23:f3"
+	 *     iwpriv <mlanX> passphrase
+	 *            "1:ssid=mrvl/: AP:psk=abcdefgd:bssid=00:50:43:ef:23:f3"
+	 *     iwpriv <mlanX> passphrase "1:ssid=mrvlAP:psk=abcdefgd"
+	 *  3) <ssid="valid ssid"> - This will clear the passphrase
+	 *     for specified ssid, if none specified then it will clear all.
+	 *     Eg: iwpriv <mlanX> passphrase 2:ssid=marvell
+	 */
+
+	/* -1 is for t_u8 TlvBuffer[1] as this should not be included */
+	cmd->size = sizeof(HostCmd_DS_802_11_SUPPLICANT_PMK) + S_DS_GEN - 1;
+	if (psk &&
+	    memcmp(pmpriv->adapter, (t_u8 *)&psk->bssid, zero_mac,
+		   sizeof(zero_mac))) {
+		pbssid_tlv = (MrvlIEtypes_Bssid_t *)ptlv_buffer;
+		pbssid_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_BSSID);
+		pbssid_tlv->header.len = MLAN_MAC_ADDR_LENGTH;
+		memcpy(pmpriv->adapter, pbssid_tlv->bssid, (t_u8 *)&psk->bssid,
+		       MLAN_MAC_ADDR_LENGTH);
+		ptlv_buffer +=
+			(pbssid_tlv->header.len + sizeof(MrvlIEtypesHeader_t));
+		cmd->size +=
+			(pbssid_tlv->header.len + sizeof(MrvlIEtypesHeader_t));
+		pbssid_tlv->header.len =
+			wlan_cpu_to_le16(pbssid_tlv->header.len);
+		bssid_flag = 1;
+	}
+	if (psk && (psk->psk_type == MLAN_PSK_PMK)) {
+		ppmk_tlv = (MrvlIEtypes_PMK_t *)ptlv_buffer;
+		ppmk_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_PMK);
+		ppmk_tlv->header.len = MLAN_MAX_KEY_LENGTH;
+		memcpy(pmpriv->adapter, ppmk_tlv->pmk, psk->psk.pmk.pmk,
+		       MLAN_MAX_KEY_LENGTH);
+		ptlv_buffer +=
+			(ppmk_tlv->header.len + sizeof(MrvlIEtypesHeader_t));
+		cmd->size +=
+			(ppmk_tlv->header.len + sizeof(MrvlIEtypesHeader_t));
+		ppmk_tlv->header.len = wlan_cpu_to_le16(ppmk_tlv->header.len);
+		pmk_flag = 1;
+	}
+	if (psk->ssid.ssid_len) {
+		pssid_tlv = (MrvlIEtypes_SsIdParamSet_t *)ptlv_buffer;
+		pssid_tlv->header.type = wlan_cpu_to_le16(TLV_TYPE_SSID);
+		pssid_tlv->header.len =
+			(t_u16)MIN(MLAN_MAX_SSID_LENGTH, psk->ssid.ssid_len);
+		memcpy(pmpriv->adapter, (t_u8 *)pssid_tlv->ssid,
+		       (t_u8 *)psk->ssid.ssid, MIN(MLAN_MAX_SSID_LENGTH,
+						   psk->ssid.ssid_len));
+		ptlv_buffer +=
+			(pssid_tlv->header.len + sizeof(MrvlIEtypesHeader_t));
+		cmd->size +=
+			(pssid_tlv->header.len + sizeof(MrvlIEtypesHeader_t));
+		pssid_tlv->header.len = wlan_cpu_to_le16(pssid_tlv->header.len);
+		ssid_flag = 1;
+	}
+	if (psk->psk_type == MLAN_PSK_PASSPHRASE) {
+		ppassphrase_tlv = (MrvlIEtypes_Passphrase_t *)ptlv_buffer;
+		ppassphrase_tlv->header.type =
+			wlan_cpu_to_le16(TLV_TYPE_PASSPHRASE);
+		ppassphrase_tlv->header.len =
+			(t_u16)MIN(MLAN_MAX_PASSPHRASE_LENGTH,
+				   psk->psk.passphrase.passphrase_len);
+		memcpy(pmpriv->adapter, ppassphrase_tlv->passphrase,
+		       psk->psk.passphrase.passphrase,
+		       MIN(MLAN_MAX_PASSPHRASE_LENGTH,
+			   psk->psk.passphrase.passphrase_len));
+		ptlv_buffer +=
+			(ppassphrase_tlv->header.len +
+			 sizeof(MrvlIEtypesHeader_t));
+		cmd->size +=
+			(ppassphrase_tlv->header.len +
+			 sizeof(MrvlIEtypesHeader_t));
+		ppassphrase_tlv->header.len =
+			wlan_cpu_to_le16(ppassphrase_tlv->header.len);
+		passphrase_flag = 1;
+	}
+	if ((cmd_action == HostCmd_ACT_GEN_SET) &&
+	    ((ssid_flag || bssid_flag) && (!pmk_flag && !passphrase_flag))) {
+		PRINTM(MERROR,
+		       "Invalid case,ssid/bssid present without pmk or passphrase\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_SUPPLICANT_PMK);
+	pesupplicant_psk->action = wlan_cpu_to_le16(cmd_action);
+	pesupplicant_psk->cache_result = 0;
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief Handle the supplicant pmk response
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return        MLAN_STATUS_SUCCESS MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_ret_802_11_supplicant_pmk(IN pmlan_private pmpriv,
+			       IN HostCmd_DS_COMMAND *resp,
+			       IN mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_802_11_SUPPLICANT_PMK *supplicant_pmk_resp =
+		&resp->params.esupplicant_psk;
+	mlan_ds_sec_cfg sec_buf;
+	mlan_ds_sec_cfg *sec = MNULL;
+	MrvlIEtypes_PMK_t *ppmk_tlv = MNULL;
+	MrvlIEtypes_Passphrase_t *passphrase_tlv = MNULL;
+	MrvlIEtypes_SsIdParamSet_t *pssid_tlv = MNULL;
+	MrvlIEtypes_Bssid_t *pbssid_tlv = MNULL;
+	t_u8 *tlv_buf = (t_u8 *)supplicant_pmk_resp->tlv_buffer;
+	t_u16 action = wlan_le16_to_cpu(supplicant_pmk_resp->action);
+	int tlv_buf_len = 0;
+	t_u16 tlv;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	tlv_buf_len = resp->size - (sizeof(HostCmd_DS_802_11_SUPPLICANT_PMK) +
+				    S_DS_GEN - 1);
+	if (pioctl_buf) {
+		if (((mlan_ds_bss *)pioctl_buf->pbuf)->sub_command ==
+		    MLAN_OID_BSS_FIND_BSS)
+			sec = &sec_buf;
+		else
+			sec = (mlan_ds_sec_cfg *)pioctl_buf->pbuf;
+		if (action == HostCmd_ACT_GEN_GET) {
+			while (tlv_buf_len > 0) {
+				tlv = (*tlv_buf) | (*(tlv_buf + 1) << 8);
+				if ((tlv != TLV_TYPE_SSID) &&
+				    (tlv != TLV_TYPE_BSSID) &&
+				    (tlv != TLV_TYPE_PASSPHRASE)
+				    && (tlv != TLV_TYPE_PMK))
+					break;
+				switch (tlv) {
+				case TLV_TYPE_SSID:
+					pssid_tlv =
+						(MrvlIEtypes_SsIdParamSet_t *)
+						tlv_buf;
+					pssid_tlv->header.len =
+						wlan_le16_to_cpu(pssid_tlv->
+								 header.len);
+					memcpy(pmpriv->adapter,
+					       sec->param.passphrase.ssid.ssid,
+					       pssid_tlv->ssid,
+					       MIN(MLAN_MAX_SSID_LENGTH,
+						   pssid_tlv->header.len));
+					sec->param.passphrase.ssid.ssid_len =
+						MIN(MLAN_MAX_SSID_LENGTH,
+						    pssid_tlv->header.len);
+					tlv_buf +=
+						pssid_tlv->header.len +
+						sizeof(MrvlIEtypesHeader_t);
+					tlv_buf_len -=
+						(pssid_tlv->header.len +
+						 sizeof(MrvlIEtypesHeader_t));
+					break;
+				case TLV_TYPE_BSSID:
+					pbssid_tlv =
+						(MrvlIEtypes_Bssid_t *)tlv_buf;
+					pbssid_tlv->header.len =
+						wlan_le16_to_cpu(pbssid_tlv->
+								 header.len);
+					memcpy(pmpriv->adapter,
+					       &sec->param.passphrase.bssid,
+					       pbssid_tlv->bssid,
+					       MLAN_MAC_ADDR_LENGTH);
+					tlv_buf +=
+						pbssid_tlv->header.len +
+						sizeof(MrvlIEtypesHeader_t);
+					tlv_buf_len -=
+						(pbssid_tlv->header.len +
+						 sizeof(MrvlIEtypesHeader_t));
+					break;
+				case TLV_TYPE_PASSPHRASE:
+					passphrase_tlv =
+						(MrvlIEtypes_Passphrase_t *)
+						tlv_buf;
+					passphrase_tlv->header.len =
+						wlan_le16_to_cpu
+						(passphrase_tlv->header.len);
+					sec->param.passphrase.psk_type =
+						MLAN_PSK_PASSPHRASE;
+					sec->param.passphrase.psk.passphrase.
+						passphrase_len =
+						passphrase_tlv->header.len;
+					memcpy(pmpriv->adapter,
+					       sec->param.passphrase.psk.
+					       passphrase.passphrase,
+					       passphrase_tlv->passphrase,
+					       MIN(MLAN_MAX_PASSPHRASE_LENGTH,
+						   passphrase_tlv->header.len));
+					tlv_buf +=
+						passphrase_tlv->header.len +
+						sizeof(MrvlIEtypesHeader_t);
+					tlv_buf_len -=
+						(passphrase_tlv->header.len +
+						 sizeof(MrvlIEtypesHeader_t));
+					break;
+				case TLV_TYPE_PMK:
+					ppmk_tlv = (MrvlIEtypes_PMK_t *)tlv_buf;
+					ppmk_tlv->header.len =
+						wlan_le16_to_cpu(ppmk_tlv->
+								 header.len);
+					sec->param.passphrase.psk_type =
+						MLAN_PSK_PMK;
+					memcpy(pmpriv->adapter,
+					       sec->param.passphrase.psk.pmk.
+					       pmk, ppmk_tlv->pmk,
+					       MIN(MLAN_MAX_KEY_LENGTH,
+						   ppmk_tlv->header.len));
+					tlv_buf +=
+						ppmk_tlv->header.len +
+						sizeof(MrvlIEtypesHeader_t);
+					tlv_buf_len -=
+						(ppmk_tlv->header.len +
+						 sizeof(MrvlIEtypesHeader_t));
+					break;
+
+				}
+			}
+#ifdef STA_SUPPORT
+			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_STA &&
+			    ((mlan_ds_bss *)pioctl_buf->pbuf)->sub_command ==
+			    MLAN_OID_BSS_FIND_BSS) {
+				wlan_set_ewpa_mode(pmpriv,
+						   &sec->param.passphrase);
+				ret = wlan_find_bss(pmpriv, pioctl_buf);
+			}
+#endif
+		} else if (action == HostCmd_ACT_GEN_SET) {
+			PRINTM(MINFO, "Esupp PMK set: enable ewpa query\n");
+			pmpriv->ewpa_query = MTRUE;
+		}
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function prepares command of independent reset.
+ *
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_ind_rst_cfg(IN HostCmd_DS_COMMAND *cmd,
+		     IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	mlan_ds_ind_rst_cfg *pdata_ind_rst = (mlan_ds_ind_rst_cfg *) pdata_buf;
+	HostCmd_DS_INDEPENDENT_RESET_CFG *ind_rst_cfg =
+		(HostCmd_DS_INDEPENDENT_RESET_CFG *) & cmd->params.ind_rst_cfg;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_INDEPENDENT_RESET_CFG);
+	cmd->size =
+		wlan_cpu_to_le16(sizeof(HostCmd_DS_INDEPENDENT_RESET_CFG) +
+				 S_DS_GEN);
+
+	ind_rst_cfg->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		ind_rst_cfg->ir_mode = pdata_ind_rst->ir_mode;
+		ind_rst_cfg->gpio_pin = pdata_ind_rst->gpio_pin;
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of independent reset
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_ind_rst_cfg(IN pmlan_private pmpriv,
+		     IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	const HostCmd_DS_INDEPENDENT_RESET_CFG *ind_rst_cfg =
+		(HostCmd_DS_INDEPENDENT_RESET_CFG *) & resp->params.ind_rst_cfg;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+
+		if (wlan_le16_to_cpu(ind_rst_cfg->action) ==
+		    HostCmd_ACT_GEN_GET) {
+			misc->param.ind_rst_cfg.ir_mode = ind_rst_cfg->ir_mode;
+			misc->param.ind_rst_cfg.gpio_pin =
+				ind_rst_cfg->gpio_pin;
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of ps inactivity timeout.
+ *
+ *  @param pmpriv      A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_ps_inactivity_timeout(IN pmlan_private pmpriv,
+			       IN HostCmd_DS_COMMAND *cmd,
+			       IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	t_u16 timeout = *((t_u16 *)pdata_buf);
+	HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT *ps_inact_tmo =
+		(HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT *) & cmd->params.
+		ps_inact_tmo;
+
+	ENTER();
+
+	cmd->command =
+		wlan_cpu_to_le16(HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT);
+	cmd->size =
+		wlan_cpu_to_le16(sizeof(HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT)
+				 + S_DS_GEN);
+
+	ps_inact_tmo->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET)
+		ps_inact_tmo->inact_tmo = wlan_cpu_to_le16(timeout);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of HostCmd_CMD_GET_TSF
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_get_tsf(pmlan_private pmpriv,
+		 IN HostCmd_DS_COMMAND *cmd, IN t_u16 cmd_action)
+{
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_GET_TSF);
+	cmd->size = wlan_cpu_to_le16((sizeof(HostCmd_DS_TSF)) + S_DS_GEN);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of HostCmd_CMD_GET_TSF
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_get_tsf(IN pmlan_private pmpriv,
+		 IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	HostCmd_DS_TSF *tsf_pointer = (HostCmd_DS_TSF *) & resp->params.tsf;
+
+	ENTER();
+	if (pioctl_buf) {
+		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc_cfg->param.misc_tsf = wlan_le64_to_cpu(tsf_pointer->tsf);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+/**
+ *  @brief This function prepares command of sdio_pull_ctl
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_sdio_pull_ctl(pmlan_private pmpriv,
+		       IN HostCmd_DS_COMMAND *cmd, IN t_u16 cmd_action)
+{
+	HostCmd_DS_SDIO_PULL_CTRL *pull_ctrl = &cmd->params.sdio_pull_ctl;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_SDIO_PULL_CTRL);
+	cmd->size =
+		wlan_cpu_to_le16((sizeof(HostCmd_DS_SDIO_PULL_CTRL)) +
+				 S_DS_GEN);
+
+	memset(pmpriv->adapter, pull_ctrl, 0,
+	       sizeof(HostCmd_DS_SDIO_PULL_CTRL));
+	pull_ctrl->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		pull_ctrl->pull_up = wlan_cpu_to_le16(DEFAULT_PULLUP_DELAY);
+		pull_ctrl->pull_down = wlan_cpu_to_le16(DEFAULT_PULLDOWN_DELAY);
+		pull_ctrl->gpio_pullup_req = DEFAULT_GPIO_PULLUP_REQ;
+		pull_ctrl->gpio_pullup_ack = DEFAULT_GPIO_ACK_PULLUP;
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+#endif
+
+/**
+ *  @brief This function sends fw dump event command to firmware.
+ *
+ *  @param pmpriv         A pointer to mlan_private structure
+ *  @param cmd            HostCmd_DS_COMMAND structure
+ *  @param cmd_action     the action: GET or SET
+ *  @param pdata_buf      A void pointer to information buffer
+ *  @return               N/A
+ */
+mlan_status
+wlan_cmd_fw_dump_event(IN pmlan_private pmpriv,
+		       IN HostCmd_DS_COMMAND *cmd,
+		       IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_FW_DUMP_EVENT);
+	cmd->size = S_DS_GEN;
+	cmd->size = wlan_cpu_to_le16(cmd->size);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function sends boot sleep configure command to firmware.
+ *
+ *  @param pmpriv         A pointer to mlan_private structure
+ *  @param cmd          Hostcmd ID
+ *  @param cmd_action   Command action
+ *  @param pdata_buf    A void pointer to information buffer
+ *  @return             MLAN_STATUS_SUCCESS/ MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_cmd_boot_sleep(IN pmlan_private pmpriv,
+		    IN HostCmd_DS_COMMAND *cmd,
+		    IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	HostCmd_DS_BOOT_SLEEP *boot_sleep = MNULL;
+	t_u16 enable = *(t_u16 *)pdata_buf;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_BOOT_SLEEP);
+	boot_sleep = &cmd->params.boot_sleep;
+	boot_sleep->action = wlan_cpu_to_le16(cmd_action);
+	boot_sleep->enable = wlan_cpu_to_le16(enable);
+
+	cmd->size = S_DS_GEN + sizeof(HostCmd_DS_BOOT_SLEEP);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of boot sleep cfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return        MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_boot_sleep(IN pmlan_private pmpriv,
+		    IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_BOOT_SLEEP *boot_sleep = &resp->params.boot_sleep;
+	mlan_ds_misc_cfg *cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+
+	ENTER();
+
+	cfg->param.boot_sleep = wlan_le16_to_cpu(boot_sleep->enable);
+	PRINTM(MCMND, "boot sleep cfg status %u", cfg->param.boot_sleep);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
 }

@@ -5,7 +5,7 @@
  *
  *  Usage: mlanevent.exe [-option]
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -103,23 +103,6 @@ hexdump(void *p, t_s32 len, char delim)
 		if ((i + 1) % 16 == 0)
 			printf("\n");
 	}
-}
-
-/**
- *    @brief isdigit for String.
- *
- *    @param x            Char string
- *    @return             MLAN_EVENT_FAILURE for non-digit.
- *                        0 for digit
- */
-inline int
-ISDIGIT(char *x)
-{
-	unsigned int i;
-	for (i = 0; i < strlen(x); i++)
-		if (isdigit(x[i]) == 0)
-			return MLAN_EVENT_FAILURE;
-	return 0;
 }
 
 /**
@@ -560,21 +543,18 @@ print_event_bss_start(t_u8 *buffer, t_u16 size)
 			channel_tlv = (tlvbuf_channel_config *)tlv;
 			printf("Channel = %d\n", channel_tlv->chan_number);
 			printf("Band = %s\n",
-			       (channel_tlv->
-				band_config_type & BAND_CONFIG_5GHZ) ? "5GHz" :
-			       "2.4GHz");
+			       (channel_tlv->bandcfg.chanBand ==
+				BAND_5GHZ) ? "5GHz" : "2.4GHz");
 			printf("Channel Select Mode = %s\n",
-			       (channel_tlv->
-				band_config_type & BAND_CONFIG_ACS_MODE) ? "ACS"
-			       : "Manual");
-			channel_tlv->band_config_type &= 0x30;
-			if (channel_tlv->band_config_type == 0)
+			       (channel_tlv->bandcfg.scanMode ==
+				SCAN_MODE_ACS) ? "ACS" : "Manual");
+			if (channel_tlv->bandcfg.chan2Offset == SEC_CHAN_NONE)
 				printf("no secondary channel\n");
-			else if (channel_tlv->band_config_type ==
-				 SECOND_CHANNEL_ABOVE)
+			else if (channel_tlv->bandcfg.chan2Offset ==
+				 SEC_CHAN_ABOVE)
 				printf("secondary channel is above primary channel\n");
-			else if (channel_tlv->band_config_type ==
-				 SECOND_CHANNEL_BELOW)
+			else if (channel_tlv->bandcfg.chan2Offset ==
+				 SEC_CHAN_BELOW)
 				printf("secondary channel is below primary channel\n");
 			break;
 		default:
@@ -1668,18 +1648,18 @@ print_event_wifidirect_service_discovery(t_u8 *buffer, t_u16 size)
 		if (wifidirect_disc_resp->service_protocol == 1) {
 			printf(" * Bonjour * \n");
 			/*
-			   printf("\t\t DNS = "); dns_len =
-			   uap_le16_to_cpu(wifidirect_disc_resp->vendor_len) -
-			   (WIFIDIRECT_DISCOVERY_BONJOUR_FIXED_LEN + 1); for(
-			   i=0; i < dns_len; i++)
-			   printf("%c",*(wifidirect_disc_resp->disc_resp.u.bonjour.dns
-			   + i)); memcpy(&dns_type,
-			   (&wifidirect_disc_req->disc_query.u.bonjour.dns_type
-			   + dns_len), sizeof(dns_type)); dns_type =
-			   uap_le16_to_cpu(dns_type); printf("\n\t\t DNS Type =
-			   %d\n", dns_type); printf("\t\t Version = %d\n",
-			   *(&wifidirect_disc_resp->disc_resp.u.bonjour.version
-			   + dns_len)); */
+			   printf("\t\t DNS = ");
+			   dns_len = uap_le16_to_cpu(wifidirect_disc_resp->vendor_len) -
+			   (WIFIDIRECT_DISCOVERY_BONJOUR_FIXED_LEN + 1);
+			   for( i=0; i < dns_len; i++)
+			   printf("%c",*(wifidirect_disc_resp->disc_resp.u.bonjour.dns + i));
+			   memcpy(&dns_type, (&wifidirect_disc_req->disc_query.u.bonjour.dns_type
+			   + dns_len), sizeof(dns_type));
+			   dns_type = uap_le16_to_cpu(dns_type);
+			   printf("\n\t\t DNS Type = %d\n", dns_type);
+			   printf("\t\t Version = %d\n", *(&wifidirect_disc_resp->disc_resp.u.bonjour.version
+			   + dns_len));
+			 */
 		} else if (wifidirect_disc_resp->service_protocol == 2) {
 			printf(" * uPnP * \n");
 			printf("\t\t Version = %d\n",

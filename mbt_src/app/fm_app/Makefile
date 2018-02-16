@@ -1,7 +1,7 @@
 #
 # File : fm_app/Makefile
 #
-# Copyright (C) 2014-2016, Marvell International Ltd. All Rights Reserved
+# Copyright (C) 2014-2018, Marvell International Ltd. All Rights Reserved
 
 # Override CFLAGS for application sources, remove __ kernel namespace defines
 CFLAGS := $(filter-out -D__%, $(EXTRA_CFLAGS))

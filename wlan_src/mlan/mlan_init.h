@@ -3,7 +3,7 @@
  *  @brief This file defines the FW initialization data
  *  structures.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -49,7 +49,7 @@ Change log:
 #define FW_DATA_XMIT_SIZE (sizeof(FWHeader) + DataLength + sizeof(t_u32))
 
 /** FWHeader */
-typedef struct _FWHeader {
+typedef MLAN_PACK_START struct _FWHeader {
     /** FW download command */
 	t_u32 dnld_cmd;
     /** FW base address */
@@ -58,25 +58,25 @@ typedef struct _FWHeader {
 	t_u32 data_length;
     /** FW CRC */
 	t_u32 crc;
-} FWHeader;
+} MLAN_PACK_END FWHeader;
 
 /** FWData */
-typedef struct _FWData {
+typedef MLAN_PACK_START struct _FWData {
     /** FW data header */
 	FWHeader fw_header;
     /** FW data sequence number */
 	t_u32 seq_num;
     /** FW data buffer */
 	t_u8 data[1];
-} FWData;
+} MLAN_PACK_END FWData;
 
 /** FWSyncHeader */
-typedef struct _FWSyncHeader {
+typedef MLAN_PACK_START struct _FWSyncHeader {
     /** FW sync header command */
 	t_u32 cmd;
     /** FW sync header sequence number */
 	t_u32 seq_num;
-} FWSyncHeader;
+} MLAN_PACK_END FWSyncHeader;
 
 #ifdef BIG_ENDIAN_SUPPORT
 /** Convert sequence number and command fields

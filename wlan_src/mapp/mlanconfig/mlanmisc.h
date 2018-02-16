@@ -2,7 +2,7 @@
   *
   * @brief This file contains command definitions for application
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -557,7 +557,7 @@ typedef struct _wlan_ioctl_get_scan_table_entry {
 	 *
 	 *   - IEEE Infomation Elements; variable number & length per 802.11 spec
 	 */
-	/* t_u8 bss_info_buffer[1]; */
+	/* t_u8  bss_info_buffer[1]; */
 } wlan_ioctl_get_scan_table_entry;
 
 /**
@@ -656,8 +656,7 @@ typedef struct {
 typedef struct {
 
     /** Flag set to keep the previous scan table intact */
-	t_u8 keep_previous_scan;	/* Do not erase the existing scan
-					   results */
+	t_u8 keep_previous_scan;	/* Do not erase the existing scan results */
 
     /** BSS mode to be sent in the firmware command */
 	t_u8 bss_mode;

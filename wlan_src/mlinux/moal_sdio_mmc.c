@@ -3,7 +3,7 @@
  *  @brief This file contains SDIO MMC IF (interface) module
  *  related functions.
  *
- * Copyright (C) 2008-2016, Marvell International Ltd.
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -32,6 +32,15 @@ Change log:
 /** define marvell vendor id */
 #define MARVELL_VENDOR_ID 0x02df
 
+extern void pxa3xx_enable_wifi_host_sleep_pins(void);
+extern void pxa3xx_wifi_wakeup(int active);
+/** Initialize GPIO port */
+#define GPIO_PORT_INIT() pxa3xx_enable_wifi_host_sleep_pins()
+/** Set GPIO port to high */
+#define GPIO_PORT_TO_HIGH() pxa3xx_wifi_wakeup(0)
+/** Set GPIO port to low */
+#define GPIO_PORT_TO_LOW() pxa3xx_wifi_wakeup(1)
+
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -45,6 +54,8 @@ Change log:
 extern int pm_keep_power;
 extern int shutdown_hs;
 #endif
+
+extern int disconnect_on_suspend;
 
 /** Device ID for SD8777 */
 #define SD_DEVICE_ID_8777   (0x9131)
@@ -62,6 +73,8 @@ extern int shutdown_hs;
 #define SD_DEVICE_ID_8977   (0x9145)
 /** Device ID for SD8997 */
 #define SD_DEVICE_ID_8997   (0x9141)
+/** Device ID for SD8987 */
+#define SD_DEVICE_ID_8987   (0x9149)
 
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
@@ -73,6 +86,7 @@ static const struct sdio_device_id wlan_ids[] = {
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8797)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8977)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8997)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8987)},
 	{},
 };
 
@@ -196,6 +210,8 @@ woal_sdio_update_card_type(moal_handle *handle, t_void *card)
 		handle->card_type = CARD_TYPE_SD8977;
 	else if (cardp->func->device == SD_DEVICE_ID_8997)
 		handle->card_type = CARD_TYPE_SD8997;
+	else if (cardp->func->device == SD_DEVICE_ID_8987)
+		handle->card_type = CARD_TYPE_SD8987;
 }
 
 /**
@@ -256,9 +272,10 @@ woal_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id)
 	card->func = func;
 
 #ifdef MMC_QUIRK_BLKSZ_FOR_BYTE_MODE
-	/* The byte mode patch is available in kernel MMC driver which fixes
-	   one issue in MP-A transfer. bit1: use func->cur_blksize for byte
-	   mode */
+	/* The byte mode patch is available in kernel MMC driver
+	 * which fixes one issue in MP-A transfer.
+	 * bit1: use func->cur_blksize for byte mode
+	 */
 	func->card->quirks |= MMC_QUIRK_BLKSZ_FOR_BYTE_MODE;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
@@ -306,9 +323,8 @@ woal_sdio_remove(struct sdio_func *func)
 
 	ENTER();
 
-	PRINTM(MINFO, "SDIO func=%d\n", func->num);
-
 	if (func) {
+		PRINTM(MINFO, "SDIO func=%d\n", func->num);
 		card = sdio_get_drvdata(func);
 		if (card) {
 			woal_remove_card(card);
@@ -355,9 +371,9 @@ woal_sdio_shutdown(struct device *dev)
 	struct sdio_func *func = dev_to_sdio_func(dev);
 	moal_handle *handle = NULL;
 	struct sdio_mmc_card *cardp;
-	mlan_ds_hs_cfg hscfg;
+	mlan_ds_ps_info pm_info;
 	int timeout = 0;
-	int i;
+	int i, retry_num = 8;
 
 	ENTER();
 	PRINTM(MCMND, "<--- Enter woal_sdio_shutdown --->\n");
@@ -370,31 +386,28 @@ woal_sdio_shutdown(struct device *dev)
 	handle = cardp->handle;
 	for (i = 0; i < handle->priv_num; i++)
 		netif_device_detach(handle->priv[i]->netdev);
+
 	if (shutdown_hs) {
-		memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
-		hscfg.is_invoke_hostcmd = MFALSE;
-		hscfg.conditions = SHUTDOWN_HOST_SLEEP_DEF_COND;
-		hscfg.gap = SHUTDOWN_HOST_SLEEP_DEF_GAP;
-		hscfg.gpio = SHUTDOWN_HOST_SLEEP_DEF_GPIO;
-		if (woal_set_get_hs_params
-		    (woal_get_priv(handle, MLAN_BSS_ROLE_ANY), MLAN_ACT_SET,
-		     MOAL_IOCTL_WAIT, &hscfg) == MLAN_STATUS_FAILURE) {
-			PRINTM(MERROR,
-			       "Fail to set HS parameter in shutdown: 0x%x 0x%x 0x%x\n",
-			       hscfg.conditions, hscfg.gap, hscfg.gpio);
+		memset(&pm_info, 0, sizeof(pm_info));
+		for (i = 0; i < retry_num; i++) {
+			if (MLAN_STATUS_SUCCESS ==
+			    woal_get_pm_info(woal_get_priv
+					     (handle, MLAN_BSS_ROLE_ANY),
+					     &pm_info)) {
+				if (pm_info.is_suspend_allowed == MTRUE)
+					break;
+				else
+					PRINTM(MMSG,
+					       "Shutdown not allowed and retry again\n");
+			}
+			woal_sched_timeout(100);
+		}
+		if (pm_info.is_suspend_allowed == MFALSE) {
+			PRINTM(MMSG, "Shutdown not allowed\n");
 			goto done;
 		}
-		/* Enable Host Sleep */
-		handle->hs_activate_wait_q_woken = MFALSE;
-		memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
-		hscfg.is_invoke_hostcmd = MTRUE;
-		if (woal_set_get_hs_params
-		    (woal_get_priv(handle, MLAN_BSS_ROLE_ANY), MLAN_ACT_SET,
-		     MOAL_NO_WAIT, &hscfg) == MLAN_STATUS_FAILURE) {
-			PRINTM(MERROR,
-			       "Request HS enable failed in shutdown\n");
-			goto done;
-		}
+		woal_enable_hs(woal_get_priv(handle, MLAN_BSS_ROLE_ANY));
+
 		timeout =
 			wait_event_interruptible_timeout(handle->
 							 hs_activate_wait_q,
@@ -405,7 +418,25 @@ woal_sdio_shutdown(struct device *dev)
 			PRINTM(MMSG, "HS actived in shutdown\n");
 		else
 			PRINTM(MMSG, "Fail to enable HS in shutdown\n");
+	} else {
+		for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
+			if (handle->priv[i]) {
+				if (handle->priv[i]->media_connected == MTRUE
+#ifdef UAP_SUPPORT
+				    || (GET_BSS_ROLE(handle->priv[i]) ==
+					MLAN_BSS_ROLE_UAP)
+#endif
+					) {
+					PRINTM(MIOCTL,
+					       "disconnect on suspend\n");
+					woal_disconnect(handle->priv[i],
+							MOAL_NO_WAIT, NULL,
+							DEF_DEAUTH_REASON_CODE);
+				}
+			}
+		}
 	}
+
 done:
 	PRINTM(MCMND, "<--- Leave woal_sdio_shutdown --->\n");
 	LEAVE();
@@ -459,6 +490,13 @@ woal_sdio_suspend(struct device *dev)
 		ret = -EBUSY;
 		goto done;
 	}
+#ifdef STA_SUPPORT
+	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
+		if (handle->priv[i] &&
+		    (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_STA))
+			woal_cancel_scan(handle->priv[i], MOAL_IOCTL_WAIT);
+	}
+#endif
 	handle->suspend_fail = MFALSE;
 	memset(&pm_info, 0, sizeof(pm_info));
 	for (i = 0; i < retry_num; i++) {
@@ -840,6 +878,11 @@ woal_bus_register(void)
 		return MLAN_STATUS_FAILURE;
 	}
 
+	/* init GPIO PORT for wakeup purpose */
+	GPIO_PORT_INIT();
+	/* set default value */
+	GPIO_PORT_TO_HIGH();
+
 	LEAVE();
 	return ret;
 }
@@ -880,6 +923,7 @@ woal_unregister_dev(moal_handle *handle)
 		sdio_set_drvdata(((struct sdio_mmc_card *)handle->card)->func,
 				 NULL);
 
+		GPIO_PORT_TO_LOW();
 		PRINTM(MWARN, "Making the sdio dev card as NULL\n");
 	}
 
@@ -900,6 +944,9 @@ woal_register_dev(moal_handle *handle)
 	struct sdio_func *func;
 
 	ENTER();
+
+	GPIO_PORT_INIT();
+	GPIO_PORT_TO_HIGH();
 
 	func = card->func;
 	sdio_claim_host(func);

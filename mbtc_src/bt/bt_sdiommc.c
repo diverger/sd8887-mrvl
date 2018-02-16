@@ -2,7 +2,7 @@
  *  @brief This file contains SDIO IF (interface) module
  *  related functions.
  *
- * Copyright (C) 2007-2016, Marvell International Ltd.
+ * Copyright (C) 2007-2018, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -32,11 +32,12 @@
 
 /** Max retry number of CMD53 read/write */
 #define MAX_CMD53_RETRY 	3
+/** Max retry number of CMD53 read/write */
+#define MAX_CMD52_RETRY     3
 /** Firmware name */
 static char *fw_name;
 /** fw serial download flag */
-static int bt_fw_serial = 1;
-
+extern int bt_fw_serial;
 int bt_intmode = INT_MODE_SDIO;
 /** request firmware nowait */
 int bt_req_fw_nowait;
@@ -116,6 +117,12 @@ static u8 fw_crc_header_rb_1[FW_CRC_HEADER_RB] = {
 #define SD8997_Z_BT_FW_NAME "mrvl/sd8997_bt.bin"
 #define SD8997_V2_FW_NAME "mrvl/sdsd8997_combo_v2.bin"
 #define SD8997_V2_BT_FW_NAME "mrvl/sd8997_bt_v2.bin"
+#define SD8997_V3_FW_NAME "mrvl/sdsd8997_combo_v3.bin"
+#define SD8997_V3_BT_FW_NAME "mrvl/sd8997_bt_v3.bin"
+
+/** SD8987 */
+#define SD8987_FW_NAME  "mrvl/sdsd8987_combo.bin"
+#define SD8987_BT_FW_NAME "mrvl/sd8987_bt.bin"
 
 /** Function number 2 */
 #define FN2			2
@@ -143,6 +150,10 @@ static u8 fw_crc_header_rb_1[FW_CRC_HEADER_RB] = {
 #define SD_DEVICE_ID_8977_BT_FN2    0x9146
 /** Device ID for SD8997 FN2 */
 #define SD_DEVICE_ID_8997_BT_FN2    0x9142
+/** Device ID for SD8987 FN2 */
+#define SD_DEVICE_ID_8987_BT_FN2    0x914a
+/** Device ID for SD8987 FN3 */
+#define SD_DEVICE_ID_8987_BT_FN3    0x914b
 
 /** Array of SDIO device ids when multi_fn=0x12 */
 static const struct sdio_device_id bt_ids[] = {
@@ -153,6 +164,7 @@ static const struct sdio_device_id bt_ids[] = {
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8797_BT_FN2)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8977_BT_FN2)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8997_BT_FN2)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8987_BT_FN2)},
 	{}
 };
 
@@ -161,13 +173,12 @@ MODULE_DEVICE_TABLE(sdio, bt_ids);
 /********************************************************
 		Global Variables
 ********************************************************/
-/** unregiser bus driver flag */
-static u8 unregister;
 #ifdef SDIO_SUSPEND_RESUME
 /** PM keep power */
 extern int mbt_pm_keep_power;
 #endif
 
+extern bt_private *m_priv[];
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -291,7 +302,7 @@ sd_enable_host_int_mask(bt_private *priv, u8 mask)
  *  @return        BT_STATUS_SUCCESS or other error no.
  */
 static int
-sd_disable_host_int_mask(bt_private *priv, u8 mask)
+sbi_disable_host_int_mask(bt_private *priv, u8 mask)
 {
 	int ret = BT_STATUS_FAILURE;
 	u8 host_int_mask;
@@ -457,6 +468,7 @@ sd_write_reg(bt_private *priv, int reg, u8 val)
  *
  *  @param priv     A pointer to bt_private structure
  *  @param reg      register to read
+ *  @param data		Data
  *  @return         BT_STATUS_SUCCESS or other error no.
  */
 int
@@ -559,10 +571,12 @@ sd_verify_fw_download(bt_private *priv, int pollnum)
 		}
 		mdelay(100);
 	}
-	if ((pollnum > 1) && (ret != BT_STATUS_SUCCESS))
+	if ((pollnum > 1) && (ret != BT_STATUS_SUCCESS)) {
 		PRINTM(ERROR,
 		       "Fail to poll firmware status: firmwarestat=0x%x\n",
 		       firmwarestat);
+		bt_dump_sdio_regs(priv);
+	}
 	LEAVE();
 	return ret;
 }
@@ -593,6 +607,9 @@ sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 	int tx_blocks = 0;
 	int i = 0;
 	int tries = 0;
+#ifdef FW_DOWNLOAD_SPEED
+	u32 tv1, tv2;
+#endif
 	u8 sq_read_base_address_a0_reg =
 		priv->psdio_device->reg->sq_read_base_addr_a0;
 	u8 sq_read_base_address_a1_reg =
@@ -612,6 +629,10 @@ sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 	ENTER();
 
 	PRINTM(INFO, "BT: Downloading FW image (%d bytes)\n", firmwarelen);
+
+#ifdef FW_DOWNLOAD_SPEED
+	tv1 = get_utimeofday();
+#endif
 
 	tmpfwbufsz = BT_UPLD_SIZE + DMA_ALIGNMENT;
 	tmpfwbuf = kzalloc(tmpfwbufsz, GFP_KERNEL);
@@ -686,7 +707,9 @@ sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 			ret = BT_STATUS_FAILURE;
 			goto done;
 		}
-
+	/** ignore CRC check before download the first packet */
+		if (offset == 0 && (len & BIT(0)))
+			len &= ~BIT(0);
 		txlen = len;
 
 		if (len & BIT(0)) {
@@ -756,6 +779,16 @@ sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 
 	ret = BT_STATUS_SUCCESS;
 done:
+#ifdef FW_DOWNLOAD_SPEED
+	tv2 = get_utimeofday();
+	PRINTM(INFO, "FW: %d.%03d.%03d ", tv1 / 1000000,
+	       (tv1 % 1000000) / 1000, tv1 % 1000);
+	PRINTM(INFO, " -> %d.%03d.%03d ", tv2 / 1000000,
+	       (tv2 % 1000000) / 1000, tv2 % 1000);
+	tv2 -= tv1;
+	PRINTM(INFO, " == %d.%03d.%03d\n", tv2 / 1000000,
+	       (tv2 % 1000000) / 1000, tv2 % 1000);
+#endif
 	kfree(tmpfwbuf);
 	LEAVE();
 	return ret;
@@ -778,6 +811,7 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 	struct m_dev *m_dev_fm = NULL;
 	struct m_dev *m_dev_nfc = NULL;
 	struct timeval tstamp;
+	int index;
 
 	ENTER();
 
@@ -786,8 +820,10 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 	m_dev_nfc = &priv->bt_dev.m_dev[NFC_SEQ];
 
 	if ((priv == NULL) || (priv->adapter == NULL) ||
-	    (priv->bt_dev.card == NULL) || (m_dev_bt == NULL) ||
-	    (m_dev_fm == NULL) || (m_dev_nfc == NULL)) {
+	    (priv->bt_dev.card == NULL) || (m_dev_bt == NULL)
+	    || (m_dev_fm == NULL)
+	    || (m_dev_nfc == NULL)
+		) {
 		LEAVE();
 		return BT_STATUS_FAILURE;
 	}
@@ -833,7 +869,7 @@ sd_request_fw_dpc(const struct firmware *fw_firmware, void *context)
 		goto done;
 	}
 	sdio_release_host(card->func);
-	sd_enable_host_int(priv);
+	sbi_enable_host_int(priv);
 	if (BT_STATUS_FAILURE == sbi_register_conf_dpc(priv)) {
 		PRINTM(ERROR,
 		       "BT: sbi_register_conf_dpc failed. Terminating download\n");
@@ -870,6 +906,12 @@ done:
 	bt_proc_remove(priv);
 	clean_up_m_devs(priv);
 	bt_free_adapter(priv);
+	for (index = 0; index < MAX_BT_ADAPTER; index++) {
+		if (m_priv[index] == priv) {
+			m_priv[index] = NULL;
+			break;
+		}
+	}
 	bt_priv_put(priv);
 	LEAVE();
 	return ret;
@@ -921,7 +963,8 @@ sd_download_firmware_w_helper(bt_private *priv)
 				cur_fw_name = SD8887_A0_FW_NAME;
 				break;
 			case SD8887_A2:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8887_A2_FW_NAME;
 				else
 					cur_fw_name = SD8887_A2_BT_FW_NAME;
@@ -937,19 +980,22 @@ sd_download_firmware_w_helper(bt_private *priv)
 		else if (priv->card_type == CARD_TYPE_SD8977) {
 			switch (priv->adapter->chip_rev) {
 			case SD8977_V0:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8977_V0_FW_NAME;
 				else
 					cur_fw_name = SD8977_V0_BT_FW_NAME;
 				break;
 			case SD8977_V1:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8977_V1_FW_NAME;
 				else
 					cur_fw_name = SD8977_V1_BT_FW_NAME;
 				break;
 			case SD8977_V2:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8977_V2_FW_NAME;
 				else
 					cur_fw_name = SD8977_V2_BT_FW_NAME;
@@ -961,23 +1007,43 @@ sd_download_firmware_w_helper(bt_private *priv)
 		} else if (priv->card_type == CARD_TYPE_SD8997)
 			switch (priv->adapter->chip_rev) {
 			case SD8997_Z:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8997_Z_FW_NAME;
 				else
 					cur_fw_name = SD8997_Z_BT_FW_NAME;
 				break;
 			case SD8997_V2:
-				if (bt_fw_serial == 1)
-					cur_fw_name = SD8997_V2_FW_NAME;
-				else
-					cur_fw_name = SD8997_V2_BT_FW_NAME;
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload) {
+					if (priv->adapter->magic_val ==
+					    MAGIC_VAL)
+						cur_fw_name = SD8997_V3_FW_NAME;
+					else
+						cur_fw_name = SD8997_V2_FW_NAME;
+				} else {
+					if (priv->adapter->magic_val ==
+					    MAGIC_VAL)
+						cur_fw_name =
+							SD8997_V3_BT_FW_NAME;
+					else
+						cur_fw_name =
+							SD8997_V2_BT_FW_NAME;
+				}
 				break;
 			default:
 				cur_fw_name = DEFAULT_FW_NAME_8997;
 				break;
-			}
+		} else if (priv->card_type == CARD_TYPE_SD8987) {
+			if (bt_fw_serial == 1
+			    && !priv->fw_reload && !bt_fw_reload)
+				cur_fw_name = SD8987_FW_NAME;
+			else
+				cur_fw_name = SD8987_BT_FW_NAME;
+		}
 	}
 
+	PRINTM(MSG, "BT Request firmware: %s\n", cur_fw_name);
 	if (bt_req_fw_nowait) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 		ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
@@ -1034,11 +1100,11 @@ sd_card_to_host(bt_private *priv)
 	struct mbt_dev *mbt_dev = NULL;
 	struct m_dev *mdev_bt = &(priv->bt_dev.m_dev[BT_SEQ]);
 	struct m_dev *mdev_fm = &(priv->bt_dev.m_dev[FM_SEQ]);
+	struct fm_dev *fm_dev =
+		(struct fm_dev *)priv->bt_dev.m_dev[FM_SEQ].dev_pointer;
 	struct m_dev *mdev_nfc = &(priv->bt_dev.m_dev[NFC_SEQ]);
 	struct nfc_dev *nfc_dev =
 		(struct nfc_dev *)priv->bt_dev.m_dev[NFC_SEQ].dev_pointer;
-	struct fm_dev *fm_dev =
-		(struct fm_dev *)priv->bt_dev.m_dev[FM_SEQ].dev_pointer;
 	struct m_dev *mdev_debug = &(priv->bt_dev.m_dev[DEBUG_SEQ]);
 	struct debug_dev *debug_dev =
 		(struct debug_dev *)priv->bt_dev.m_dev[DEBUG_SEQ].dev_pointer;
@@ -1056,13 +1122,20 @@ sd_card_to_host(bt_private *priv)
 		goto exit;
 	}
 
-	/* Read the length of data to be transferred */
-	ret = sd_read_rx_len(priv, &buf_len);
-	if (ret < 0) {
-		PRINTM(ERROR, "BT: card_to_host, read scratch reg failed\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
+	do {
+		/* Read the length of data to be transferred */
+		ret = sd_read_rx_len(priv, &buf_len);
+		if (ret < 0) {
+			i++;
+			PRINTM(ERROR, "BT: Read scratch reg failed (%d)\n", i);
+			if (i >= MAX_CMD52_RETRY) {
+				ret = BT_STATUS_FAILURE;
+				goto exit;
+			}
+			udelay(20);
+		}
 	}
+	while (ret == BT_STATUS_FAILURE);
 
 	/* Allocate buffer */
 	blksz = SD_BLOCK_SIZE;
@@ -1089,6 +1162,7 @@ sd_card_to_host(bt_private *priv)
 	}
 
 	payload = skb->data;
+	i = 0;
 	do {
 		ret = sdio_readsb(card->func, payload, priv->bt_dev.ioport,
 				  buf_block_len * blksz);
@@ -1134,21 +1208,17 @@ sd_card_to_host(bt_private *priv)
 		bt_cb(skb)->pkt_type = type;
 		skb_put(skb, buf_len);
 		skb_pull(skb, BT_HEADER_LEN);
-		if (mbt_dev) {
-			skb->dev = (void *)mdev_bt;
-			mdev_recv_frame(skb);
-			mdev_bt->stat.byte_rx += buf_len;
+		if (*(u16 *) skb->data == 0xffff) {
+			skb_queue_tail(&priv->adapter->fwdump_queue, skb);
+			break;
 		}
+		bt_recv_frame(priv, skb);
 		break;
 	case HCI_SCODATA_PKT:
 		bt_cb(skb)->pkt_type = type;
 		skb_put(skb, buf_len);
 		skb_pull(skb, BT_HEADER_LEN);
-		if (mbt_dev) {
-			skb->dev = (void *)mdev_bt;
-			mdev_recv_frame(skb);
-			mdev_bt->stat.byte_rx += buf_len;
-		}
+		bt_recv_frame(priv, skb);
 		break;
 	case HCI_EVENT_PKT:
 		/** add EVT Demux */
@@ -1183,20 +1253,18 @@ sd_card_to_host(bt_private *priv)
 					mdev_recv_frame(skb);
 					mdev_fm->stat.byte_rx += buf_len;
 				}
-			} else if (skb->data[3] == 0x81 && skb->data[4] == 0xFE) {
+				break;
+			}
+			if (skb->data[3] == 0x81 && skb->data[4] == 0xFE) {
 				/** NFC cmd complete */
 				if (nfc_dev) {
 					skb->dev = (void *)mdev_nfc;
 					mdev_recv_frame(skb);
 					mdev_nfc->stat.byte_rx += buf_len;
 				}
-			} else {
-				if (mbt_dev) {
-					skb->dev = (void *)mdev_bt;
-					mdev_recv_frame(skb);
-					mdev_bt->stat.byte_rx += buf_len;
-				}
+				break;
 			}
+			bt_recv_frame(priv, skb);
 			break;
 		case 0x0F:
 			/** cmd status */
@@ -1207,21 +1275,18 @@ sd_card_to_host(bt_private *priv)
 					mdev_recv_frame(skb);
 					mdev_fm->stat.byte_rx += buf_len;
 				}
-			} else if (skb->data[4] == 0x81 && skb->data[5] == 0xFE) {
+				break;
+			}
+			if (skb->data[4] == 0x81 && skb->data[5] == 0xFE) {
 				/** NFC cmd ststus */
 				if (nfc_dev) {
 					skb->dev = (void *)mdev_nfc;
 					mdev_recv_frame(skb);
 					mdev_nfc->stat.byte_rx += buf_len;
 				}
-			} else {
-				/** BT cmd status */
-				if (mbt_dev) {
-					skb->dev = (void *)mdev_bt;
-					mdev_recv_frame(skb);
-					mdev_bt->stat.byte_rx += buf_len;
-				}
+				break;
 			}
+			bt_recv_frame(priv, skb);
 			break;
 		case 0xFF:
 			/** Vendor specific pkt */
@@ -1232,29 +1297,21 @@ sd_card_to_host(bt_private *priv)
 					mdev_recv_frame(skb);
 					mdev_nfc->stat.byte_rx += buf_len;
 				}
-			} else if (skb->data[2] >= 0x80 && skb->data[2] <= 0xAF) {
+				break;
+			}
+			if (skb->data[2] >= 0x80 && skb->data[2] <= 0xAF) {
 				/** FM EVT */
 				if (fm_dev) {
 					skb->dev = (void *)mdev_fm;
 					mdev_recv_frame(skb);
 					mdev_fm->stat.byte_rx += buf_len;
 				}
-			} else {
-				/** BT EVT */
-				if (mbt_dev) {
-					skb->dev = (void *)mdev_bt;
-					mdev_recv_frame(skb);
-					mdev_bt->stat.byte_rx += buf_len;
-				}
+				break;
 			}
+			bt_recv_frame(priv, skb);
 			break;
 		default:
-			/** BT EVT */
-			if (mbt_dev) {
-				skb->dev = (void *)mdev_bt;
-				mdev_recv_frame(skb);
-				mdev_bt->stat.byte_rx += buf_len;
-			}
+			bt_recv_frame(priv, skb);
 			break;
 		}
 		break;
@@ -1263,14 +1320,8 @@ sd_card_to_host(bt_private *priv)
 		bt_cb(skb)->pkt_type = HCI_VENDOR_PKT;
 		skb_put(skb, buf_len);
 		skb_pull(skb, BT_HEADER_LEN);
-		if (mbt_dev) {
-			if (BT_STATUS_SUCCESS != bt_process_event(priv, skb)) {
-				skb->dev = (void *)mdev_bt;
-				mdev_recv_frame(skb);
-				mdev_bt->stat.byte_rx += buf_len;
-			}
-		}
-
+		if (BT_STATUS_SUCCESS != bt_process_event(priv, skb))
+			bt_recv_frame(priv, skb);
 		break;
 	default:
 		/* Driver specified event and command resp should be handle
@@ -1307,11 +1358,6 @@ sd_remove_card(struct sdio_func *func)
 	if (func) {
 		card = sdio_get_drvdata(func);
 		if (card) {
-			if (!unregister && card->priv) {
-				PRINTM(INFO, "BT: card removed from sd slot\n");
-				((bt_private *)(card->priv))->adapter->
-					SurpriseRemoved = TRUE;
-			}
 			bt_remove_card(card->priv);
 			kfree(card);
 		}
@@ -1352,7 +1398,8 @@ sd_interrupt(struct sdio_func *func)
 	if (priv->card_type == CARD_TYPE_SD8887 ||
 	    priv->card_type == CARD_TYPE_SD8897 ||
 	    priv->card_type == CARD_TYPE_SD8977 ||
-	    priv->card_type == CARD_TYPE_SD8997) {
+	    priv->card_type == CARD_TYPE_SD8997 ||
+	    priv->card_type == CARD_TYPE_SD8987) {
 		ret = sdio_readsb(card->func, priv->adapter->hw_regs, 0,
 				  SD_BLOCK_SIZE);
 		if (ret) {
@@ -1483,7 +1530,17 @@ bt_sdio_suspend(struct device *dev)
 
 	priv = cardp->priv;
 
+	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
+	PRINTM(CMD, "BT %s: SDIO suspend\n", m_dev->name);
+	mbt_hci_suspend_dev(m_dev);
+	skb_queue_purge(&priv->adapter->tx_queue);
+
 	if ((mbt_pm_keep_power) && (priv->adapter->hs_state != HS_ACTIVATED)) {
+#ifdef BLE_WAKEUP
+		/** Set BLE Wake up pattern */
+		if (BT_STATUS_SUCCESS != bt_config_ble_wakeup(priv))
+			PRINTM(ERROR, "BT: Set ble wakeup pattern fail!\n");
+#endif
 
 		/* disable FM event mask */
 		if ((priv->bt_dev.m_dev[FM_SEQ].dev_type == FM_TYPE) &&
@@ -1497,10 +1554,6 @@ bt_sdio_suspend(struct device *dev)
 			}
 		}
 	}
-	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
-	PRINTM(CMD, "BT %s: SDIO suspend\n", m_dev->name);
-	mbt_hci_suspend_dev(m_dev);
-	skb_queue_purge(&priv->adapter->tx_queue);
 
 	priv->adapter->is_suspended = TRUE;
 
@@ -1552,6 +1605,11 @@ bt_sdio_shutdown(struct device *dev)
 	priv = cardp->priv;
 
 	if ((mbt_pm_keep_power) && (priv->adapter->hs_state != HS_ACTIVATED)) {
+#ifdef BLE_WAKEUP
+		/** Set BLE Wake up pattern */
+		if (BT_STATUS_SUCCESS != bt_config_ble_wakeup(priv))
+			PRINTM(ERROR, "BT: Set ble wakeup pattern fail!\n");
+#endif
 
 		/* disable FM event mask */
 		if ((priv->bt_dev.m_dev[FM_SEQ].dev_type == FM_TYPE) &&
@@ -1597,6 +1655,12 @@ bt_sdio_resume(struct device *dev)
 	priv->adapter->is_suspended = FALSE;
 	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
 	PRINTM(CMD, "BT %s: SDIO resume\n", m_dev->name);
+#ifdef BLE_WAKEUP
+	if (priv->ble_wakeup_buf) {
+		PRINTM(CMD, "BT: Send system resume event\n");
+		bt_send_system_event(priv, FALSE);
+	}
+#endif
 	mbt_hci_resume_dev(m_dev);
 	sbi_wakeup_firmware(priv);
 	/* enable FM event mask */
@@ -1669,7 +1733,6 @@ void
 sbi_unregister(void)
 {
 	ENTER();
-	unregister = TRUE;
 	sdio_unregister_driver(&sdio_bt);
 	LEAVE();
 }
@@ -1695,6 +1758,8 @@ sbi_register_dev(bt_private *priv)
 	u8 io_port_0_reg = priv->psdio_device->reg->io_port_0;
 	u8 io_port_1_reg = priv->psdio_device->reg->io_port_1;
 	u8 io_port_2_reg = priv->psdio_device->reg->io_port_2;
+	u8 card_magic_reg = CARD_MAGIC_REG;
+	u8 magic_val = 0;
 
 	ENTER();
 
@@ -1730,6 +1795,14 @@ sbi_register_dev(bt_private *priv)
 	}
 	priv->adapter->chip_rev = chiprev;
 	PRINTM(INFO, "revision=%#x\n", chiprev);
+
+	magic_val = sdio_readb(func, card_magic_reg, &ret);
+	if (ret) {
+		PRINTM(FATAL, ": cannot read CARD_MAGIC_REG\n");
+		goto release_irq;
+	}
+	priv->adapter->magic_val = magic_val;
+	PRINTM(INFO, "magic_val=%#x\n", magic_val);
 
 	/*
 	 * Read the HOST_INTSTATUS_REG for ACK the first interrupt got
@@ -1777,7 +1850,8 @@ sbi_register_dev(bt_private *priv)
 	    priv->card_type == CARD_TYPE_SD8897 ||
 	    priv->card_type == CARD_TYPE_SD8797 ||
 	    priv->card_type == CARD_TYPE_SD8977 ||
-	    priv->card_type == CARD_TYPE_SD8997) {
+	    priv->card_type == CARD_TYPE_SD8997 ||
+	    priv->card_type == CARD_TYPE_SD8987) {
 		/* Set Host interrupt reset to read to clear */
 		reg = sdio_readb(func, host_int_rsr_reg, &ret);
 		if (ret < 0)
@@ -1842,7 +1916,7 @@ sbi_unregister_dev(bt_private *priv)
  *  @return        BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-sd_enable_host_int(bt_private *priv)
+sbi_enable_host_int(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret;
@@ -1869,7 +1943,7 @@ sd_enable_host_int(bt_private *priv)
  *  @return        BT_STATUS_SUCCESS/BT_STATUS_FAILURE or other error no.
  */
 int
-sd_disable_host_int(bt_private *priv)
+sbi_disable_host_int(bt_private *priv)
 {
 	struct sdio_mmc_card *card = priv->bt_dev.card;
 	int ret;
@@ -1881,7 +1955,7 @@ sd_disable_host_int(bt_private *priv)
 		return BT_STATUS_FAILURE;
 	}
 	sdio_claim_host(card->func);
-	ret = sd_disable_host_int_mask(priv, HIM_DISABLE);
+	ret = sbi_disable_host_int_mask(priv, HIM_DISABLE);
 	sdio_release_host(card->func);
 
 	LEAVE();
@@ -1990,7 +2064,7 @@ sbi_download_fw(bt_private *priv)
 	if (BT_STATUS_SUCCESS == sd_verify_fw_download(priv, 1)) {
 		PRINTM(MSG, "BT: FW already downloaded!\n");
 		sdio_release_host(card->func);
-		sd_enable_host_int(priv);
+		sbi_enable_host_int(priv);
 		if (BT_STATUS_FAILURE == sbi_register_conf_dpc(priv)) {
 			PRINTM(ERROR,
 			       "BT: sbi_register_conf_dpc failed. Terminating download\n");
@@ -2015,7 +2089,7 @@ sbi_download_fw(bt_private *priv)
 			goto done;
 		}
 		sdio_release_host(card->func);
-		sd_enable_host_int(priv);
+		sbi_enable_host_int(priv);
 		if (BT_STATUS_FAILURE == sbi_register_conf_dpc(priv)) {
 			PRINTM(ERROR,
 			       "BT: sbi_register_conf_dpc failed. Terminating download\n");
@@ -2141,6 +2215,9 @@ sdio_update_card_type(bt_private *priv, void *card)
 		priv->card_type = CARD_TYPE_SD8977;
 	else if (cardp->func->device == SD_DEVICE_ID_8997_BT_FN2)
 		priv->card_type = CARD_TYPE_SD8997;
+	else if (cardp->func->device == SD_DEVICE_ID_8987_BT_FN2 ||
+		 cardp->func->device == SD_DEVICE_ID_8987_BT_FN3)
+		priv->card_type = CARD_TYPE_SD8987;
 }
 
 /**
@@ -2179,6 +2256,9 @@ sdio_get_sdio_device(bt_private *priv)
 	case CARD_TYPE_SD8997:
 		priv->psdio_device = &bt_sdio_sd8997;
 		break;
+	case CARD_TYPE_SD8987:
+		priv->psdio_device = &bt_sdio_sd8987;
+		break;
 	default:
 		PRINTM(ERROR, "BT can't get right card type \n");
 		ret = BT_STATUS_FAILURE;
@@ -2188,6 +2268,13 @@ sdio_get_sdio_device(bt_private *priv)
 	LEAVE();
 	return ret;
 }
+
+#define SD8897_INIT_START_REG  0xDC
+#define SD8897_INIT_END_REG  0xE1
+#define SD8887_INIT_START_REG  0xA0
+#define SD8887_INIT_END_REG  0xA5
+#define SD8977_SD8997_INIT_START_REG 0xF1
+#define SD8977_SD8997_INIT_END_REG 0xF6
 
 /** @brief This function dump the SDIO register
  *
@@ -2210,6 +2297,21 @@ bt_dump_sdio_regs(bt_private *priv)
 	u8 loop_num = 0;
 	unsigned int *reg_table = NULL;
 	u8 reg_table_size = 0;
+	unsigned int init_reg_start = 0;
+	unsigned int init_reg_end = 0;
+	if (priv->card_type == CARD_TYPE_SD8887) {
+		init_reg_start = SD8887_INIT_START_REG;
+		init_reg_end = SD8887_INIT_END_REG;
+	} else if (priv->card_type == CARD_TYPE_SD8897) {
+		init_reg_start = SD8897_INIT_START_REG;
+		init_reg_end = SD8897_INIT_END_REG;
+	} else if (priv->card_type == CARD_TYPE_SD8977 ||
+		   priv->card_type == CARD_TYPE_SD8997 ||
+		   priv->card_type == CARD_TYPE_SD8987) {
+		init_reg_start = SD8977_SD8997_INIT_START_REG;
+		init_reg_end = SD8977_SD8997_INIT_END_REG;
+	}
+
 	if (priv->card_type == CARD_TYPE_SD8887) {
 		loop_num = 3;
 		reg_table = reg_table_8887;
@@ -2265,6 +2367,24 @@ bt_dump_sdio_regs(bt_private *priv)
 		}
 		PRINTM(MSG, "%s\n", buf);
 	}
+
+	if (init_reg_start) {
+		memset(buf, 0, sizeof(buf));
+		ptr = buf;
+		ptr += sprintf(ptr, "Init Status Reg (%#x-%#x): ",
+			       init_reg_start, init_reg_end);
+		for (reg = init_reg_start; reg <= init_reg_end;) {
+			data = sdio_readb(card->func, reg, &ret);
+			if (!ret)
+				ptr += sprintf(ptr, "%02x ", data);
+			else {
+				ptr += sprintf(ptr, "ERR");
+				break;
+			}
+			reg++;
+		}
+		PRINTM(MSG, "%s\n", buf);
+	}
 	sdio_release_host(card->func);
 }
 
@@ -2275,9 +2395,6 @@ MODULE_PARM_DESC(bt_req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
 module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");
-module_param(bt_fw_serial, int, 0);
-MODULE_PARM_DESC(bt_fw_serial,
-		 "0: Support parallel download FW; 1: Support serial download FW");
 
 module_param(bt_intmode, int, 0);
 MODULE_PARM_DESC(bt_intmode, "0: INT_MODE_SDIO, 1: INT_MODE_GPIO");

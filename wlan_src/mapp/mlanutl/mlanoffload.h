@@ -2,7 +2,7 @@
   *
   * @brief This files contains mlanutl offload command handling.
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -441,6 +441,5 @@ int process_iapp(int argc, char *argv[]);
 int process_rf_tx_power(int argc, char *argv[]);
 int process_authenticate(int argc, char *argv[]);
 int process_txpowdisp(int argc, char *argv[]);
-int process_tsf(int argc, char *argv[]);
 
 #endif /* _MLANOFFLOAD_H_ */

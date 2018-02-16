@@ -3,7 +3,7 @@
  *  @brief This file declares all APIs that will be called from MOAL module.
  *  It also defines the data structures used for APIs between MLAN and MOAL.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to

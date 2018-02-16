@@ -3,7 +3,7 @@
  *  @brief This file contains related macros, enum, and struct
  *  of wmm functionalities
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -79,6 +79,52 @@ wlan_wmm_list_len(pmlan_adapter pmadapter, pmlan_list_head head)
 
 	LEAVE();
 	return count;
+}
+
+/**
+ *  @brief This function requests a ralist lock
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *
+ *  @return             N/A
+ */
+static INLINE t_void
+wlan_request_ralist_lock(IN mlan_private *priv)
+{
+	mlan_adapter *pmadapter = priv->adapter;
+	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
+
+	ENTER();
+
+	/* Call MOAL spin lock callback function */
+	pcb->moal_spin_lock(pmadapter->pmoal_handle,
+			    priv->wmm.ra_list_spinlock);
+
+	LEAVE();
+	return;
+}
+
+/**
+ *  @brief This function releases a lock on ralist
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *
+ *  @return             N/A
+ */
+static INLINE t_void
+wlan_release_ralist_lock(IN mlan_private *priv)
+{
+	mlan_adapter *pmadapter = priv->adapter;
+	mlan_callbacks *pcb = (mlan_callbacks *)&pmadapter->callbacks;
+
+	ENTER();
+
+	/* Call MOAL spin unlock callback function */
+	pcb->moal_spin_unlock(pmadapter->pmoal_handle,
+			      priv->wmm.ra_list_spinlock);
+
+	LEAVE();
+	return;
 }
 
 /** Add buffer to WMM Tx queue */

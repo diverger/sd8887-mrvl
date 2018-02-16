@@ -3,7 +3,7 @@
  *
  *  @brief This file contains the handling of TX/RX in MLAN
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -127,8 +127,9 @@ wlan_process_tx(pmlan_private priv, pmlan_buffer pmbuf, mlan_tx_param *tx_param)
 	}
 #ifdef STA_SUPPORT
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA)
-		plocal_tx_pd = (TxPD *)(head_ptr + INTF_HEADER_LEN);
+		plocal_tx_pd = (TxPD *)(head_ptr + priv->intf_hr_len);
 #endif
+
 	ret = wlan_sdio_host_to_card(pmadapter, MLAN_TYPE_DATA, pmbuf,
 				     tx_param);
 done:
@@ -152,12 +153,12 @@ done:
 		wlan_write_data_complete(pmadapter, pmbuf, ret);
 		break;
 	case MLAN_STATUS_PENDING:
-		DBG_HEXDUMP(MDAT_D, "Tx", head_ptr + INTF_HEADER_LEN,
+		DBG_HEXDUMP(MDAT_D, "Tx", head_ptr + priv->intf_hr_len,
 			    MIN(pmbuf->data_len + sizeof(TxPD),
 				MAX_DATA_DUMP_LEN));
 		break;
 	case MLAN_STATUS_SUCCESS:
-		DBG_HEXDUMP(MDAT_D, "Tx", head_ptr + INTF_HEADER_LEN,
+		DBG_HEXDUMP(MDAT_D, "Tx", head_ptr + priv->intf_hr_len,
 			    MIN(pmbuf->data_len + sizeof(TxPD),
 				MAX_DATA_DUMP_LEN));
 		wlan_write_data_complete(pmadapter, pmbuf, ret);
@@ -194,13 +195,12 @@ wlan_write_data_complete(IN pmlan_adapter pmadapter,
 	ENTER();
 
 	MASSERT(pmadapter && pmbuf);
+	if (!pmadapter || !pmbuf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 	pcb = &pmadapter->callbacks;
-
-	if (pmbuf->flags & MLAN_BUF_FLAG_TCP_ACK) {
-		pmbuf->flags &= ~MLAN_BUF_FLAG_TCP_ACK;
-		pcb->moal_tcp_ack_tx_ind(pmadapter->pmoal_handle, pmbuf);
-	}
 
 	if ((pmbuf->buf_type == MLAN_BUF_TYPE_DATA) ||
 	    (pmbuf->buf_type == MLAN_BUF_TYPE_RAW_DATA)) {
@@ -238,6 +238,11 @@ wlan_recv_packet_complete(IN pmlan_adapter pmadapter,
 	ENTER();
 
 	MASSERT(pmadapter && pmbuf);
+	if (!pmadapter || !pmbuf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	pcb = &pmadapter->callbacks;
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 
@@ -359,8 +364,7 @@ wlan_process_bypass_tx(pmlan_adapter pmadapter)
 							 pmbuf, &tx_param);
 
 				if (status == MLAN_STATUS_RESOURCE) {
-					/* Queue the packet again so that it
-					   will be TX'ed later */
+					/* Queue the packet again so that it will be TX'ed later */
 					util_enqueue_list_head(pmadapter->
 							       pmoal_handle,
 							       &priv->

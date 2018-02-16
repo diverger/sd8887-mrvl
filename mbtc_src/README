@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright (C) 2003-2016, Marvell International Ltd.
+ Copyright (C) 2003-2018, Marvell International Ltd.
 
  This software file (the "File") is distributed by Marvell International
  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -57,6 +57,20 @@
       cal_cfg_ext=<CAL data config file name>
 		e.g. copy cal_data.conf to firmware directory, cal_cfg_ext=mrvl/cal_data.conf
 	  mbt_gpio_pin=<GPIO pin to interrupt host. 0xFFFF: disable GPIO interrupt mode; Others: GPIO pin assigned to generate pulse to host.>
+
+	btindrst = Independent reset configuration; high byte:GPIOpin;low byte:MODE
+
+	<MODE> :
+		0x00 : disable independent reset
+		0x01 : enable out-band gpio independent reset.
+		0x02 : enable in-band independent reset
+	<GPIOpin> :
+		0xFF : default GPIO pins will be used. Currently for BT it is GPIO[15].
+		0xXX : specified GPIO pin number will be used for out-band reset.
+
+	Example:
+		btindrst=0x0e01        : outband-reset, gpio pin 14
+		btindrst=0xff01        : outband-reset, use firmware default GPIO pin
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -177,9 +191,12 @@ FOR FW RELOAD
        sd8887_bt_a2.bin
 
     c) Trigger FW reload
-	echo "fw_reload" > /proc/mbt/mbtcharx/debug		# start fw reload.
+	echo "fw_reload=1" > /proc/mbt/hcix/debug    		    # start inband reset and fw reload.
+	echo "fw_reload=2" > proc/mbt/hcix/debug       		    # start fw reload
 
-    (Note: This feature only works on CAC-A2 board which supports parallel fw download)
+    (Note: This feature should works on SD8977/SD8997 board,
+           For CAC-A2 board, only works on the board which supports parallel fw download)
+
 
 ==============================================================================
 			U S E R  M A N U A L  F O R  F M A P P

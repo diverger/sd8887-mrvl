@@ -2,7 +2,7 @@
   *
   * @brief This file contains helper functions for coex application
   *
-  * (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -55,26 +55,19 @@ static class_chan_t japan_class_chan_t[] = {
 
 /** Region-code(Regulatory domain) and Class-channel table mapping */
 static region_class_chan_t region_class_chan_table[] = {
-	{0x10, us_class_chan_t, sizeof(us_class_chan_t) / sizeof(class_chan_t)}	/* US
-										 */
+	{0x10, us_class_chan_t, sizeof(us_class_chan_t) / sizeof(class_chan_t)}	/* US */
 	,
-	{0x20, us_class_chan_t, sizeof(us_class_chan_t) / sizeof(class_chan_t)}	/* CANADA
-										 */
+	{0x20, us_class_chan_t, sizeof(us_class_chan_t) / sizeof(class_chan_t)}	/* CANADA */
 	,
-	{0x30, europe_class_chan_t, sizeof(europe_class_chan_t) / sizeof(class_chan_t)}	/* EUROPE
-											 */
+	{0x30, europe_class_chan_t, sizeof(europe_class_chan_t) / sizeof(class_chan_t)}	/* EUROPE */
 	,
-	{0x32, europe_class_chan_t, sizeof(europe_class_chan_t) / sizeof(class_chan_t)}	/* FRANCE
-											 */
+	{0x32, europe_class_chan_t, sizeof(europe_class_chan_t) / sizeof(class_chan_t)}	/* FRANCE */
 	,
-	{0x40, japan_class_chan_t, sizeof(japan_class_chan_t) / sizeof(class_chan_t)}	/* JAPAN
-											 */
+	{0x40, japan_class_chan_t, sizeof(japan_class_chan_t) / sizeof(class_chan_t)}	/* JAPAN */
 	,
-	{0x41, japan_class_chan_t, sizeof(japan_class_chan_t) / sizeof(class_chan_t)}	/* JAPAN
-											 */
+	{0x41, japan_class_chan_t, sizeof(japan_class_chan_t) / sizeof(class_chan_t)}	/* JAPAN */
 	,
-	{0x50, europe_class_chan_t, sizeof(europe_class_chan_t) / sizeof(class_chan_t)}	/* CHINA
-											 */
+	{0x50, europe_class_chan_t, sizeof(europe_class_chan_t) / sizeof(class_chan_t)}	/* CHINA */
 };
 
 /********************************************************

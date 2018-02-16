@@ -4,7 +4,7 @@
  *
  *   Usage: ./wifidirectutl <iface> <command> <params>
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -142,8 +142,7 @@ wifiDisplay_ie_config(t_s16 *ie_index, t_u16 data_len_wifidisplay, t_u8 *buf)
 		if (tlv->tag == MRVL_MGMT_IE_LIST_TLV_ID) {
 			ie_ptr = (custom_ie *)(tlv->ie_data);
 			for (i = 0; i < MAX_MGMT_IE_INDEX; i++) {
-				// Index 0 and 1 are reserved for WFD in
-				// current implementation
+				// Index 0 and 1 are reserved for WFD in current implementation
 				if ((ie_ptr->mgmt_subtype_mask == DISPLAY_MASK)
 				    && (ie_ptr->ie_length) && (i != 0) &&
 				    (i != 1)) {
@@ -280,9 +279,7 @@ wifidisplay_file_params_config(char *file_name, char *cmd_name,
 	t_u8 cmd_found = 0;
 	t_u16 temp;
 	t_u16 wfd_session_len;
-	t_u8 total_num_device_info __attribute__ ((__unused__));	/* For
-									   future
-									   use */
+	t_u8 total_num_device_info __attribute__ ((__unused__));	/* For future use */
 	t_u8 curr_dev_info = 0;
 	t_u8 dev_info_dev_add[ETH_ALEN], dev_info_assoc_bssid[ETH_ALEN],
 		dev_info_coupled_add[ETH_ALEN];
@@ -718,8 +715,7 @@ wifidisplaycmd_service_discovery(int argc, char *argv[])
 		if (strcmp(args[0], "wifidisplay_discovery_request") == 0) {
 			wifidirect_level =
 				WIFIDIRECT_DISCOVERY_REQUEST_RESPONSE;
-			/* For wifidirect_service_discovery, basic
-			   initialization here */
+			/* For wifidirect_service_discovery, basic initialization here */
 			cmd_len = sizeof(wifidisplay_discovery_request);
 			buffer = (t_u8 *)malloc(cmd_len);
 			if (!buffer) {
@@ -737,8 +733,7 @@ wifidisplaycmd_service_discovery(int argc, char *argv[])
 			wifidirect_level =
 				WIFIDIRECT_DISCOVERY_REQUEST_RESPONSE;
 			req_resp = 1;
-			/* For wifidirect_service_discovery, basic
-			   initialization here */
+			/* For wifidirect_service_discovery, basic initialization here */
 			cmd_len = sizeof(wifidisplay_discovery_response);
 			buffer = (t_u8 *)malloc(cmd_len);
 			if (!buffer) {
@@ -1125,13 +1120,13 @@ is_wifidisplay_input_valid(display_valid_inputs cmd, int argc, char *argv[])
 	}
 	switch (cmd) {
 	case WFD_DEVICE_INFO:
-		/* Bits 10-15 are reserved for device info */
+		/*Bits 10-15 are reserved for device info */
 		if ((ISDIGIT(argv[0]) == 0) || (atoi(argv[0]) < 0)
 		    || (atoi(argv[0]) > ((1 << 10) - 1))) {
 			printf("ERR:Coupled sink paramater must be > 0 and < %d", ((1 << 10) - 1));
 			return FAILURE;
 		}
-		/* bits 4 and 5 values 10 and 11 are reserved */
+		/*bits 4 and 5 values 10 and 11 are reserved */
 		if ((atoi(argv[0]) & 48) > 16) {
 			printf("ERR:Coupled sink paramater must not have bit 4 and 5 equal to 10 or 11 ");
 			return FAILURE;
@@ -1147,7 +1142,7 @@ is_wifidisplay_input_valid(display_valid_inputs cmd, int argc, char *argv[])
 		}
 		break;
 	case WFD_COUPLED_SINK:
-		/* Maximum value of coupled sink is 2 */
+		/*Maximum value of coupled sink is 2 */
 		if ((ISDIGIT(argv[0]) == 0) || (atoi(argv[0]) < 0)
 		    || (atoi(argv[0]) > 2)) {
 			printf("ERR:Coupled sink paramater must be > 0 and < 3");

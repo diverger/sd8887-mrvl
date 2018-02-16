@@ -1,7 +1,7 @@
 /** @file hci_wrapper.h
  *  @brief This file contains HCI related definitions
  *
- *  Copyright (C) 2011-2016, Marvell International Ltd.
+ *  Copyright (C) 2011-2018, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -67,6 +67,12 @@ struct m_dev {
 	int wait_rx_complete;
 	int rx_complete_flag;
 	wait_queue_head_t rx_wait_q;
+	spinlock_t rxlock;
+	atomic_t extra_cnt;
+
+	struct sk_buff *evt_skb;
+	struct sk_buff *acl_skb;
+	struct sk_buff *sco_skb;
 
 	int (*open) (struct m_dev * m_dev);
 	int (*close) (struct m_dev * m_dev);

@@ -2,7 +2,7 @@
   *
   * @brief This files contains mlanutl roamagent command handling.
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -86,9 +86,9 @@ typedef struct exactTime {
 /** ROAMAGENT HostEvent bitmasks */
 typedef enum {
 	HOST_EVENT_NBOR_DISABLE = 6,	/* reset bit 0 */
-	HOST_EVENT_NBOR_ENABLE = 1,	/* set bit 0 */
+	HOST_EVENT_NBOR_ENABLE = 1,	/* set bit 0   */
 	HOST_EVENT_ROAM_DISABLE = 5,	/* reset bit 1 */
-	HOST_EVENT_ROAM_ENABLE = 2,	/* set bit 1 */
+	HOST_EVENT_ROAM_ENABLE = 2,	/* set bit 1   */
 	HOST_EVENT_STATE_DISABLE = 3,	/* reset bit 2 */
 	HOST_EVENT_STATE_ENABLE = 4,	/* reset bit 2 */
 } __ATTRIB_PACK__ HostEvent_e;
@@ -96,11 +96,11 @@ typedef enum {
 /** ROAMAGENT_CONTROL command identifiers */
 typedef enum {
 	ROAM_CONTROL_DISABLE = 6,	/* reset bit 0 */
-	ROAM_CONTROL_ENABLE = 1,	/* set bit 0 */
+	ROAM_CONTROL_ENABLE = 1,	/* set bit 0   */
 	ROAM_CONTROL_RESUME = 5,	/* reset bit 1 */
-	ROAM_CONTROL_SUSPEND = 2,	/* set bit 1 */
+	ROAM_CONTROL_SUSPEND = 2,	/* set bit 1   */
 	CROSSBAND_DISABLE = 3,	/* reset bit 2 */
-	CROSSBAND_ENABLE = 4	/* set bit 2 */
+	CROSSBAND_ENABLE = 4	/* set bit 2   */
 } __ATTRIB_PACK__ RoamControl_e;
 
 /*
@@ -144,11 +144,12 @@ typedef struct {
     /** TLV buffer */
 	t_u8 TlvBuffer[1];
 	/* MrvlIEtypes_BeaconHighRssiThreshold_t BeaconHighRssiThreshold;
-	   MrvlIEtypes_BeaconLowRssiThreshold_t BeaconLowRssiThreshold;
-	   MrvlIEtypes_BeaconHighSnrThreshold_t BeaconHighSnrThreshold;
-	   MrvlIEtypes_BeaconLowSnrThreshold_t BeaconLowSnrThreshold;
-	   MrvlIEtypes_BeaconsMissed_t PreBeaconMissed;
-	   MrvlIEtypes_FailureCount_t FailureCnt; */
+	 * MrvlIEtypes_BeaconLowRssiThreshold_t  BeaconLowRssiThreshold;
+	 * MrvlIEtypes_BeaconHighSnrThreshold_t  BeaconHighSnrThreshold;
+	 * MrvlIEtypes_BeaconLowSnrThreshold_t   BeaconLowSnrThreshold;
+	 * MrvlIEtypes_BeaconsMissed_t           PreBeaconMissed;
+	 * MrvlIEtypes_FailureCount_t            FailureCnt;
+	 */
 } __ATTRIB_PACK__ HostCmd_DS_CMD_ROAMAGENT_STATISTICS_THRESHOLD;
 
 typedef struct {
@@ -195,7 +196,8 @@ typedef struct {
     /** TLV buffer */
 	t_u8 TlvBuffer[1];
 	/* MrvlIEtypes_NeighborEntry_t Neighbors[MRVL_ROAM_MAX_NEIGHBORS];
-	   MRVL_ROAM_MAX_NEIGHBORS = 5 */
+	 * MRVL_ROAM_MAX_NEIGHBORS = 5
+	 */
 } __ATTRIB_PACK__ HostCmd_DS_CMD_ROAMAGENT_NEIGHBORLIST;
 
 /** neighbor entry details roaming agent */
@@ -301,7 +303,8 @@ typedef struct {
     /** TLV buffer */
 	t_u8 TlvBuffer[1];
 	/* MrvlIEtypes_NeighborScanPeriod_t scanPeriod[MRVL_ROAM_SCAN_PERIODS];
-	   MRVL_ROAM_SCAN_PERIODS = 6 */
+	 * MRVL_ROAM_SCAN_PERIODS  = 6
+	 */
 } __ATTRIB_PACK__ HostCmd_DS_CMD_ROAMAGENT_NEIGHBOR_SCANPERIOD_RSP;
 
 /** HostCmd_DS_CMD_ROAMAGENT_NEIGHBORLIST_MAINTENANCE */

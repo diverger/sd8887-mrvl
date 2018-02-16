@@ -3,7 +3,7 @@
   * @brief This file contains declaration referring to
   * functions defined in moal module
   *
-  * Copyright (C) 2008-2016, Marvell International Ltd.
+  * Copyright (C) 2008-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -29,6 +29,10 @@ Change Log:
 
 mlan_status moal_get_fw_data(IN t_void *pmoal_handle,
 			     IN t_u32 offset, IN t_u32 len, OUT t_u8 *pbuf);
+mlan_status moal_get_hw_spec_complete(IN t_void *pmoal_handle,
+				      IN mlan_status status,
+				      IN mlan_hw_info * phw,
+				      IN pmlan_bss_tbl ptbl);
 mlan_status moal_init_fw_complete(IN t_void *pmoal_handle,
 				  IN mlan_status status);
 mlan_status moal_shutdown_fw_complete(IN t_void *pmoal_handle,
@@ -85,7 +89,6 @@ t_void moal_print(IN t_void *pmoal_handle, IN t_u32 level, IN char *pformat,
 t_void moal_print_netintf(IN t_void *pmoal_handle, IN t_u32 bss_index,
 			  IN t_u32 level);
 t_void moal_assert(IN t_void *pmoal_handle, IN t_u32 cond);
-t_void moal_tcp_ack_tx_ind(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf);
 t_void moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index,
 			  IN t_u8 rx_rate, IN t_s8 snr, IN t_s8 nflr,
 			  IN t_u8 antenna);

@@ -2,7 +2,7 @@
  *
  *  @brief This file contains APIs to MOAL module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -34,7 +34,7 @@
  *
  *  @section copyright_sec Copyright
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -258,7 +258,9 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	t_u8 i = 0;
 	t_u32 j = 0;
 
-	MASSERT(pmdevice);
+	if (!pmdevice || !ppmlan_adapter) {
+		return MLAN_STATUS_FAILURE;
+	}
 	MASSERT(ppmlan_adapter);
 	MASSERT(pmdevice->callbacks.moal_print);
 #ifdef DEBUG_LEVEL1
@@ -272,6 +274,13 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	MASSERT(pmdevice->callbacks.moal_malloc);
 	MASSERT(pmdevice->callbacks.moal_memset);
 	MASSERT(pmdevice->callbacks.moal_memmove);
+
+	if (!pmdevice->callbacks.moal_malloc ||
+	    !pmdevice->callbacks.moal_memset ||
+	    !pmdevice->callbacks.moal_memmove) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 	/* Allocate memory for adapter structure */
 	if (pmdevice->callbacks.moal_vmalloc && pmdevice->callbacks.moal_vfree)
@@ -299,6 +308,7 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 					 sizeof(mlan_callbacks));
 
 	/* Assertion for all callback functions */
+	MASSERT(pcb->moal_get_hw_spec_complete);
 	MASSERT(pcb->moal_init_fw_complete);
 	MASSERT(pcb->moal_shutdown_fw_complete);
 	MASSERT(pcb->moal_send_packet_complete);
@@ -324,7 +334,6 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	MASSERT(pcb->moal_free_lock);
 	MASSERT(pcb->moal_spin_lock);
 	MASSERT(pcb->moal_spin_unlock);
-	MASSERT(pcb->moal_tcp_ack_tx_ind);
 	MASSERT(pcb->moal_hist_data_add);
 	MASSERT(pcb->moal_updata_peer_signal);
 	/* Save pmoal_handle */
@@ -389,79 +398,83 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	if (IS_SD8777(pmadapter->card_type) || IS_SD8787(pmadapter->card_type))
 		pmadapter->init_para.fw_crc_check = pmdevice->fw_crc_check;
 	pmadapter->init_para.dev_cap_mask = pmdevice->dev_cap_mask;
+	pmadapter->init_para.indrstcfg = pmdevice->indrstcfg;
 	pmadapter->rx_work_flag = pmdevice->rx_work;
 
-	pmadapter->priv_num = 0;
-	for (i = 0; i < MLAN_MAX_BSS_NUM; i++) {
-		pmadapter->priv[i] = MNULL;
-		if (pmdevice->bss_attr[i].active == MTRUE) {
-			/* For valid bss_attr, allocate memory for private
-			   structure */
-			if (pcb->moal_vmalloc && pcb->moal_vfree)
-				ret = pcb->moal_vmalloc(pmadapter->pmoal_handle,
-							sizeof(mlan_private),
-							(t_u8 **)&pmadapter->
-							priv[i]);
-			else
-				ret = pcb->moal_malloc(pmadapter->pmoal_handle,
-						       sizeof(mlan_private),
-						       MLAN_MEM_DEF,
-						       (t_u8 **)&pmadapter->
-						       priv[i]);
-			if (ret != MLAN_STATUS_SUCCESS || !pmadapter->priv[i]) {
-				ret = MLAN_STATUS_FAILURE;
-				goto error;
-			}
+	pmadapter->fixed_beacon_buffer = pmdevice->fixed_beacon_buffer;
 
-			pmadapter->priv_num++;
-			memset(pmadapter, pmadapter->priv[i], 0,
-			       sizeof(mlan_private));
-
-			pmadapter->priv[i]->adapter = pmadapter;
-
-			/* Save bss_type, frame_type & bss_priority */
-			pmadapter->priv[i]->bss_type =
-				(t_u8)pmdevice->bss_attr[i].bss_type;
-			pmadapter->priv[i]->frame_type =
-				(t_u8)pmdevice->bss_attr[i].frame_type;
-			pmadapter->priv[i]->bss_priority =
-				(t_u8)pmdevice->bss_attr[i].bss_priority;
-			if (pmdevice->bss_attr[i].bss_type == MLAN_BSS_TYPE_STA)
-				pmadapter->priv[i]->bss_role =
-					MLAN_BSS_ROLE_STA;
-			else if (pmdevice->bss_attr[i].bss_type ==
-				 MLAN_BSS_TYPE_UAP)
-				pmadapter->priv[i]->bss_role =
-					MLAN_BSS_ROLE_UAP;
-#ifdef WIFI_DIRECT_SUPPORT
-			else if (pmdevice->bss_attr[i].bss_type ==
-				 MLAN_BSS_TYPE_WIFIDIRECT) {
-				pmadapter->priv[i]->bss_role =
-					MLAN_BSS_ROLE_STA;
-				if (pmdevice->bss_attr[i].bss_virtual)
-					pmadapter->priv[i]->bss_virtual = MTRUE;
-			}
-#endif
-			/* Save bss_index and bss_num */
-			pmadapter->priv[i]->bss_index = i;
-			pmadapter->priv[i]->bss_num =
-				(t_u8)pmdevice->bss_attr[i].bss_num;
-
-			/* init function table */
-			for (j = 0; mlan_ops[j]; j++) {
-				if (mlan_ops[j]->bss_role ==
-				    GET_BSS_ROLE(pmadapter->priv[i])) {
-					memcpy(pmadapter,
-					       &pmadapter->priv[i]->ops,
-					       mlan_ops[j],
-					       sizeof(mlan_operations));
-				}
-			}
+	pmadapter->multiple_dtim = pmdevice->multi_dtim;
+	pmadapter->inact_tmo = pmdevice->inact_tmo;
+	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
+	pmadapter->hs_wake_interval = pmdevice->hs_wake_interval;
+	if (pmdevice->indication_gpio != 0xff) {
+		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
+		pmadapter->level = (pmdevice->indication_gpio & 0xf0) >> 4;
+		if (pmadapter->level != 0 && pmadapter->level != 1) {
+			PRINTM(MERROR,
+			       "Indication GPIO level is wrong and will use default value 0.\n");
+			pmadapter->level = 0;
 		}
 	}
 
+	pmadapter->priv_num = 0;
+	pmadapter->priv[0] = MNULL;
+
+	if (pcb->moal_vmalloc && pcb->moal_vfree)
+		ret = pcb->moal_vmalloc(pmadapter->pmoal_handle,
+					sizeof(mlan_private),
+					(t_u8 **)&pmadapter->priv[0]);
+	else
+		ret = pcb->moal_malloc(pmadapter->pmoal_handle,
+				       sizeof(mlan_private), MLAN_MEM_DEF,
+				       (t_u8 **)&pmadapter->priv[0]);
+	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->priv[0]) {
+		ret = MLAN_STATUS_FAILURE;
+		goto error;
+	}
+
+	pmadapter->priv_num++;
+	memset(pmadapter, pmadapter->priv[0], 0, sizeof(mlan_private));
+
+	pmadapter->priv[0]->adapter = pmadapter;
+	pmadapter->priv[0]->bss_type = (t_u8)pmdevice->bss_attr[0].bss_type;
+	pmadapter->priv[0]->frame_type = (t_u8)pmdevice->bss_attr[0].frame_type;
+	pmadapter->priv[0]->bss_priority =
+		(t_u8)pmdevice->bss_attr[0].bss_priority;
+	if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_STA)
+		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
+	else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_UAP)
+		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_UAP;
+#ifdef WIFI_DIRECT_SUPPORT
+	else if (pmdevice->bss_attr[0].bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
+		pmadapter->priv[0]->bss_role = MLAN_BSS_ROLE_STA;
+		if (pmdevice->bss_attr[0].bss_virtual)
+			pmadapter->priv[0]->bss_virtual = MTRUE;
+	}
+#endif
+	/* Save bss_index and bss_num */
+	pmadapter->priv[0]->bss_index = 0;
+	pmadapter->priv[0]->bss_num = (t_u8)pmdevice->bss_attr[0].bss_num;
+
+	/* init function table */
+	for (j = 0; mlan_ops[j]; j++) {
+		if (mlan_ops[j]->bss_role == GET_BSS_ROLE(pmadapter->priv[0])) {
+			memcpy(pmadapter, &pmadapter->priv[0]->ops, mlan_ops[j],
+			       sizeof(mlan_operations));
+		}
+	}
+    /** back up bss_attr table */
+	memcpy(pmadapter, pmadapter->bss_attr, pmdevice->bss_attr,
+	       sizeof(pmadapter->bss_attr));
+
 	/* Initialize lock variables */
 	if (wlan_init_lock_list(pmadapter) != MLAN_STATUS_SUCCESS) {
+		ret = MLAN_STATUS_FAILURE;
+		goto error;
+	}
+
+    /** init lock varible for first priv */
+	if (wlan_init_priv_lock_list(pmadapter, 0) != MLAN_STATUS_SUCCESS) {
 		ret = MLAN_STATUS_FAILURE;
 		goto error;
 	}
@@ -533,7 +546,6 @@ mlan_unregister(IN t_void *pmlan_adapter
 	ENTER();
 
 	pcb = &pmadapter->callbacks;
-
 	/* Free adapter structure */
 	wlan_free_adapter(pmadapter);
 
@@ -587,6 +599,14 @@ mlan_dnld_fw(IN t_void *pmlan_adapter, IN pmlan_fw_image pmfw)
 
 	ENTER();
 	MASSERT(pmlan_adapter);
+
+/*when using GPIO wakeup, don't run the below code.
+ *if using GPIO wakeup, host will do handshake with FW
+ *to check if FW wake up and pull up SDIO line, then reload driver.
+ *So when using GPIO wakeup, don't need driver to do check wakeup status again.
+ *when using SDIO interface wakeup, run the below code;
+ *if using SDIO interface wakeup, driver need to do check wakeup status with FW.
+ */
 
 	/* Card specific probing */
 	ret = wlan_sdio_probe(pmadapter);
@@ -675,6 +695,15 @@ mlan_set_init_param(IN t_void *pmlan_adapter, IN pmlan_init_param pparam)
 	ENTER();
 	MASSERT(pmlan_adapter);
 
+    /** Save DPD data in MLAN */
+	if ((pparam->pdpd_data_buf) && (pparam->dpd_data_len > 0)) {
+		pmadapter->pdpd_data = pparam->pdpd_data_buf;
+		pmadapter->dpd_data_len = pparam->dpd_data_len;
+	}
+	if (pparam->ptxpwr_data_buf && (pparam->txpwr_data_len > 0)) {
+		pmadapter->ptxpwr_data = pparam->ptxpwr_data_buf;
+		pmadapter->txpwr_data_len = pparam->txpwr_data_len;
+	}
     /** Save cal data in MLAN */
 	if ((pparam->pcal_data_buf) && (pparam->cal_data_len > 0)) {
 		pmadapter->pcal_data = pparam->pcal_data_buf;
@@ -708,7 +737,7 @@ mlan_init_fw(IN t_void *pmlan_adapter
 	ENTER();
 	MASSERT(pmlan_adapter);
 
-	pmadapter->hw_status = WlanHardwareStatusInitializing;
+	pmadapter->hw_status = WlanHardwareStatusGetHwSpec;
 
 	/* Initialize firmware, may return PENDING */
 	ret = wlan_init_fw(pmadapter);
@@ -930,17 +959,19 @@ mlan_block_rx_process(mlan_adapter *pmadapter, t_u8 block)
  *  @brief The receive process
  *
  *  @param pmlan_adapter	A pointer to mlan_adapter structure
+ *  @param rx_pkts		    A pointer to save receive pkts number
  *
  *  @return			MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-mlan_rx_process(IN t_void *pmlan_adapter
-	)
+mlan_rx_process(IN t_void *pmlan_adapter, IN t_u8 *rx_pkts)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_adapter *pmadapter = (mlan_adapter *)pmlan_adapter;
 	pmlan_callbacks pcb;
 	pmlan_buffer pmbuf;
+	t_u8 limit = 0;
+	t_u8 rx_num = 0;
 
 	ENTER();
 
@@ -956,6 +987,8 @@ mlan_rx_process(IN t_void *pmlan_adapter
 		pcb->moal_spin_unlock(pmadapter->pmoal_handle,
 				      pmadapter->prx_proc_lock);
 	}
+	if (rx_pkts)
+		limit = *rx_pkts;
 	/* Check for Rx data */
 	while (MTRUE) {
 		if (pmadapter->flush_data) {
@@ -978,6 +1011,7 @@ mlan_rx_process(IN t_void *pmlan_adapter
 			break;
 		}
 		pmadapter->rx_pkts_queued--;
+		rx_num++;
 		pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
 						      pmadapter->rx_data_queue.
 						      plock);
@@ -988,7 +1022,11 @@ mlan_rx_process(IN t_void *pmlan_adapter
 			mlan_queue_main_work(pmadapter);
 		}
 		wlan_handle_rx_packet(pmadapter, pmbuf);
+		if (limit && rx_num >= limit)
+			break;
 	}
+	if (rx_pkts)
+		*rx_pkts = rx_num;
 	pcb->moal_spin_lock(pmadapter->pmoal_handle, pmadapter->prx_proc_lock);
 	pmadapter->mlan_rx_processing = MFALSE;
 	pcb->moal_spin_unlock(pmadapter->pmoal_handle,
@@ -1063,9 +1101,7 @@ process_start:
 		if ((pmadapter->ps_state == PS_STATE_SLEEP) &&
 		    (pmadapter->pm_wakeup_card_req &&
 		     !pmadapter->pm_wakeup_fw_try) &&
-		    (util_peek_list
-		     (pmadapter->pmoal_handle, &pmadapter->cmd_pending_q,
-		      pcb->moal_spin_lock, pcb->moal_spin_unlock)
+		    (wlan_is_cmd_pending(pmadapter)
 		     || !wlan_bypass_tx_list_empty(pmadapter)
 		     || !wlan_wmm_lists_empty(pmadapter)
 		    )) {
@@ -1089,6 +1125,11 @@ process_start:
 			/* We have tried to wakeup the card already */
 			if (pmadapter->pm_wakeup_fw_try)
 				break;
+			/* Check if we need to confirm Sleep Request received previously */
+			if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
+				if (!pmadapter->cmd_sent &&
+				    !pmadapter->curr_cmd)
+					wlan_check_ps_cond(pmadapter);
 			if (pmadapter->ps_state != PS_STATE_AWAKE ||
 			    (pmadapter->tx_lock_flag == MTRUE))
 				break;
@@ -1103,11 +1144,7 @@ process_start:
 				if (pmadapter->cmd_sent || pmadapter->curr_cmd
 				    || !wlan_is_send_cmd_allowed(pmadapter->
 								 tdls_status) ||
-				    (!util_peek_list
-				     (pmadapter->pmoal_handle,
-				      &pmadapter->cmd_pending_q,
-				      pcb->moal_spin_lock,
-				      pcb->moal_spin_unlock))) {
+				    !wlan_is_cmd_pending(pmadapter)) {
 					break;
 				}
 			}
@@ -1122,6 +1159,11 @@ process_start:
 			if (pmadapter->hw_status == WlanHardwareStatusInitdone) {
 				pmadapter->hw_status = WlanHardwareStatusReady;
 				wlan_init_fw_complete(pmadapter);
+			} else if (pmadapter->hw_status ==
+				   WlanHardwareStatusGetHwSpecdone) {
+				pmadapter->hw_status =
+					WlanHardwareStatusInitializing;
+				wlan_get_hw_spec_complete(pmadapter);
 			}
 		}
 
@@ -1131,8 +1173,7 @@ process_start:
 			wlan_process_event(pmadapter);
 		}
 
-		/* Check if we need to confirm Sleep Request received
-		   previously */
+		/* Check if we need to confirm Sleep Request received previously */
 		if (pmadapter->ps_state == PS_STATE_PRE_SLEEP)
 			if (!pmadapter->cmd_sent && !pmadapter->curr_cmd)
 				wlan_check_ps_cond(pmadapter);
@@ -1190,7 +1231,7 @@ process_start:
 
 #ifdef STA_SUPPORT
 		if (pmadapter->delay_null_pkt && !pmadapter->cmd_sent &&
-		    !pmadapter->curr_cmd && !IS_COMMAND_PENDING(pmadapter) &&
+		    !pmadapter->curr_cmd && !wlan_is_cmd_pending(pmadapter) &&
 		    wlan_bypass_tx_list_empty(pmadapter) &&
 		    wlan_wmm_lists_empty(pmadapter)) {
 			if (wlan_send_null_packet
@@ -1246,6 +1287,10 @@ mlan_send_packet(IN t_void *pmlan_adapter, IN pmlan_buffer pmbuf)
 	ENTER();
 	MASSERT(pmlan_adapter &&pmbuf);
 
+	if (!pmlan_adapter ||!pmbuf) {
+		return MLAN_STATUS_FAILURE;
+	}
+
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 	pmbuf->flags |= MLAN_BUF_FLAG_MOAL_TX_BUF;
 	pmpriv = pmadapter->priv[pmbuf->bss_index];
@@ -1299,8 +1344,8 @@ mlan_ioctl(IN t_void *adapter, IN pmlan_ioctl_req pioctl_req)
 	ENTER();
 
 	if (pioctl_req == MNULL) {
-		PRINTM(MERROR, "MLAN IOCTL information buffer is NULL\n");
-		ret = MLAN_STATUS_FAILURE;
+		PRINTM(MMSG, "Cancel all pending cmd!\n");
+		wlan_cancel_all_pending_cmd(pmadapter);
 		goto exit;
 	}
 	if (pioctl_req->action == MLAN_ACT_CANCEL) {
@@ -1360,22 +1405,21 @@ mlan_select_wmm_queue(IN t_void *pmlan_adapter, IN t_u8 bss_num, IN t_u8 tid)
 /**
  *  @brief This function gets interrupt status.
  *
+ */
+/**
  *  @param adapter  A pointer to mlan_adapter structure
  *  @return         N/A
  */
-t_void
+mlan_status
 mlan_interrupt(IN t_void *adapter)
 {
 	mlan_adapter *pmadapter = (mlan_adapter *)adapter;
+	mlan_status ret;
 
 	ENTER();
-	if (!pmadapter->pps_uapsd_mode && pmadapter->ps_state == PS_STATE_SLEEP) {
-		pmadapter->pm_wakeup_fw_try = MFALSE;
-		pmadapter->ps_state = PS_STATE_AWAKE;
-	}
-
-	wlan_interrupt(pmadapter);
+	ret = wlan_interrupt(pmadapter);
 	LEAVE();
+	return ret;
 }
 
 /**

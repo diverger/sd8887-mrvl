@@ -2,7 +2,7 @@
   *
   * @brief Program to prepare command buffer
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -610,15 +610,13 @@ process_getscantable(int argc, char *argv[])
 				bss_info_length -= sizeof(bss_info->cap_info);
 			}
 
-			bss_info->wmm_cap = ' ';	/* M (WMM), C (WMM-Call
-							   Admission Control) */
+			bss_info->wmm_cap = ' ';	/* M (WMM), C (WMM-Call Admission Control) */
 			bss_info->wps_cap = ' ';	/* "S" */
 			bss_info->dot11k_cap = ' ';	/* "K" */
 			bss_info->dot11r_cap = ' ';	/* "R" */
 			bss_info->ht_cap = ' ';	/* "N" */
 
-			/* "P" for Privacy (WEP) since "W" is WPA, and "2" is
-			   RSN/WPA2 */
+			/* "P" for Privacy (WEP) since "W" is WPA, and "2" is RSN/WPA2 */
 			bss_info->priv_cap =
 				bss_info->cap_info.privacy ? 'P' : ' ';
 
@@ -667,25 +665,19 @@ process_getscantable(int argc, char *argv[])
 						    && (pwmm_ie->vend_hdr.
 							oui_type ==
 							wmm_oui[3])) {
-							/* Check the subtype: 1
-							   == parameter, 0 ==
-							   info */
+							/* Check the subtype: 1 == parameter, 0 == info */
 							if ((pwmm_ie->vend_hdr.
 							     oui_subtype == 1)
 							    && pwmm_ie->
 							    ac_params
 							    [WMM_AC_VO].
 							    aci_aifsn.acm) {
-								/* Call
-								   admission on
-								   VO; 'C' for
-								   CAC */
+								/* Call admission on VO; 'C' for CAC */
 								bss_info->
 									wmm_cap
 									= 'C';
 							} else {
-								/* No CAC; 'M'
-								   for uh, WMM */
+								/* No CAC; 'M' for uh, WMM */
 								bss_info->
 									wmm_cap
 									= 'M';
@@ -760,9 +752,7 @@ process_getscantable(int argc, char *argv[])
 							curr->fixed_buf.
 							fixed_fields.rssi;
 						if (new_ss > curr_ss) {
-							// Insert the node to
-							// current position in
-							// list
+							// Insert the node to current position in list
 							scan_list_node->next =
 								curr;
 							prev->next =
@@ -773,8 +763,7 @@ process_getscantable(int argc, char *argv[])
 					}
 					if (curr == NULL) {
 
-						// Insert the node to tail of
-						// the list
+						// Insert the node to tail of the list
 						prev->next = scan_list_node;
 						scan_list_node->next = NULL;
 					}
@@ -811,22 +800,12 @@ process_getscantable(int argc, char *argv[])
 
 		displayed_info = TRUE;
 
-		/* "A" for Adhoc "I" for Infrastructure, "D" for DFS (Spectrum
-		   Mgmt) */
-		printf(" %c%c%c%c%c%c%c%c%c%c | ", bss_info->cap_info.ibss ? 'A' : 'I', bss_info->priv_cap,	/* P
-														   (WEP),
-														   W
-														   (WPA),
-														   2
-														   (WPA2)
-														 */
-		       bss_info->cap_info.spectrum_mgmt ? 'D' : ' ', bss_info->wmm_cap,	/* M
-											   (WMM),
-											   C
-											   (WMM-Call
-											   Admission
-											   Control)
-											 */
+		/* "A" for Adhoc
+		 * "I" for Infrastructure,
+		 * "D" for DFS (Spectrum Mgmt)
+		 */
+		printf(" %c%c%c%c%c%c%c%c%c%c | ", bss_info->cap_info.ibss ? 'A' : 'I', bss_info->priv_cap,	/* P (WEP), W (WPA), 2 (WPA2) */
+		       bss_info->cap_info.spectrum_mgmt ? 'D' : ' ', bss_info->wmm_cap,	/* M (WMM), C (WMM-Call Admission Control) */
 		       bss_info->dot11k_cap,	/* K */
 		       bss_info->dot11r_cap,	/* R */
 		       bss_info->wps_cap,	/* S */
@@ -846,9 +825,8 @@ process_getscantable(int argc, char *argv[])
 		printf("\n");
 
 		if (argc > 3 && strcmp(argv[3], "tsf") == 0) {
-			/* TSF is a u64, some formatted printing libs have
-			   trouble printing long longs, so cast and dump as
-			   bytes */
+			/* TSF is a u64, some formatted printing libs have trouble
+			   printing long longs, so cast and dump as bytes */
 			pbyte = (t_u8 *)&fixed_fields.network_tsf;
 			printf("    TSF=%02x%02x%02x%02x%02x%02x%02x%02x\n",
 			       pbyte[7], pbyte[6], pbyte[5], pbyte[4],

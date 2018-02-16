@@ -2,7 +2,7 @@
   *
   * @brief This file contains definitions for application
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -159,10 +159,10 @@ int fparse_for_hex(FILE * fp, t_u8 *dst);
 #define MAX_IE_BUFFER_LEN 256
 
 /** TLV: Management IE list */
-#define MRVL_MGMT_IE_LIST_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x69)	// 0x0169
+#define MRVL_MGMT_IE_LIST_TLV_ID          (PROPRIETARY_TLV_BASE_ID + 0x69)	//0x0169
 
 /** TLV: Max Management IE */
-#define MRVL_MAX_MGMT_IE_TLV_ID           (PROPRIETARY_TLV_BASE_ID + 0xaa)	// 0x01aa
+#define MRVL_MAX_MGMT_IE_TLV_ID           (PROPRIETARY_TLV_BASE_ID + 0xaa)	//0x01aa
 
 /** custom IE info */
 typedef struct _custom_ie_info {

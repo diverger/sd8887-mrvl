@@ -2,7 +2,7 @@
  *
  *  @brief Header file for uaputl application
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -199,6 +199,9 @@ typedef unsigned long long t_u64;
 #define UAP_HT_STREAM_CFG       21
 
 #define UAP_OPERATION_CTRL       22
+
+/** Config DFS channel switch count subcommand */
+#define UAP_CHAN_SWITCH_COUNT_CFG     23
 
 /** Private command ID to Power Mode */
 #define UAP_POWER_MODE      (SIOCDEVPRIVATE + 3)
@@ -403,8 +406,6 @@ typedef struct _fw_info {
 	t_u32 hw_dot_11n_dev_cap;
 } fw_info;
 
-#define BAND_AAC (1U<<6)
-
 #ifndef ETH_ALEN
 /** MAC address length */
 #define ETH_ALEN    6
@@ -571,7 +572,7 @@ typedef struct _dfs_testing_param {
     /** Set/Get */
 	t_u32 action;
     /** user CAC period (msec) */
-	t_u16 usr_cac_period;
+	t_u32 usr_cac_period;
     /** user NOP period (sec) */
 	t_u16 usr_nop_period;
     /** don't change channel on radar */
@@ -580,6 +581,16 @@ typedef struct _dfs_testing_param {
 	t_u8 fixed_new_chan;
 } dfs_testing_para;
 #endif
+
+/** Channel switch count config */
+typedef struct _cscount_cfg_t {
+    /** subcmd */
+	t_u32 subcmd;
+    /** Set/Get */
+	t_u32 action;
+    /** user channel switch count */
+	t_u8 cs_count;
+} cscount_cfg_t;
 
 /** mgmt_frame_ctrl */
 typedef struct _mgmt_frame_ctrl {
@@ -591,7 +602,7 @@ typedef struct _mgmt_frame_ctrl {
 	t_u32 mask;
 } mgmt_frame_ctrl;
 
-/* */
+/* cac timer status structure */
 typedef struct _cac_timer_status {
 	/** subcmd */
 	t_u32 subcmd;
@@ -777,6 +788,7 @@ typedef enum {
 	FRAGTHRESH,
 	DTIMPERIOD,
 	RADIOCONTROL,
+	TXBEACONRATE,
 	MCBCDATARATE,
 	PKTFWD,
 	STAAGEOUTTIMER,
@@ -861,16 +873,8 @@ typedef PACK_START struct _tlvbuf_header {
 	t_u8 data[0];
 } PACK_END tlvbuf_header;
 
-/** Band config ACS mode */
-#define BAND_CONFIG_ACS_MODE    0x40
 /** BITMAP for ACS mode */
 #define BITMAP_ACS_MODE         0x01
-/** Band Config mask */
-#define BAND_CONFIG_MASK        0x03
-/** Band Config 2.4GHz */
-#define BAND_CONFIG_2_4GHZ      0x00
-/** Band config 5GHz */
-#define BAND_CONFIG_5GHZ        0x01
 
 /* Both 2.4G and 5G band selected */
 #define BAND_SELECT_BOTH        0
@@ -885,10 +889,6 @@ typedef PACK_START struct _tlvbuf_header {
 #define BITMAP_CHANNEL_BELOW    0x04
 /** Channle mode mask */
 #define CHANNEL_MODE_MASK       0x07
-/** secondary channel is below */
-#define SECOND_CHANNEL_BELOW    0x30
-/** secondary channel is above */
-#define SECOND_CHANNEL_ABOVE    0x10
 /** max primary channel support secondary channel above */
 #define MAX_CHANNEL_ABOVE       9
 /** Default max primary channel supporting secondary channel above when country code is not Japan */
@@ -902,27 +902,65 @@ typedef PACK_START struct _tlvbuf_header {
 /** Default max primary channel supporting secondary channel below when country code is not Japan and not US */
 #define DEFAULT_MAX_CHANNEL_BELOW_NON_US       13
 
-/** Band B */
-#define BAND_B          (0x01)
-/** Band G */
-#define BAND_G          (0x02)
-/** Band A */
-#define BAND_A          (0x04)
+/** channel band */
+enum {
+	BAND_2GHZ = 0,
+	BAND_5GHZ = 1,
+	BAND_4GHZ = 2,
+};
+
+/** channel offset */
+enum {
+	SEC_CHAN_NONE = 0,
+	SEC_CHAN_ABOVE = 1,
+	SEC_CHAN_5MHZ = 2,
+	SEC_CHAN_BELOW = 3
+};
+
+/** channel bandwidth */
+enum {
+	CHAN_BW_20MHZ = 0,
+	CHAN_BW_10MHZ,
+	CHAN_BW_40MHZ,
+	CHAN_BW_80MHZ,
+};
+
+/** scan mode */
+enum {
+	SCAN_MODE_MANUAL = 0,
+	SCAN_MODE_ACS,
+	SCAN_MODE_USER,
+};
+
+/** Band_Config_t */
+typedef PACK_START struct _Band_Config_t {
+#ifdef BIG_ENDIAN_SUPPORT
+    /** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
+	t_u8 scanMode:2;
+    /** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
+	t_u8 chan2Offset:2;
+    /** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	t_u8 chanWidth:2;
+    /** Band Info - (00)=2.4GHz, (01)=5GHz */
+	t_u8 chanBand:2;
+#else
+    /** Band Info - (00)=2.4GHz, (01)=5GHz */
+	t_u8 chanBand:2;
+    /** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	t_u8 chanWidth:2;
+    /** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
+	t_u8 chan2Offset:2;
+    /** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
+	t_u8 scanMode:2;
+#endif
+} PACK_END Band_Config_t;
 
 /** TLV buffer : Channel Config */
 typedef PACK_START struct _tlvbuf_channel_config {
     /** Header */
 	TLVHEADER;
-    /** Band Configuration
-     *
-     * [7-6] Channel Selection Mode; 00 manual, 01 ACS
-     * [5-4] 00 - no secondary channel,
-     *       01 -- secondary channel is above
-     *       03 -- secondary channel is below
-     * [3-2] Channel Width; 00 20 MHz
-     * [1-0] Band Info; 00 2.4 GHz
-     */
-	t_u8 band_config_type;
+    /** Band Configuration */
+	Band_Config_t bandcfg;
     /** Channel number */
 	t_u8 chan_number;
 } PACK_END tlvbuf_channel_config;
@@ -930,7 +968,7 @@ typedef PACK_START struct _tlvbuf_channel_config {
 /** Channel List Entry */
 typedef PACK_START struct _channel_list {
     /** Band Config */
-	t_u8 band_config_type;
+	Band_Config_t bandcfg;
     /** Channel Number */
 	t_u8 chan_number;
     /** Reserved */
@@ -1074,6 +1112,14 @@ typedef PACK_START struct _tlvbuf_rts_threshold {
     /** RTS threshold */
 	t_u16 rts_threshold;
 } PACK_END tlvbuf_rts_threshold;
+
+/** TLV buffer : Tx data rate */
+typedef PACK_START struct _tlvbuf_tx_data_rate {
+    /** Header */
+	TLVHEADER;
+    /** Tx data rate */
+	t_u16 tx_data_rate;
+} PACK_END tlvbuf_tx_data_rate;
 
 /** TLV buffer : MCBC Data Rate */
 typedef PACK_START struct _tlvbuf_mcbc_data_rate {
@@ -1710,7 +1756,7 @@ typedef struct _scan_chan_list {
     /** Channel number*/
 	t_u8 chan_number;
     /** Band config type */
-	t_u8 band_config_type;
+	Band_Config_t bandcfg;
 } scan_chan_list;
 
 /** mac_filter data structure */
@@ -1844,6 +1890,8 @@ typedef struct _bss_config_t {
 	t_u8 rates[MAX_DATA_RATES];
     /** Tx data rate */
 	t_u16 tx_data_rate;
+    /** Tx beacon rate */
+	t_u16 tx_beacon_rate;
     /** multicast/broadcast data rate */
 	t_u16 mcbc_data_rate;
     /** Tx power level */
@@ -1879,7 +1927,7 @@ typedef struct _bss_config_t {
     /** preamble type */
 	t_u8 preamble_type;
     /** band cfg */
-	t_u8 band_cfg;
+	Band_Config_t bandcfg;
     /** channel */
 	t_u8 channel;
     /** auth mode */
@@ -1927,6 +1975,17 @@ typedef struct _bss_config_t {
 	WmmParameter_t wmm_para;
 } bss_config_t;
 
+/** Enumeration for band */
+enum _mlan_band_def {
+	BAND_B = 1,
+	BAND_G = 2,
+	BAND_A = 4,
+	BAND_GN = 8,
+	BAND_AN = 16,
+	BAND_GAC = 32,
+	BAND_AAC = 64,
+};
+
 /** station info */
 typedef struct _sta_info {
     /** STA MAC address */
@@ -1935,6 +1994,8 @@ typedef struct _sta_info {
 	t_u8 power_mfg_status;
     /** RSSI */
 	t_s8 rssi;
+    /** station bandmode */
+	t_u8 bandmode;
 } sta_info;
 
 /** sta_list structure */
@@ -2109,98 +2170,101 @@ typedef PACK_START struct _apcmdbuf_pmf_params {
 #define TLV_TYPE_DOMAIN                 0x0007
 
 /** TLV type : Scan Channels list */
-#define MRVL_CHANNELLIST_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x01)	// 0x0101
+#define MRVL_CHANNELLIST_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x01)	//0x0101
 /** TLV type : Authentication type */
-#define MRVL_AUTH_TLV_ID                (PROPRIETARY_TLV_BASE_ID + 0x1f)	// 0x011f
+#define MRVL_AUTH_TLV_ID                (PROPRIETARY_TLV_BASE_ID + 0x1f)	//0x011f
 /** TLV Id : Channel Config */
-#define MRVL_CHANNELCONFIG_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x2a)	// 0x012a
+#define MRVL_CHANNELCONFIG_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x2a)	//0x012a
 /** TLV : AP MAC address */
-#define MRVL_AP_MAC_ADDRESS_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x2b)	// 0x012b
+#define MRVL_AP_MAC_ADDRESS_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x2b)	//0x012b
 /** TLV : Beacon period */
-#define MRVL_BEACON_PERIOD_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x2c)	// 0x012c
+#define MRVL_BEACON_PERIOD_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x2c)	//0x012c
 /** TLV : DTIM period */
-#define MRVL_DTIM_PERIOD_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x2d)	// 0x012d
+#define MRVL_DTIM_PERIOD_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x2d)	//0x012d
 /** TLV : Tx power */
-#define MRVL_TX_POWER_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0x2f)	// 0x012f
+#define MRVL_TX_POWER_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0x2f)	//0x012f
 /** TLV : SSID broadcast control */
-#define MRVL_BCAST_SSID_CTL_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x30)	// 0x0130
+#define MRVL_BCAST_SSID_CTL_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x30)	//0x0130
 /** TLV : Preamble control */
-#define MRVL_PREAMBLE_CTL_TLV_ID        (PROPRIETARY_TLV_BASE_ID + 0x31)	// 0x0131
+#define MRVL_PREAMBLE_CTL_TLV_ID        (PROPRIETARY_TLV_BASE_ID + 0x31)	//0x0131
 /** TLV : RTS threshold */
-#define MRVL_RTS_THRESHOLD_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x33)	// 0x0133
+#define MRVL_RTS_THRESHOLD_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x33)	//0x0133
 /** TLV : Packet forwarding control */
-#define MRVL_PKT_FWD_CTL_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x36)	// 0x0136
+#define MRVL_PKT_FWD_CTL_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x36)	//0x0136
 /** TLV : STA information */
-#define MRVL_STA_INFO_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0x37)	// 0x0137
+#define MRVL_STA_INFO_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0x37)	//0x0137
 /** TLV : STA MAC address filter */
-#define MRVL_STA_MAC_ADDR_FILTER_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0x38)	// 0x0138
+#define MRVL_STA_MAC_ADDR_FILTER_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0x38)	//0x0138
 /** TLV : STA ageout timer */
-#define MRVL_STA_AGEOUT_TIMER_TLV_ID    (PROPRIETARY_TLV_BASE_ID + 0x39)	// 0x0139
+#define MRVL_STA_AGEOUT_TIMER_TLV_ID    (PROPRIETARY_TLV_BASE_ID + 0x39)	//0x0139
 /** TLV : WEP keys */
-#define MRVL_WEP_KEY_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0x3b)	// 0x013b
+#define MRVL_WEP_KEY_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0x3b)	//0x013b
 /** TLV : WPA passphrase */
-#define MRVL_WPA_PASSPHRASE_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x3c)	// 0x013c
+#define MRVL_WPA_PASSPHRASE_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x3c)	//0x013c
 /** TLV type : protocol TLV */
-#define MRVL_PROTOCOL_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0x40)	// 0x0140
+#define MRVL_PROTOCOL_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0x40)	//0x0140
 /** TLV type : AKMP TLV */
-#define MRVL_AKMP_TLV_ID                (PROPRIETARY_TLV_BASE_ID + 0x41)	// 0x0141
+#define MRVL_AKMP_TLV_ID                (PROPRIETARY_TLV_BASE_ID + 0x41)	//0x0141
 /** TLV type : Cipher TLV */
-#define MRVL_CIPHER_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x42)	// 0x0142
+#define MRVL_CIPHER_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x42)	//0x0142
 /** TLV : Fragment threshold */
-#define MRVL_FRAG_THRESHOLD_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x46)	// 0x0146
+#define MRVL_FRAG_THRESHOLD_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x46)	//0x0146
 /** TLV : Group rekey timer */
-#define MRVL_GRP_REKEY_TIME_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x47)	// 0x0147
+#define MRVL_GRP_REKEY_TIME_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x47)	//0x0147
 /**TLV: Max Station number */
-#define MRVL_MAX_STA_CNT_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x55)	// 0x0155
+#define MRVL_MAX_STA_CNT_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x55)	//0x0155
 /**TLV: Retry limit */
-#define MRVL_RETRY_LIMIT_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x5d)	// 0x015d
+#define MRVL_RETRY_LIMIT_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x5d)	//0x015d
 /**TLV: MCBC data rate */
-#define MRVL_MCBC_DATA_RATE_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x62)	// 0x0162
+#define MRVL_MCBC_DATA_RATE_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x62)	//0x0162
 /**TLV: RSN replay protection */
-#define MRVL_RSN_REPLAY_PROT_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x64)	// 0x0164
+#define MRVL_RSN_REPLAY_PROT_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x64)	//0x0164
 /** TLV: Management IE list */
-#define MRVL_MGMT_IE_LIST_TLV_ID        (PROPRIETARY_TLV_BASE_ID + 0x69)	// 0x0169
+#define MRVL_MGMT_IE_LIST_TLV_ID        (PROPRIETARY_TLV_BASE_ID + 0x69)	//0x0169
 /** TLV : Coex common configuration */
-#define MRVL_BT_COEX_COMMON_CFG_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 0x6c)	// 0x016c
+#define MRVL_BT_COEX_COMMON_CFG_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 0x6c)	//0x016c
 /** TLV : Coex SCO configuration */
-#define MRVL_BT_COEX_SCO_CFG_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x6d)	// 0x016d
+#define MRVL_BT_COEX_SCO_CFG_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x6d)	//0x016d
 /** TLV : Coex ACL configuration */
-#define MRVL_BT_COEX_ACL_CFG_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x6e)	// 0x016e
+#define MRVL_BT_COEX_ACL_CFG_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x6e)	//0x016e
 /** TLV : Coex stats configuration */
-#define MRVL_BT_COEX_STATS_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x6f)	// 0x016f
+#define MRVL_BT_COEX_STATS_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x6f)	//0x016f
 /** TLV :Pairwise Handshake Timeout */
-#define MRVL_EAPOL_PWK_HSK_TIMEOUT_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x75)	// 0x0175
+#define MRVL_EAPOL_PWK_HSK_TIMEOUT_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x75)	//0x0175
 /** TLV :Pairwise Handshake Retries */
-#define MRVL_EAPOL_PWK_HSK_RETRIES_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x76)	// 0x0176
+#define MRVL_EAPOL_PWK_HSK_RETRIES_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x76)	//0x0176
 /** TLV :Groupwise Handshake Timeout */
-#define MRVL_EAPOL_GWK_HSK_TIMEOUT_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x77)	// 0x0177
+#define MRVL_EAPOL_GWK_HSK_TIMEOUT_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x77)	//0x0177
 /** TLV :Groupwise Handshake Retries */
-#define MRVL_EAPOL_GWK_HSK_RETRIES_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x78)	// 0x0178
+#define MRVL_EAPOL_GWK_HSK_RETRIES_TLV_ID   (PROPRIETARY_TLV_BASE_ID + 0x78)	//0x0178
 /** TLV : PS STA ageout timer */
-#define MRVL_PS_STA_AGEOUT_TIMER_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x7b)	// 0x017b
+#define MRVL_PS_STA_AGEOUT_TIMER_TLV_ID     (PROPRIETARY_TLV_BASE_ID + 0x7b)	//0x017b
 /** TLV : Pairwise Cipher */
-#define MRVL_CIPHER_PWK_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x91)	// 0x0191
+#define MRVL_CIPHER_PWK_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x91)	//0x0191
 /** TLV : Group Cipher */
-#define MRVL_CIPHER_GWK_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x92)	// 0x0192
+#define MRVL_CIPHER_GWK_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x92)	//0x0192
 /** TLV : BSS Status */
-#define MRVL_BSS_STATUS_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x93)	// 0x0193
+#define MRVL_BSS_STATUS_TLV_ID              (PROPRIETARY_TLV_BASE_ID + 0x93)	//0x0193
 /** TLV : Restricted Client Mode */
-#define MRVL_RESTRICT_CLIENT_MODE_TLV_ID    (PROPRIETARY_TLV_BASE_ID + 0xC1)	// 0x01C1
+#define MRVL_RESTRICT_CLIENT_MODE_TLV_ID    (PROPRIETARY_TLV_BASE_ID + 0xC1)	//0x01C1
 /** TLV : Sticky TIM config */
-#define MRVL_STICKY_TIM_CONFIG_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x96)	// 0x0196
+#define MRVL_STICKY_TIM_CONFIG_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x96)	//0x0196
 /** TLV : Sticky TIM MAC address */
-#define MRVL_STICKY_TIM_STA_MAC_ADDR_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x97)	// 0x0197
+#define MRVL_STICKY_TIM_STA_MAC_ADDR_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x97)	//0x0197
 /** TLV : 20/40 coex config */
-#define MRVL_2040_BSS_COEX_CONTROL_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x98)	// 0x0198
+#define MRVL_2040_BSS_COEX_CONTROL_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x98)	//0x0198
 /** TLV : Max Management IE */
-#define MRVL_MAX_MGMT_IE_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0xAA)	// 0x01aa
+#define MRVL_MAX_MGMT_IE_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0xAA)	//0x01aa
 
 /** TLV : Region Domain Code */
-#define MRVL_REGION_DOMAIN_CODE_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0xAB)	// 0x01ab
+#define MRVL_REGION_DOMAIN_CODE_TLV_ID            (PROPRIETARY_TLV_BASE_ID + 0xAB)	//0x01ab
 
 #ifdef RX_PACKET_COALESCE
 #define MRVL_RX_PKT_COAL_TLV_ID             (PROPRIETARY_TLV_BASE_ID + 0xC9)
 #endif
+
+/** TLV : Tx beacon rate */
+#define MRVL_TX_BEACON_RATE_TLV_ID        (PROPRIETARY_TLV_BASE_ID + 288)	//0x0220
 
 #ifdef RX_PACKET_COALESCE
 /** RX packet coalesce tlv */
@@ -2433,7 +2497,6 @@ void print_rate(tlvbuf_rates *tlv);
 int string2raw(char *str, unsigned char *raw);
 void print_mac_filter(tlvbuf_sta_mac_addr_filter *tlv);
 int ishexstring(void *hex);
-inline int ISDIGIT(char *x);
 unsigned int a2hex(char *s);
 int fparse_for_hex(FILE * fp, t_u8 *dst);
 int is_input_valid(valid_inputs cmd, int argc, char *argv[]);
@@ -2460,4 +2523,99 @@ int check_channel_validity_11d(int channel, int band, int set_domain);
 int check_tx_pwr_validity_11d(t_u8 tx_pwr);
 int prepare_host_cmd_buffer(char *fname, char *cmd_name, t_u8 *buf);
 char *mlan_config_get_line(FILE * fp, char *s, t_s32 size, int *line);
+/**
+ *    @brief isdigit for String.
+ *
+ *    @param x            Char string
+ *    @return             UAP_FAILURE for non-digit.
+ *                        UAP_SUCCESS for digit
+ */
+static inline int
+ISDIGIT(char *x)
+{
+	unsigned int i;
+	for (i = 0; i < strlen(x); i++)
+		if (isdigit(x[i]) == 0)
+			return UAP_FAILURE;
+	return UAP_SUCCESS;
+}
+
+/**
+ *  @brief  Detects if band is different across the list of scan channels
+ *
+ *  @param  argc    Number of elements
+ *  @param  argv    Array of strings
+ *  @return UAP_FAILURE or UAP_SUCCESS
+ */
+static inline int
+has_diff_band(int argc, char *argv[])
+{
+	int i = 0;
+	int channel = 0;
+	int band[MAX_CHANNELS];
+	/* Check for different bands */
+	for (i = 0; i < argc; i++) {
+		band[i] = -1;
+		sscanf(argv[i], "%d.%d", &channel, &band[i]);
+		if (band[i] == -1) {
+			if (channel > MAX_CHANNELS_BG) {
+				band[i] = 1;
+			} else {
+				band[i] = 0;
+			}
+		}
+	}
+	for (i = 0; i <= (argc - 2); i++) {
+		if (band[i] != band[i + 1]) {
+			return UAP_FAILURE;
+		}
+	}
+	return UAP_SUCCESS;
+}
+
+/**
+ *  @brief  Detects duplicates channel in array of strings
+ *
+ *  @param  argc    Number of elements
+ *  @param  argv    Array of strings
+ *  @return UAP_FAILURE or UAP_SUCCESS
+ */
+static inline int
+has_dup_channel(int argc, char *argv[])
+{
+	int i, j;
+	/* Check for duplicate */
+	for (i = 0; i < (argc - 1); i++) {
+		for (j = i + 1; j < argc; j++) {
+			if (atoi(argv[i]) == atoi(argv[j])) {
+				return UAP_FAILURE;
+			}
+		}
+	}
+	return UAP_SUCCESS;
+}
+
+/**
+ *  @brief  Detects duplicates rate in array of strings
+ *          Note that 0x82 and 0x2 are same for rate
+ *
+ *  @param  argc    Number of elements
+ *  @param  argv    Array of strings
+ *  @return UAP_FAILURE or UAP_SUCCESS
+ */
+static inline int
+has_dup_rate(int argc, char *argv[])
+{
+	int i, j;
+	/* Check for duplicate */
+	for (i = 0; i < (argc - 1); i++) {
+		for (j = i + 1; j < argc; j++) {
+			if ((A2HEXDECIMAL(argv[i]) & ~BASIC_RATE_SET_BIT) ==
+			    (A2HEXDECIMAL(argv[j]) & ~BASIC_RATE_SET_BIT)) {
+				return UAP_FAILURE;
+			}
+		}
+	}
+	return UAP_SUCCESS;
+}
 #endif /* _UAP_H */

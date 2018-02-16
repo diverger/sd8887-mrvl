@@ -3,7 +3,7 @@
  *  @brief This header file contains data structures and
  *  function declarations of 802.11h
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -147,12 +147,18 @@ extern mlan_status wlan_11h_handle_event_chanrpt_ready(mlan_private *priv,
 /** Handler for DFS_TESTING IOCTL */
 extern mlan_status wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter,
 					      pmlan_ioctl_req pioctl_req);
+extern mlan_status wlan_11h_ioctl_get_channel_nop_info(pmlan_adapter pmadapter,
+						       pmlan_ioctl_req
+						       pioctl_req);
 #endif
 
 extern mlan_status
 
 wlan_11h_ioctl_dfs_cancel_chan_report(mlan_private *priv,
 				      pmlan_ioctl_req pioctl_req);
+extern
+mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
+					     pmlan_ioctl_req pioctl_req);
 
 /** Check if channel is under a NOP duration (should not be used) */
 extern t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter,
@@ -173,7 +179,8 @@ extern mlan_status wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter);
 /** DFS switch to non-DFS channel */
 extern mlan_status wlan_11h_switch_non_dfs_chan(mlan_private *priv, t_u8 *chan);
 
-extern void wlan_11h_update_bandcfg(IN t_u8 *uap_band_cfg, IN t_u8 new_channel);
+extern void wlan_11h_update_bandcfg(IN Band_Config_t *uap_band_cfg,
+				    IN t_u8 new_channel);
 
 /** function checks if interface is active. **/
 extern t_bool wlan_is_intf_active(mlan_private *pmpriv);

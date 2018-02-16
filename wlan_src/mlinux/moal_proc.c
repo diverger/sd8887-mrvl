@@ -2,7 +2,7 @@
   *
   * @brief This file contains functions for proc file.
   *
-  * Copyright (C) 2008-2016, Marvell International Ltd.
+  * Copyright (C) 2008-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -37,6 +37,7 @@ Change log:
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 #define PROC_DIR	NULL
 #define MWLAN_PROC_DIR  "mwlan/"
+#define MWLAN_PROC  "mwlan"
 /** Proc top level directory entry */
 struct proc_dir_entry *proc_mwlan;
 int proc_dir_entry_use_count;
@@ -68,7 +69,7 @@ extern int drv_mode;
  *  @brief Proc read function for info
  *
  *  @param sfp      pointer to seq_file structure
- *  @param data
+ *  @param data     void pointer to data
  *
  *  @return         Number of output data
  */
@@ -119,7 +120,7 @@ woal_info_proc_read(struct seq_file *sfp, void *data)
 		seq_printf(sfp, "driver_name = " "\"uap\"\n");
 		woal_uap_get_version(priv, fmt, sizeof(fmt) - 1);
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_uap_get_stats(priv, MOAL_PROC_WAIT, &ustats)) {
+		    woal_uap_get_stats(priv, MOAL_IOCTL_WAIT, &ustats)) {
 			MODULE_PUT;
 			LEAVE();
 			return -EFAULT;
@@ -127,11 +128,11 @@ woal_info_proc_read(struct seq_file *sfp, void *data)
 	}
 #endif /* UAP_SUPPORT */
 #ifdef STA_SUPPORT
+	memset(&info, 0, sizeof(info));
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
 		woal_get_version(handle, fmt, sizeof(fmt) - 1);
-		memset(&info, 0, sizeof(info));
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_get_bss_info(priv, MOAL_PROC_WAIT, &info)) {
+		    woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &info)) {
 			MODULE_PUT;
 			LEAVE();
 			return -EFAULT;
@@ -418,7 +419,7 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
 
 	if (handle->card_info->v15_update) {
 		if (!strncmp(databuf, "fwdump_file=", strlen("fwdump_file="))) {
-			int len = strlen(databuf) - strlen("fwdump_file=");
+			int len = copy_len - strlen("fwdump_file=");
 			gfp_t flag;
 			if (len) {
 				kfree(handle->fwdump_fname);
@@ -433,8 +434,15 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
 			}
 		}
 		if (!strncmp(databuf, "fw_reload", strlen("fw_reload"))) {
-			PRINTM(MMSG, "Request fw_reload...\n");
-			woal_request_fw_reload(handle);
+			if (!strncmp
+			    (databuf, "fw_reload=", strlen("fw_reload="))) {
+				line += strlen("fw_reload") + 1;
+				config_data =
+					(t_u32)woal_string_to_number(line);
+			} else
+				config_data = FW_RELOAD_SDIO_INBAND_RESET;
+			PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
+			woal_request_fw_reload(handle, config_data);
 		}
 	}
 	MODULE_PUT;
@@ -446,7 +454,7 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
  *  @brief config proc read function
  *
  *  @param sfp      pointer to seq_file structure
- *  @param data
+ *  @param data     Void pointer to data
  *
  *  @return         number of output data
  */
@@ -556,7 +564,7 @@ woal_proc_init(moal_handle *handle)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 		/* Check if directory already exists */
 		for (pde = pde->subdir; pde; pde = pde->next) {
-			if (pde->namelen && !strcmp("mwlan", pde->name)) {
+			if (pde->namelen && !strcmp(MWLAN_PROC, pde->name)) {
 				/* Directory exists */
 				PRINTM(MWARN,
 				       "proc interface already exists!\n");
@@ -565,7 +573,7 @@ woal_proc_init(moal_handle *handle)
 			}
 		}
 		if (pde == NULL) {
-			handle->proc_mwlan = proc_mkdir("mwlan", PROC_DIR);
+			handle->proc_mwlan = proc_mkdir(MWLAN_PROC, PROC_DIR);
 			if (!handle->proc_mwlan)
 				PRINTM(MERROR,
 				       "Cannot create proc interface!\n");
@@ -576,7 +584,7 @@ woal_proc_init(moal_handle *handle)
 		}
 #else
 		if (!proc_mwlan) {
-			handle->proc_mwlan = proc_mkdir("mwlan", PROC_DIR);
+			handle->proc_mwlan = proc_mkdir(MWLAN_PROC, PROC_DIR);
 			if (!handle->proc_mwlan) {
 				PRINTM(MERROR,
 				       "Cannot create proc interface!\n");
@@ -648,7 +656,7 @@ woal_proc_exit(moal_handle *handle)
 			atomic_dec(&(handle->proc_mwlan->count));
 #endif
 			if (!--proc_dir_entry_use_count) {
-				remove_proc_entry("mwlan", PROC_DIR);
+				remove_proc_entry(MWLAN_PROC, PROC_DIR);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 26)
 				proc_mwlan = NULL;
 #endif
@@ -676,7 +684,7 @@ woal_create_proc_entry(moal_private *priv)
 	struct proc_dir_entry *r;
 	struct net_device *dev = priv->netdev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-	char proc_dir_name[20];
+	char proc_dir_name[22];
 #endif
 
 	ENTER();
@@ -685,6 +693,14 @@ woal_create_proc_entry(moal_private *priv)
 	if (!priv->proc_entry) {
 		memset(proc_dir_name, 0, sizeof(proc_dir_name));
 		strcpy(proc_dir_name, MWLAN_PROC_DIR);
+
+		if (strlen(dev->name) >
+		    ((sizeof(proc_dir_name) - 1) - strlen(MWLAN_PROC_DIR))) {
+			PRINTM(MERROR,
+			       "Failed to create proc entry, device name is too long\n");
+			LEAVE();
+			return;
+		}
 		strcat(proc_dir_name, dev->name);
 		/* Try to create mwlan/mlanX first */
 		priv->proc_entry = proc_mkdir(proc_dir_name, PROC_DIR);
@@ -698,10 +714,9 @@ woal_create_proc_entry(moal_private *priv)
 			atomic_inc(&(priv->phandle->proc_mwlan->count));
 #endif
 		} else {
-			/* Failure. mwlan may not exist. Try to create that
-			   first */
+			/* Failure. mwlan may not exist. Try to create that first */
 			priv->phandle->proc_mwlan =
-				proc_mkdir("mwlan", PROC_DIR);
+				proc_mkdir(MWLAN_PROC, PROC_DIR);
 			if (!priv->phandle->proc_mwlan) {
 				/* Failure. Something broken */
 				LEAVE();

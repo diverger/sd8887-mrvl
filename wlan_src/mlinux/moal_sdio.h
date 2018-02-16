@@ -3,7 +3,7 @@
   * @brief This file contains definitions for SDIO interface.
   * driver.
   *
-  * Copyright (C) 2008-2016, Marvell International Ltd.
+  * Copyright (C) 2008-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -49,10 +49,6 @@ Change log:
 #define FIXED_ADDRESS	0
 #endif
 
-/** SD8997 chip revision ID */
-#define SD8997_Z       0x02
-#define SD8997_V2       0x10
-
 #ifdef STA_SUPPORT
 /** Default firmware name */
 
@@ -60,6 +56,7 @@ Change log:
 #define DEFAULT_FW_NAME_8787 "mrvl/sd8787_uapsta.bin"
 #define DEFAULT_FW_NAME_8887 "mrvl/sd8887_uapsta.bin"
 #define DEFAULT_FW_NAME_8801 "mrvl/sd8801_uapsta.bin"
+#define DEFAULT_FW_NAME_8987 "mrvl/sdsd8987_combo.bin"
 #define DEFAULT_FW_NAME_8897 "mrvl/sd8897_uapsta.bin"
 #define DEFAULT_FW_NAME_8977 "mrvl/sdsd8977_combo.bin"
 #define SD8977_V2_FW_NAME "mrvl/sdsd8977_combo_v2.bin"
@@ -68,6 +65,9 @@ Change log:
 #define DEFAULT_FW_NAME_8997 "mrvl/sdsd8997_combo.bin"
 #define SD8997_Z_FW_NAME "mrvl/sdsd8997_combo.bin"
 #define SD8997_V2_FW_NAME "mrvl/sdsd8997_combo_v2.bin"
+#define SD8997_V3_FW_NAME "mrvl/sdsd8997_combo_v3.bin"
+#define DEFAULT_FW_NAME_8987 "mrvl/sdsd8987_combo.bin"
+#define SD8987_FW_NAME 		 "mrvl/sdsd8987_combo.bin"
 #define DEFAULT_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
 #define SD8887_A0_FW_NAME    "mrvl/sd8887_uapsta.bin"
 #define SD8887_A2_FW_NAME    "mrvl/sd8887_uapsta_a2.bin"
@@ -78,6 +78,8 @@ Change log:
 #define SD8977_WLAN_V0_FW_NAME "mrvl/sd8977_wlan.bin"
 #define SD8997_WLAN_Z_FW_NAME "mrvl/sd8997_wlan.bin"
 #define SD8997_WLAN_V2_FW_NAME "mrvl/sd8997_wlan_v2.bin"
+#define SD8997_WLAN_V3_FW_NAME "mrvl/sd8997_wlan_v3.bin"
+#define SD8987_WLAN_FW_NAME    "mrvl/sd8987_wlan.bin"
 #ifndef DEFAULT_FW_NAME
 #define DEFAULT_FW_NAME ""
 #endif
@@ -94,8 +96,10 @@ Change log:
 #define DEFAULT_AP_FW_NAME_8977 "mrvl/sdsd8977_combo.bin"
 #define DEFAULT_AP_FW_NAME_8997 "mrvl/sdsd8997_combo.bin"
 #define DEFAULT_AP_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
+#define DEFAULT_AP_FW_NAME_8987 "mrvl/sdsd8987_combo.bin"
 #define DEFAULT_WLAN_FW_NAME_8977 "mrvl/sd8977_wlan.bin"
 #define DEFAULT_WLAN_FW_NAME_8997 "mrvl/sd8997_wlan.bin"
+#define DEFAULT_WLAN_FW_NAME_8987 "mrvl/sd8987_wlan.bin"
 #ifndef DEFAULT_AP_FW_NAME
 #define DEFAULT_AP_FW_NAME ""
 #endif
@@ -109,10 +113,13 @@ Change log:
 #define DEFAULT_AP_STA_FW_NAME_8801 "mrvl/sd8801_uapsta.bin"
 #define DEFAULT_AP_STA_FW_NAME_8897 "mrvl/sd8897_uapsta.bin"
 #define DEFAULT_AP_STA_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
+#define DEFAULT_AP_STA_FW_NAME_8987 "mrvl/sdsd8987_combo.bin"
 #define DEFAULT_AP_STA_FW_NAME_8977 "mrvl/sdsd8977_combo.bin"
 #define DEFAULT_AP_STA_FW_NAME_8997 "mrvl/sdsd8997_combo.bin"
+#define DEFAULT_AP_STA_FW_NAME_8987 "mrvl/sdsd8987_combo.bin"
 #define DEFAULT_WLAN_FW_NAME_8977 "mrvl/sd8977_wlan.bin"
 #define DEFAULT_WLAN_FW_NAME_8997 "mrvl/sd8997_wlan.bin"
+#define DEFAULT_WLAN_FW_NAME_8987 "mrvl/sd8987_wlan.bin"
 #ifndef DEFAULT_AP_STA_FW_NAME
 #define DEFAULT_AP_STA_FW_NAME ""
 #endif

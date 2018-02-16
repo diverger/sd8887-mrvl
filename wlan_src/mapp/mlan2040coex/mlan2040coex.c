@@ -4,7 +4,7 @@
   *
   *  Usage:
   *
-  * (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -180,7 +180,12 @@ process_scantable(void)
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -301,8 +306,7 @@ process_scantable(void)
 				       "Legacy", fixed_fields.channel);
 				if (ssid_len) {
 					printf("SSID: ");
-					/* Print out the ssid or the hex values
-					   if non-printable */
+					/* Print out the ssid or the hex values if non-printable */
 					for (ssid_idx = 0; ssid_idx < ssid_len;
 					     ssid_idx++) {
 						if (isprint(ssid[ssid_idx])) {
@@ -316,8 +320,7 @@ process_scantable(void)
 				}
 				printf("\n");
 
-				/* Verify that the channel is already listed or
-				   not */
+				/* Verify that the channel is already listed or not */
 				already_listed = FALSE;
 				for (j = 0; j < i; j++) {
 					if (leg_ap_chan_list[j].chan_num ==
@@ -394,7 +397,12 @@ get_scan_cfg(int *scan_param)
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -409,7 +417,7 @@ get_scan_cfg(int *scan_param)
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-	scan_param = (int *)(cmd->buf);
+	scan_param = (int *)(buffer);
 done:
 	if (cmd)
 		free(cmd);
@@ -475,7 +483,12 @@ process_setuserscan(void)
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -553,7 +566,12 @@ get_connstatus(int *data)
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -573,7 +591,7 @@ get_connstatus(int *data)
 	}
 
 	memset(&apaddr, 0, sizeof(struct ether_addr));
-	memcpy(&apaddr, (struct ether_addr *)(cmd->buf),
+	memcpy(&apaddr, (struct ether_addr *)(buffer),
 	       sizeof(struct ether_addr));
 
 	if (!memcmp(&apaddr, &etherzero, sizeof(struct ether_addr))) {
@@ -778,15 +796,14 @@ read_event(int nl_sk, struct msghdr *msg, struct timeval *ptv)
 				invoke_coex_command();
 		}
 		if (assoc_flag && is_ht_ap) {
-			/* Timeout. Try again after BSS channel width triger
-			   scan interval when the STA is connected with a HT AP
-			 */
+			/* Timeout. Try again after BSS channel width triger scan
+			   interval when the STA is connected with a HT AP */
 			ptv->tv_sec =
 				(t_u32)le16_to_cpu(cur_obss_scan_param.
 						   bss_chan_width_trigger_scan_int);
 		} else {
-			/* Timeout. Try again after default duration when the
-			   STA is not connected with a HT AP */
+			/* Timeout. Try again after default duration when the STA is
+			   not connected with a HT AP */
 			ptv->tv_sec = DEFAULT_SCAN_INTERVAL;
 		}
 		ptv->tv_usec = 0;
@@ -1037,7 +1054,12 @@ process_host_cmd(int hostcmd_idx, t_u8 *chan_list, t_u8 chan_num,
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -1053,7 +1075,7 @@ process_host_cmd(int hostcmd_idx, t_u8 *chan_list, t_u8 chan_num,
 		goto done;
 	}
 
-	ret = process_host_cmd_resp("hostcmd", cmd->buf);
+	ret = process_host_cmd_resp("hostcmd", buffer);
 
 done:
 	if (cmd)
@@ -1097,7 +1119,12 @@ is_intolerant_sta(int *intol)
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -1113,7 +1140,7 @@ is_intolerant_sta(int *intol)
 		goto done;
 	}
 
-	htcap_info = *((int *)(cmd->buf));
+	htcap_info = *((int *)(buffer));
 
 	if (htcap_info & MBIT(8))
 		*intol = TRUE;
@@ -1158,7 +1185,12 @@ get_region_code(int *reg_code)
 	}
 
 	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
 	cmd->buf = buffer;
+#endif
 	cmd->used_len = 0;
 	cmd->total_len = MRVDRV_SIZE_OF_CMD_BUFFER;
 
@@ -1174,7 +1206,7 @@ get_region_code(int *reg_code)
 		goto done;
 	}
 
-	memcpy(reg_code, (t_u8 *)cmd->buf, sizeof(int));
+	memcpy(reg_code, buffer, sizeof(int));
 done:
 	if (cmd)
 		free(cmd);

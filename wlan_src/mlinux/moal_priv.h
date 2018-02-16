@@ -1,8 +1,9 @@
+
 /** @file moal_priv.h
  *
  * @brief This file contains definition for extended private IOCTL call.
  *
- * Copyright (C) 2008-2016, Marvell International Ltd.
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -31,8 +32,7 @@ Change log:
 #define WOAL_2K_BYTES       2000
 
 /** PRIVATE CMD ID */
-#define WOAL_IOCTL                  (SIOCIWFIRSTPRIV)	/* 0x8BE0 defined in
-							   wireless.h */
+#define WOAL_IOCTL                  (SIOCIWFIRSTPRIV)	/* 0x8BE0 defined in wireless.h */
 
 /** Private command ID to set one int/get word char */
 #define WOAL_SETONEINT_GETWORDCHAR  (WOAL_IOCTL + 1)
@@ -121,6 +121,8 @@ Change log:
 #define WOAL_ADDBA_REJECT           27
 /** Private command ID to set/get sleep parameters */
 #define WOAL_SLEEP_PARAMS           28
+/** Private command ID to set/get network monitor */
+#define WOAL_NET_MONITOR            30
 /** Private command ID to set/get TX BF capabilities */
 #define WOAL_TX_BF_CAP              31
 #if defined(DFS_TESTING_SUPPORT)
@@ -133,6 +135,9 @@ Change log:
 #define WOAL_SET_GET_TX_RX_ANT      35
 /** Private command ID to set/get management frame passthru mask */
 #define WOAL_MGMT_FRAME_CTRL        36
+
+/** Private command ID to configure gpio independent reset */
+#define WOAL_IND_RST_CFG            37
 
 /** Private command ID to set one int/get one int */
 #define WOAL_SETONEINT_GETONEINT    (WOAL_IOCTL + 5)
@@ -158,6 +163,8 @@ Change log:
 #define	WOAL_SET_GET_WWS_CFG        12
 /** Private command ID to set/get sleep period */
 #define WOAL_SLEEP_PD               13
+/** Private command ID to set/get firmware wakeup method */
+#define WOAL_FW_WAKEUP_METHOD       15
 /** Private command ID to set/get auth type */
 #define WOAL_AUTH_TYPE              18
 /** Private command ID to set/get port control */
@@ -363,6 +370,11 @@ static const struct iw_priv_args woal_private_args[] = {
 	 IW_PRIV_TYPE_INT | 1,
 	 "sleeppd"},
 	{
+	 WOAL_FW_WAKEUP_METHOD,
+	 IW_PRIV_TYPE_INT | 1,
+	 IW_PRIV_TYPE_INT | 1,
+	 "fwwakeupmethod"},
+	{
 	 WOAL_AUTH_TYPE,
 	 IW_PRIV_TYPE_INT | 1,
 	 IW_PRIV_TYPE_INT | 1,
@@ -541,6 +553,11 @@ static const struct iw_priv_args woal_private_args[] = {
 	 IW_PRIV_TYPE_INT | 16,
 	 IW_PRIV_TYPE_INT | 16,
 	 "sleepparams"},
+	{
+	 WOAL_NET_MONITOR,
+	 IW_PRIV_TYPE_INT | 16,
+	 IW_PRIV_TYPE_INT | 16,
+	 "netmon"},
 #if defined(DFS_TESTING_SUPPORT)
 	{
 	 WOAL_DFS_TESTING,
@@ -563,6 +580,11 @@ static const struct iw_priv_args woal_private_args[] = {
 	 IW_PRIV_TYPE_INT | 16,
 	 IW_PRIV_TYPE_INT | 16,
 	 "antcfg"},
+	{
+	 WOAL_IND_RST_CFG,
+	 IW_PRIV_TYPE_INT | 16,
+	 IW_PRIV_TYPE_INT | 16,
+	 "indrstcfg"},
 	{
 	 WOALGETLOG,
 	 IW_PRIV_TYPE_NONE,

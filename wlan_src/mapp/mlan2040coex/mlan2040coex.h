@@ -2,7 +2,7 @@
   *
   * @brief This file contains definitions for application
   *
-  * (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -205,14 +205,25 @@ typedef struct _chan_intol_t {
 } chan_intol_t;
 
 /** Private command structure */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+struct eth_priv_cmd {
+    /** Command buffer pointer */
+	t_u64 buf;
+    /** buffer updated by driver */
+	int used_len;
+    /** buffer sent by application */
+	int total_len;
+} __ATTRIB_PACK__;
+#else
 struct eth_priv_cmd {
     /** Command buffer */
 	t_u8 *buf;
     /** Used length */
-	t_u32 used_len;
+	int used_len;
     /** Total length */
-	t_u32 total_len;
+	int total_len;
 };
+#endif
 
 /** Legacy APs channel list */
 chan_intol_t leg_ap_chan_list[WLAN_IOCTL_USER_SCAN_CHAN_MAX];

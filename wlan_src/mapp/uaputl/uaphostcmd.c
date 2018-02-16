@@ -2,7 +2,7 @@
   *
   * @brief This file contains uAP hostcmd functions
   *
-  * (C) Copyright 2010-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2010-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -123,7 +123,7 @@ read_line:
 		}
 
 		/* Remove # comments unless they are within a double quoted
-		   string. Remove trailing white space. */
+		 * string. Remove trailing white space. */
 		if ((end = strstr(start, "\""))) {
 			if (!(end = strstr(end + 1, "\"")))
 				end = start;

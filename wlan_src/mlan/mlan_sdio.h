@@ -2,7 +2,7 @@
  *
  *  @brief This file contains definitions for SDIO interface.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -242,6 +242,8 @@ Change log:
 #define CARD_TYPE_SD8977   0x07
 /** SD8997 card type */
 #define CARD_TYPE_SD8997   0x08
+/** SD8987 card type */
+#define CARD_TYPE_SD8987   0x09
 
 #define IS_SD8777(ct) (CARD_TYPE_SD8777 == (ct))
 #define IS_SD8787(ct) (CARD_TYPE_SD8787 == (ct))
@@ -251,6 +253,8 @@ Change log:
 #define IS_SD8797(ct) (CARD_TYPE_SD8797 == (ct))
 #define IS_SD8977(ct) (CARD_TYPE_SD8977 == (ct))
 #define IS_SD8997(ct) (CARD_TYPE_SD8997 == (ct))
+#define IS_SD8987(ct) (CARD_TYPE_SD8987 == (ct))
+
 /** Event header Len*/
 #define MLAN_EVENT_HEADER_LEN           8
 
@@ -411,128 +415,244 @@ Change log:
 
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
+/** Register sdio 87xx card structure */
 static const struct _mlan_sdio_card_reg mlan_reg_sd87xx = {
+     /** start read port */
 	.start_rd_port = 1,
+    /** start write port */
 	.start_wr_port = 1,
-	.base_0_reg = 0x40,	// 0x0040,
-	.base_1_reg = 0x41,	// 0x0041,
+    /** base register0 */
+	.base_0_reg = 0x40,	//0x0040,
+    /** base1 register1 */
+	.base_1_reg = 0x41,	//0x0041,
+    /** poll register */
 	.poll_reg = 0x30,
+    /** host interrupt enable */
 	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK,
+    /** host interrupt status*/
 	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS,
+     /** status register0 */
 	.status_reg_0 = 0x60,
+    /** status register 1 */
 	.status_reg_1 = 0x61,
+    /** sdio interrupt mask */
 	.sdio_int_mask = 0x3f,
+    /** data port mask */
 	.data_port_mask = 0x0000fffe,
+    /** maximum mp register */
 	.max_mp_regs = 64,
+     /** read bitmap lower byte */
 	.rd_bitmap_l = 0x04,
+    /** read bitmap upper byte */
 	.rd_bitmap_u = 0x05,
+    /** write bitmap lower byte */
 	.wr_bitmap_l = 0x06,
+    /** write bitmap upper byte */
 	.wr_bitmap_u = 0x07,
+    /** read port0 length lower byte */
 	.rd_len_p0_l = 0x08,
+    /** read port0 length upper byte */
 	.rd_len_p0_u = 0x09,
+    /** card misc configuration register */
 	.card_misc_cfg_reg = 0x6c,
+     /** scratch reg used for reset and check SOC wakeup*/
+	.reset_reg = 0x64,
+    /** reset value, not set for 87xx */
+	.reset_val = 0,
 };
 
+/** Registeri sdio 8887 card structure */
 static const struct _mlan_sdio_card_reg mlan_reg_sd8887 = {
+     /** start read port */
 	.start_rd_port = 0,
+    /** start write port */
 	.start_wr_port = 0,
+    /** base register0 */
 	.base_0_reg = 0x6C,
+    /** base register1 */
 	.base_1_reg = 0x6D,
+    /** poll register */
 	.poll_reg = 0x5C,
+    /** host interrupt enable */
 	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK |
 		CMD_PORT_UPLD_INT_MASK | CMD_PORT_DNLD_INT_MASK,
+     /** host interrupt status */
 	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS |
 		DN_LD_CMD_PORT_HOST_INT_STATUS | UP_LD_CMD_PORT_HOST_INT_STATUS,
+     /** status register0 */
 	.status_reg_0 = 0x90,
+    /** status register1 */
 	.status_reg_1 = 0x91,
+     /** sdio interrupt mask */
 	.sdio_int_mask = 0xff,
+    /** data port mask */
 	.data_port_mask = 0xffffffff,
+    /** maximum mp register */
 	.max_mp_regs = 196,
+    /** read bitmap lower byte */
 	.rd_bitmap_l = 0x10,
+    /** read bitmap upper byte */
 	.rd_bitmap_u = 0x11,
+    /** read bitmap1 lower byte */
 	.rd_bitmap_1l = 0x12,
+    /** read bitmap1 upper byte */
 	.rd_bitmap_1u = 0x13,
+    /** write bitmap lower byte */
 	.wr_bitmap_l = 0x14,
+    /** write bitmap upper byte */
 	.wr_bitmap_u = 0x15,
+    /** write bitmap1 lower byte */
 	.wr_bitmap_1l = 0x16,
+    /** write bitmap1 upper byte */
 	.wr_bitmap_1u = 0x17,
+    /** read port0 length lower byte */
 	.rd_len_p0_l = 0x18,
+    /** read port0 length upper byte */
 	.rd_len_p0_u = 0x19,
+    /** card misc configuration register */
 	.card_misc_cfg_reg = 0xD8,
+     /** scratch reg used for reset and check SOC wakeup*/
+	.reset_reg = 0xB6,
+    /** reset value */
+	.reset_val = 1,
 };
 
+/** Register sdio 8897 card structure */
 static const struct _mlan_sdio_card_reg mlan_reg_sd8897 = {
+     /** start read port */
 	.start_rd_port = 0,
+    /** start write port */
 	.start_wr_port = 0,
+    /** base register0 */
 	.base_0_reg = 0x60,
+    /** base register1 */
 	.base_1_reg = 0x61,
+    /** poll register */
 	.poll_reg = 0x50,
+    /** host interrupt enable */
 	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK |
 		CMD_PORT_UPLD_INT_MASK | CMD_PORT_DNLD_INT_MASK,
+     /** host interrupt status*/
 	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS |
 		DN_LD_CMD_PORT_HOST_INT_STATUS | UP_LD_CMD_PORT_HOST_INT_STATUS,
+     /** status register0 */
 	.status_reg_0 = 0xC0,
+     /** status register1 */
 	.status_reg_1 = 0xC1,
+     /** sdio interrupt mask */
 	.sdio_int_mask = 0xff,
+    /** data port mask */
 	.data_port_mask = 0xffffffff,
+    /** maximum mp register */
 	.max_mp_regs = 184,
+    /** read bitmap lower byte */
 	.rd_bitmap_l = 0x04,
+    /** read bitmap upper byte */
 	.rd_bitmap_u = 0x05,
+    /** read bitmap1 lower byte */
 	.rd_bitmap_1l = 0x06,
+    /** read bitmap1 upper byte */
 	.rd_bitmap_1u = 0x07,
+    /** write bitmap lower byte */
 	.wr_bitmap_l = 0x08,
+    /** write bitmap upper byte */
 	.wr_bitmap_u = 0x09,
+    /** write bitmap1 lower byte */
 	.wr_bitmap_1l = 0x0A,
+    /** write bitmapi1 upper byte */
 	.wr_bitmap_1u = 0x0B,
+    /** read port0 length lower byte */
 	.rd_len_p0_l = 0x0C,
+    /** read port0 length upper byte */
 	.rd_len_p0_u = 0x0D,
+    /** card misc configuration register */
 	.card_misc_cfg_reg = 0xCC,
+     /** scratch reg used for reset and check SOC wakeup*/
+	.reset_reg = 0xE8,
+    /** reset value */
+	.reset_val = 1,
 };
 
+/** Register sdio 8997 card structure */
 static const struct _mlan_sdio_card_reg mlan_reg_sd8977_sd8997 = {
+     /** start read port */
 	.start_rd_port = 0,
+    /** start write port */
 	.start_wr_port = 0,
+    /** base register0 */
 	.base_0_reg = 0xf8,
+    /** base register1 */
 	.base_1_reg = 0xf9,
+    /** poll register */
 	.poll_reg = 0x5C,
+    /** host interrupt enable */
 	.host_int_enable = UP_LD_HOST_INT_MASK | DN_LD_HOST_INT_MASK |
 		CMD_PORT_UPLD_INT_MASK | CMD_PORT_DNLD_INT_MASK,
+     /** host interrupt status*/
 	.host_int_status = DN_LD_HOST_INT_STATUS | UP_LD_HOST_INT_STATUS |
 		DN_LD_CMD_PORT_HOST_INT_STATUS | UP_LD_CMD_PORT_HOST_INT_STATUS,
+    /** status register0 */
 	.status_reg_0 = 0xe8,
+    /** status register1 */
 	.status_reg_1 = 0xe9,
+     /** sdio interrupt mask */
 	.sdio_int_mask = 0xff,
+     /** data port mask */
 	.data_port_mask = 0xffffffff,
+     /** maximum mp register */
 	.max_mp_regs = 196,
+    /** read bitmap lower byte */
 	.rd_bitmap_l = 0x10,
+    /** read bitmap upper byte */
 	.rd_bitmap_u = 0x11,
+    /** read bitmap1 lower byte */
 	.rd_bitmap_1l = 0x12,
+    /** read bitmap1 upper byte */
 	.rd_bitmap_1u = 0x13,
+    /** write bitmap lower byte */
 	.wr_bitmap_l = 0x14,
+    /** write bitmap upper byte */
 	.wr_bitmap_u = 0x15,
+    /** write bitmap1 lower byte */
 	.wr_bitmap_1l = 0x16,
+    /** write bitmap1 upper byte */
 	.wr_bitmap_1u = 0x17,
+    /** read port0 length lower byte */
 	.rd_len_p0_l = 0x18,
+    /** read port0 length upper byte */
 	.rd_len_p0_u = 0x19,
+    /** card misc configuration register */
 	.card_misc_cfg_reg = 0xd8,
+     /** scratch reg used for reset and check SOC wakeup*/
+	.reset_reg = 0xEE,
+    /** reset value */
+	.reset_val = 0x99,
 };
 
 /** ampdu info for general card */
 static struct _ampdu_info ampdu_info_nov15 = {
+     /** AMPDU station tx window size */
 	.ampdu_sta_txwinsize = MLAN_STA_AMPDU_DEF_TXWINSIZE_NOV15,
+    /** AMPDU uAP tx window size */
 	.ampdu_uap_txwinsize = MLAN_UAP_AMPDU_DEF_TXWINSIZE_NOV15,
+    /** AMPDU uAP rx window size */
 	.ampdu_uap_rxwinsize = MLAN_UAP_AMPDU_DEF_RXWINSIZE_NOV15,
 #ifdef WIFI_DIRECT_SUPPORT
+    /** AMPDU wifi direct txrx window size */
 	.ampdu_wfd_txrxwinsize = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE_NOV15,
 #endif
 };
 
 /** ampdu info for sd8887 and sd8897 */
 static struct _ampdu_info ampdu_info_v15 = {
+     /** AMPDU station tx window size */
 	.ampdu_sta_txwinsize = MLAN_STA_AMPDU_DEF_TXWINSIZE,
+     /** AMPDU uAP tx window size */
 	.ampdu_uap_txwinsize = MLAN_UAP_AMPDU_DEF_TXWINSIZE,
+     /** AMPDU uAP rx window size */
 	.ampdu_uap_rxwinsize = MLAN_UAP_AMPDU_DEF_RXWINSIZE,
 #ifdef WIFI_DIRECT_SUPPORT
+     /** AMPDU wifi direct txrx window size */
 	.ampdu_wfd_txrxwinsize = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE,
 #endif
 };
@@ -542,215 +662,485 @@ static struct _ampdu_info ampdu_info_v15 = {
 /** max aggr buf size 64k-256 */
 #define SDIO_MP_AGGR_BUF_SIZE_MAX   (65280)
 
+/** Sdio 8777 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8777 = {
+     /** register */
 	.reg = &mlan_reg_sd87xx,
+    /** maximum ports */
 	.max_ports = 16,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_8,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MFALSE,
+    /** control mask */
 	.has_control_mask = MTRUE,
+     /** io port0 register */
 	.io_port_0_reg = 0x78,
+     /** io port1 register */
 	.io_port_1_reg = 0x79,
+     /** io port2 register */
 	.io_port_2_reg = 0x7A,
+     /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x01,
+     /** card_rx_len_reg */
 	.card_rx_len_reg = 0x62,
+     /** card rx unit register */
 	.card_rx_unit_reg = 0x63,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x02,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x03,
+     /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
 	.v15_update = 0,
+    /** V15 firmware api */
 	.v15_fw_api = 0,
+    /** V16 firmware api */
+	.v16_fw_api = 0,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 0,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_nov15,
 };
 
+/** Sdio 8787 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8787 = {
+    /** register */
 	.reg = &mlan_reg_sd87xx,
+    /** maximum ports */
 	.max_ports = 16,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_8,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MFALSE,
+    /** control mask */
 	.has_control_mask = MTRUE,
+     /** io port0 register */
 	.io_port_0_reg = 0x78,
+    /** io port1 register */
 	.io_port_1_reg = 0x79,
+    /** io port2 register */
 	.io_port_2_reg = 0x7A,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x01,
+    /** card_rx_len_reg */
 	.card_rx_len_reg = 0x62,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0x63,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x02,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x03,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
 	.v15_update = 0,
+    /** V15 firmware api */
 	.v15_fw_api = 0,
+    /** V16 firmware api */
+	.v16_fw_api = 0,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 0,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_nov15,
 };
 
+/** Sdio 8797 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8797 = {
+     /** register */
 	.reg = &mlan_reg_sd87xx,
+    /** maximum ports */
 	.max_ports = 16,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_8,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MFALSE,
+    /** control mask */
 	.has_control_mask = MTRUE,
+    /** io port0 register */
 	.io_port_0_reg = 0x78,
+    /** io port1 register */
 	.io_port_1_reg = 0x79,
+    /** io port2 register */
 	.io_port_2_reg = 0x7A,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x01,
+    /** card_rx_len_reg */
 	.card_rx_len_reg = 0x62,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0x63,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x02,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x03,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
 	.v15_update = 0,
+    /** V15 firmware api */
 	.v15_fw_api = 0,
+    /** V16 firmware api */
+	.v16_fw_api = 0,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 0,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_nov15,
 };
 
+/** Sdio 8887 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8887 = {
+    /** register */
 	.reg = &mlan_reg_sd8887,
+    /** maximum ports */
 	.max_ports = 32,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_16,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MTRUE,
+    /** control mask */
 	.has_control_mask = MFALSE,
+    /** card configuration_2_1 register */
 	.card_config_2_1_reg = 0xD9,
+     /** command configuration register0 */
 	.cmd_config_0 = 0xC4,
+    /** command configuration register1 */
 	.cmd_config_1 = 0xC5,
+    /** command read length 0 */
 	.cmd_rd_len_0 = 0xC0,
+    /** command read length 1 */
 	.cmd_rd_len_1 = 0xC1,
+    /** io port0 register */
 	.io_port_0_reg = 0xE4,
+    /** io port1 register */
 	.io_port_1_reg = 0xE5,
+    /** io port2 register */
 	.io_port_2_reg = 0xE6,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x04,
+    /** card rx length register */
 	.card_rx_len_reg = 0x92,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0x93,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x08,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x0C,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
 	.v15_update = 1,
+    /** V15 firmware api */
 	.v15_fw_api = 1,
+    /** V16 firmware api */
+	.v16_fw_api = 0,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 1,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_v15,
 };
 
+/** Sdio 8801 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8801 = {
+     /** register */
 	.reg = &mlan_reg_sd87xx,
+    /** maximum ports */
 	.max_ports = 16,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_8,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MFALSE,
+    /** control mask */
 	.has_control_mask = MTRUE,
+    /** io port0 register */
 	.io_port_0_reg = 0x78,
+    /** io port1 register */
 	.io_port_1_reg = 0x79,
+    /** io port0 register */
 	.io_port_2_reg = 0x7A,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x01,
+    /** card rx length register */
 	.card_rx_len_reg = 0x62,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0x63,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x02,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x03,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_32K,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
 	.v15_update = 0,
+    /** V15 firmware api */
 	.v15_fw_api = 0,
+    /** V16 firmware api */
+	.v16_fw_api = 0,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 0,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_nov15,
 };
 
+/** Sdio 8897 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8897 = {
+     /** register */
 	.reg = &mlan_reg_sd8897,
+     /** maximum ports */
 	.max_ports = 32,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_16,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MTRUE,
+    /** control mask */
 	.has_control_mask = MFALSE,
+    /** card configuration_2_1 register */
 	.card_config_2_1_reg = 0xCD,
+    /** command configuration register0 */
 	.cmd_config_0 = 0xB8,
+    /** command configuration register1 */
 	.cmd_config_1 = 0xB9,
+    /** command read length 0 */
 	.cmd_rd_len_0 = 0xB4,
+    /** command read length 1 */
 	.cmd_rd_len_1 = 0xB5,
+    /** io port0 register */
 	.io_port_0_reg = 0xD8,
+    /** io port1 register */
 	.io_port_1_reg = 0xD9,
+    /** io port2 register */
 	.io_port_2_reg = 0xDA,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x01,
+    /** card rx length register */
 	.card_rx_len_reg = 0xC2,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0xC3,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x02,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x03,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+    /** V15 update */
 	.v15_update = 1,
+    /** V15 firmware api */
 	.v15_fw_api = 1,
+    /** V16 firmware api */
+	.v16_fw_api = 0,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 1,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_v15,
 };
 
+/** Sdio 8977 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8977 = {
+     /** register */
 	.reg = &mlan_reg_sd8977_sd8997,
+     /** maximum ports */
 	.max_ports = 32,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_16,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MTRUE,
+    /** control mask */
 	.has_control_mask = MFALSE,
+    /** card configuration_2_1 register */
 	.card_config_2_1_reg = 0xD9,
+    /** command configuration register0 */
 	.cmd_config_0 = 0xC4,
+    /** command configuration register1 */
 	.cmd_config_1 = 0xC5,
+    /** command read length 0 */
 	.cmd_rd_len_0 = 0xC0,
+    /** command read length 1 */
 	.cmd_rd_len_1 = 0xC1,
+    /** io port0 register */
 	.io_port_0_reg = 0xE4,
+    /** io port1 register */
 	.io_port_1_reg = 0xE5,
+    /** io port2 register */
 	.io_port_2_reg = 0xE6,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x04,
+    /** card rx length register */
 	.card_rx_len_reg = 0xEA,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0xEB,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x08,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x0C,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
 	.v15_update = 1,
+    /** V15 firmware api */
 	.v15_fw_api = 1,
+    /** V16 firmware api */
+	.v16_fw_api = 1,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 1,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_v15,
 };
 
+/** Sdio 8997 device structure */
 static const struct _mlan_sdio_device mlan_sdio_sd8997 = {
+    /** register */
 	.reg = &mlan_reg_sd8977_sd8997,
+    /** maximum ports */
 	.max_ports = 32,
+    /** mp aggregation packet limit */
 	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_16,
+    /** sdio new mode support */
 	.supports_sdio_new_mode = MTRUE,
+    /** control mask */
 	.has_control_mask = MFALSE,
+    /** card configuration_2_1 register */
 	.card_config_2_1_reg = 0xD9,
+    /** command configuration register0 */
 	.cmd_config_0 = 0xC4,
+    /** command configuration register1 */
 	.cmd_config_1 = 0xC5,
+    /** command read length 0 */
 	.cmd_rd_len_0 = 0xC0,
+    /** command read length 1 */
 	.cmd_rd_len_1 = 0xC1,
+    /** io port0 register */
 	.io_port_0_reg = 0xE4,
+    /** io port1 register */
 	.io_port_1_reg = 0xE5,
+    /** io port2 register */
 	.io_port_2_reg = 0xE6,
+    /** host interrupt rsr register */
 	.host_int_rsr_reg = 0x04,
+    /** card rx length register */
 	.card_rx_len_reg = 0xEA,
+    /** card rx unit register */
 	.card_rx_unit_reg = 0xEB,
+    /** host interrupt mask register */
 	.host_int_mask_reg = 0x08,
+    /** host interrupt status register */
 	.host_int_status_reg = 0x0C,
+    /** mp tx aggregation buffer size */
 	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** mp rx aggregation buffer size */
 	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** maximum tx buffer size */
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
+    /** V15 update */
 	.v15_update = 1,
+    /** V15 firmware api */
 	.v15_fw_api = 1,
+    /** V16 firmware api */
+	.v16_fw_api = 1,
+    /** extend scan */
 	.ext_scan = 1,
+    /** firmware relaod */
 	.fw_reload = 1,
+    /** AMPDU information */
+	.ampdu_info = &ampdu_info_v15,
+};
+
+/** Sdio 8987 device structure */
+static const struct _mlan_sdio_device mlan_sdio_sd8987 = {
+    /** register */
+	.reg = &mlan_reg_sd8977_sd8997,
+    /** maximum ports */
+	.max_ports = 32,
+    /** mp aggregation packet limit */
+	.mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT_16,
+    /** sdio new mode support */
+	.supports_sdio_new_mode = MTRUE,
+    /** control mask */
+	.has_control_mask = MFALSE,
+    /** card configuration_2_1 register */
+	.card_config_2_1_reg = 0xD9,
+    /** command configuration register0 */
+	.cmd_config_0 = 0xC4,
+    /** command configuration register1 */
+	.cmd_config_1 = 0xC5,
+    /** command read length 0 */
+	.cmd_rd_len_0 = 0xC0,
+    /** command read length 1 */
+	.cmd_rd_len_1 = 0xC1,
+    /** io port0 register */
+	.io_port_0_reg = 0xE4,
+    /** io port1 register */
+	.io_port_1_reg = 0xE5,
+    /** io port2 register */
+	.io_port_2_reg = 0xE6,
+    /** host interrupt rsr register */
+	.host_int_rsr_reg = 0x04,
+    /** card rx length register */
+	.card_rx_len_reg = 0xEA,
+    /** card rx unit register */
+	.card_rx_unit_reg = 0xEB,
+    /** host interrupt mask register */
+	.host_int_mask_reg = 0x08,
+    /** host interrupt mask register */
+	.host_int_status_reg = 0x0C,
+    /** mp tx aggregation buffer size */
+	.mp_tx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** mp rx aggregation buffer size */
+	.mp_rx_aggr_buf_size = SDIO_MP_AGGR_BUF_SIZE_MAX,
+    /** maximum tx buffer size */
+	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
+    /** V15 update */
+	.v15_update = 1,
+    /** V15 firmware api */
+	.v15_fw_api = 1,
+    /** V16 firmware api */
+	.v16_fw_api = 1,
+    /** extend scan */
+	.ext_scan = 1,
+    /** firmware relaod */
+	.fw_reload = 1,
+    /** AMPDU information */
 	.ampdu_info = &ampdu_info_v15,
 };
 
@@ -769,7 +1159,7 @@ mlan_status wlan_send_mp_aggr_buf(mlan_adapter *pmadapter);
 /** Firmware status check */
 mlan_status wlan_check_fw_status(mlan_adapter *pmadapter, t_u32 pollnum);
 /** Read interrupt status */
-t_void wlan_interrupt(pmlan_adapter pmadapter);
+mlan_status wlan_interrupt(pmlan_adapter pmadapter);
 /** Process Interrupt Status */
 mlan_status wlan_process_int_status(mlan_adapter *pmadapter);
 /** Transfer data to card */

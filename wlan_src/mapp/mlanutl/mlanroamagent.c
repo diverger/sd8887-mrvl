@@ -2,7 +2,7 @@
  *
  * @brief This files contains mlanutl roamagent command handling.
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -2378,8 +2378,7 @@ roamSetNborParams(int argc, char *argv[])
 {
 	int ret = MLAN_STATUS_SUCCESS;
 	int trackcount = 0, i = 0, j = 0;
-	int blist[2] = { 0, 0 };	/* blacklist short and long: 0-short
-					   1-long */
+	int blist[2] = { 0, 0 };	/* blacklist short and long:  0-short 1-long */
 	int qualoffset[1] = { 0 };	/* rssi */
 	int stalecount = ~0;
 	int staleperiod = ~0;
@@ -2673,14 +2672,14 @@ roamSetMetrics(int argc, char *argv[])
 	HostCmd_DS_GEN *hostcmd;
 	HostCmd_DS_CMD_ROAMAGENT_ADV_METRIC_THRESHOLD *metricscmd;
 
-	int perlist[3] = { 0, 0, 0 };	/* 0=inactivity, 1=perthreshold,
+	int perlist[3] = { 0, 0, 0 };	/* 0=inactivity,
+					   1=perthreshold,
 					   2=packetthreshold */
-	int ferlist[3] = { 0, 0, 0 };	/* 0=inactivity, 1=ferthreshold,
+	int ferlist[3] = { 0, 0, 0 };	/* 0=inactivity,
+					   1=ferthreshold,
 					   2=framethreshold */
-	int perstate[3] = { 0, 0, 0 };	/* 0=stable, 1=degrading,
-					   2=unacceptable */
-	int ferstate[3] = { 0, 0, 0 };	/* 0=stable, 1=degrading,
-					   2=unacceptable */
+	int perstate[3] = { 0, 0, 0 };	/* 0=stable, 1=degrading, 2=unacceptable */
+	int ferstate[3] = { 0, 0, 0 };	/* 0=stable, 1=degrading, 2=unacceptable */
 	int datalist[2] = { 0, 0 };	/* 0=inactivity, 1=datathreshold */
 	char *valid_cmds[] = { "Beacon", "Data", "PER", "FER" };
 
@@ -3231,7 +3230,7 @@ roamSetBackOff(int argc, char *argv[])
 	t_u8 *buffer = NULL, *pos = NULL;
 	t_u32 cmd_len = 0, cmd_header_len;
 	struct eth_priv_cmd *cmd = NULL;
-	int spflag[2] = { 0, 0 };	/* scan,priod */
+	int spflag[2] = { 0, 0 };	/*scan,priod */
 	t_u16 minscan;
 	t_u32 bperiod;
 	HostCmd_DS_GEN *hostcmd;

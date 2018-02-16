@@ -3,7 +3,7 @@
   * @brief This file contains the major functions in UAP
   * driver.
   *
-  * Copyright (C) 2008-2016, Marvell International Ltd.
+  * Copyright (C) 2008-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -40,7 +40,9 @@ Change log:
 /********************************************************
 		Global Variables
 ********************************************************/
-
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+extern int dfs_offload;
+#endif
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -834,6 +836,8 @@ woal_uap_dfs_testing(struct net_device *dev, struct ifreq *req)
 			param.fixed_new_chan;
 		priv->phandle->cac_period_jiffies =
 			param.usr_cac_period * HZ / 1000;
+		priv->user_cac_period_msec =
+			cfg11h->param.dfs_testing.usr_cac_period_msec;
 	}
 	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_SUCCESS) {
@@ -864,7 +868,139 @@ done:
 	LEAVE();
 	return ret;
 }
+
+#ifdef UAP_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+/**
+ *  @brief uap channel NOP status check ioctl handler
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param wait_option      Wait option
+ *  @param data             BSS control type
+ *  @return                 0 --success, otherwise fail
+ */
+int
+woal_uap_get_channel_nop_info(moal_private *priv, t_u8 wait_option,
+			      mlan_ds_11h_chan_nop_info * ch_info)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11h_cfg *ds_11hcfg = NULL;
+
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (!ch_info) {
+		PRINTM(MERROR, "Invalid chan_info\n");
+		LEAVE();
+		return -EFAULT;
+	}
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	req->req_id = MLAN_IOCTL_11H_CFG;
+	req->action = MLAN_ACT_GET;
+
+	ds_11hcfg = (mlan_ds_11h_cfg *)req->pbuf;
+	ds_11hcfg->sub_command = MLAN_OID_11H_CHAN_NOP_INFO;
+	memcpy(&ds_11hcfg->param.ch_nop_info, ch_info,
+	       sizeof(mlan_ds_11h_chan_nop_info));
+	status = woal_request_ioctl(priv, req, wait_option);
+	if (status == MLAN_STATUS_FAILURE) {
+		ret = -EFAULT;
+		goto done;
+	}
+	memcpy(ch_info, &ds_11hcfg->param.ch_nop_info,
+	       sizeof(mlan_ds_11h_chan_nop_info));
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
 #endif
+#endif
+#endif
+
+/**
+ *  @brief configure channel switch count
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int
+woal_uap_chan_switch_count_cfg(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_11h_cfg *cfg11h = NULL;
+	cscount_cfg_t param;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	memset(&param, 0, sizeof(param));
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "%s corrupt data\n", __func__);
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Copy from user */
+	if (copy_from_user(&param, req->ifr_data, sizeof(param))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	DBG_HEXDUMP(MCMD_D, "cscount_cfg_t", (t_u8 *)&param, sizeof(param));
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (ioctl_req == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+	cfg11h = (mlan_ds_11h_cfg *)ioctl_req->pbuf;
+	ioctl_req->req_id = MLAN_IOCTL_11H_CFG;
+	cfg11h->sub_command = MLAN_OID_11H_CHAN_SWITCH_COUNT;
+
+	if (!param.action) {
+		/* Get mib value from MLAN */
+		ioctl_req->action = MLAN_ACT_GET;
+	} else {
+		/* Set mib value to MLAN */
+		ioctl_req->action = MLAN_ACT_SET;
+		cfg11h->param.cs_count = param.cs_count;
+	}
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!param.action) {	/* GET */
+		param.cs_count = cfg11h->param.cs_count;
+	}
+	/* Copy to user */
+	if (copy_to_user(req->ifr_data, &param, sizeof(param))) {
+		PRINTM(MERROR, "Copy to user failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief Configure TX beamforming support
@@ -1106,7 +1242,11 @@ woal_uap_vht_cfg(struct net_device *dev, struct ifreq *req)
 		ioctl_req->action = MLAN_ACT_GET;
 	} else {
 		/* Band */
-		cfg_11ac->param.vht_cfg.band = vht_cfg.band;
+		if (vht_cfg.band == BAND_SELECT_BOTH)
+			cfg_11ac->param.vht_cfg.band =
+				(BAND_SELECT_BG | BAND_SELECT_A);
+		else
+			cfg_11ac->param.vht_cfg.band = vht_cfg.band;
 		PRINTM(MINFO, "SET: vhtcfg band: 0x%x\n",
 		       cfg_11ac->param.vht_cfg.band);
 		/* Tx/Rx */
@@ -1173,6 +1313,8 @@ done:
  *
  *  @param dev      A pointer to net_device structure
  *  @param req      A pointer to ifreq structure
+ *  @invoke_hostcmd Argument
+ *
  *  @return         0 --success, otherwise fail
  */
 static int
@@ -1277,8 +1419,8 @@ done:
 /**
  *  @brief Set Host Sleep parameters
  *
- *  @param priv         A pointer to moal_private structure
- *  @param wrq          A pointer to iwreq structure
+ *  @param dev          A pointer to net_device structure
+ *  @param req          A pointer to ifreq structure
  *
  *  @return             0 --success, otherwise fail
  */
@@ -1316,7 +1458,7 @@ woal_uap_mgmt_frame_control(struct net_device *dev, struct ifreq *req)
 	int ret = 0;
 	t_u16 action = 0;
 	mgmt_frame_ctrl param;
-	mlan_uap_bss_param sys_config;
+	mlan_uap_bss_param *sys_config = NULL;
 
 	ENTER();
 
@@ -1333,32 +1475,40 @@ woal_uap_mgmt_frame_control(struct net_device *dev, struct ifreq *req)
 		ret = -EFAULT;
 		goto done;
 	}
+	sys_config = kzalloc(sizeof(mlan_uap_bss_param), GFP_ATOMIC);
+	if (!sys_config) {
+		PRINTM(MERROR, "Fail to alloc memory for mlan_uap_bss_param\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
 	if (param.action)
 		action = MLAN_ACT_SET;
 	else
 		action = MLAN_ACT_GET;
 	if (action == MLAN_ACT_SET) {
-		/* Initialize the invalid values so that the correct values
-		   below are downloaded to firmware */
-		woal_set_sys_config_invalid_data(&sys_config);
-		sys_config.mgmt_ie_passthru_mask = param.mask;
+		/* Initialize the invalid values so that the correct
+		   values below are downloaded to firmware */
+		woal_set_sys_config_invalid_data(sys_config);
+		sys_config->mgmt_ie_passthru_mask = param.mask;
 	}
 
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_get_sys_config(priv, action, MOAL_IOCTL_WAIT,
-				    &sys_config)) {
+				    sys_config)) {
 		ret = -EFAULT;
 		goto done;
 	}
 
 	if (action == MLAN_ACT_GET) {
-		param.mask = sys_config.mgmt_ie_passthru_mask;
+		param.mask = sys_config->mgmt_ie_passthru_mask;
 		if (copy_to_user(req->ifr_data, &param, sizeof(param))) {
 			PRINTM(MERROR, "Copy to user failed\n");
 			ret = -EFAULT;
 		}
 	}
 done:
+	kfree(sys_config);
 	LEAVE();
 	return ret;
 }
@@ -1709,8 +1859,9 @@ woal_uap_cac_timer_status(struct net_device *dev, struct ifreq *req)
 		cac_left_jiffies = MEAS_REPORT_TIME -
 			(jiffies - priv->phandle->meas_start_jiffies);
 
-		/* cac_left_jiffies would be negative if timer has already
-		   elapsed. positive if timer is still yet to lapsed */
+		/* cac_left_jiffies would be negative if timer has already elapsed.
+		 * positive if timer is still yet to lapsed
+		 */
 		if (cac_left_jiffies > 0)
 			param.mode = (t_u32)cac_left_jiffies / HZ;
 	}
@@ -1867,6 +2018,9 @@ woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 		ret = woal_uap_dfs_testing(dev, req);
 		break;
 #endif
+	case UAP_CHAN_SWITCH_COUNT_CFG:
+		ret = woal_uap_chan_switch_count_cfg(dev, req);
+		break;
 	case UAP_DOMAIN_INFO:
 		ret = woal_uap_domain_info(dev, req);
 		break;
@@ -2819,7 +2973,7 @@ done:
  *  @return         0 --success, otherwise fail
  */
 int
-woal_set_uap_ht_tx_cfg(moal_private *priv, t_u8 band_cfg, t_u8 en)
+woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg, t_u8 en)
 {
 	int ret = 0;
 	mlan_ds_11n_cfg *cfg_11n = NULL;
@@ -2838,13 +2992,13 @@ woal_set_uap_ht_tx_cfg(moal_private *priv, t_u8 band_cfg, t_u8 en)
 	ioctl_req->req_id = MLAN_IOCTL_11N_CFG;
 
 	/* Set HT Tx configurations */
-	if (band_cfg & BAND_CONFIG_2G) {
+	if (bandcfg.chanBand == BAND_2GHZ) {
 		if (en)
 			cfg_11n->param.tx_cfg.httxcap = 0x20;
 		else
 			cfg_11n->param.tx_cfg.httxcap = 0;
 		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_BG;
-	} else if (band_cfg & BAND_CONFIG_5G) {
+	} else if (bandcfg.chanBand == BAND_5GHZ) {
 		if (en)
 			cfg_11n->param.tx_cfg.httxcap = 0x6f;
 		else
@@ -2870,15 +3024,18 @@ done:
 /**
  *  @brief Set 11n status based on the configured security mode
  *
+ *  @param priv     A pointer to moal_private structure
  *  @param sys_cfg  A pointer to mlan_uap_bss_param structure
  *  @param action   MLAN_ACT_DISABLE or MLAN_ACT_ENABLE
  *
  *  @return         MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
-woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action)
+woal_uap_set_11n_status(moal_private *priv, mlan_uap_bss_param *sys_cfg,
+			t_u8 action)
 {
 	mlan_status status = MLAN_STATUS_SUCCESS;
+	mlan_fw_info fw_info;
 
 	ENTER();
 	if (action == MLAN_ACT_DISABLE) {
@@ -2895,15 +3052,15 @@ woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action)
 	}
 
 	if (action == MLAN_ACT_ENABLE) {
-		if ((sys_cfg->supported_mcs_set[0] != 0)
-		    || (sys_cfg->supported_mcs_set[4] != 0)
-		    || (sys_cfg->supported_mcs_set[1] != 0)
-			) {
-			goto done;
-		} else {
-			sys_cfg->supported_mcs_set[0] = 0xFF;
-			sys_cfg->supported_mcs_set[4] = 0x01;
+		woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+		sys_cfg->supported_mcs_set[0] = 0xFF;
+		sys_cfg->supported_mcs_set[4] = 0x01;
+		if (fw_info.usr_dev_mcs_support == HT_STREAM_MODE_2X2) {
 			sys_cfg->supported_mcs_set[1] = 0xFF;
+			sys_cfg->supported_mcs_set[12] |= MBIT(2);
+		} else {
+			sys_cfg->supported_mcs_set[1] = 0;
+			sys_cfg->supported_mcs_set[12] &= ~(MBIT(2) | MBIT(3));
 		}
 	}
 
@@ -2913,8 +3070,6 @@ done:
 }
 
 #define VHT_CAP_11AC_MASK            0x007fffff
-/** clear SU Beanformer and MU beanformer and MU beanformee */
-#define DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK   (MBIT(11)|MBIT(16)|MBIT(17)|MBIT(18)|MBIT(19)|MBIT(20))
 
 /**
  *  @brief enable/disable 11AC
@@ -2922,11 +3077,13 @@ done:
  *  @param priv     A pointer to moal_private structure
  *  @param action   MLAN_ACT_DISABLE or MLAN_ACT_ENABLE
  *  @param vht20_40 Enable VHT 20 MHz or 40 MHz band
+ *  @param vhtcap_ie A pointer to vht capability IE
  *
  *  @return         0--success, otherwise failure
  */
 int
-woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40)
+woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
+			 IEEEtypes_VHTCap_t *vhtcap_ie)
 {
 
 	mlan_ioctl_req *req = NULL;
@@ -2953,12 +3110,26 @@ woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40)
 	cfg_11ac->param.vht_cfg.band = BAND_SELECT_A;
 	cfg_11ac->param.vht_cfg.txrx = MLAN_RADIO_TXRX;
 
-	cfg_11ac->param.vht_cfg.vht_cap_info = fw_info.hw_dot_11ac_dev_cap;
+	/*
+	 * p2p GO (negotiation or auto GO) cases, wpa_supplicant will download
+	 * invalid vht capability with value 0 in beacon parameters, so for p2p
+	 * GO case (vht_cap_info = 0), driver will use hardware 11ac vht capability
+	 * value instead of up layer value.
+	 */
+	if (vhtcap_ie && vhtcap_ie->vht_cap.vht_cap_info != 0) {
+		cfg_11ac->param.vht_cfg.vht_cap_info =
+			woal_le32_to_cpu(vhtcap_ie->vht_cap.vht_cap_info);
+	/** todo mcs configuration */
+	} else {
+		cfg_11ac->param.vht_cfg.vht_cap_info =
+			fw_info.usr_dot_11ac_dev_cap_a;
+	}
 	if (action == MLAN_ACT_DISABLE) {
 		cfg_11ac->param.vht_cfg.bwcfg = MFALSE;
 		cfg_11ac->param.vht_cfg.vht_cap_info &= ~VHT_CAP_11AC_MASK;
 		cfg_11ac->param.vht_cfg.vht_rx_mcs =
 			cfg_11ac->param.vht_cfg.vht_tx_mcs = 0xffff;
+		cfg_11ac->param.vht_cfg.skip_usr_11ac_mcs_cfg = MTRUE;
 	} else {
 		if (vht20_40)
 			cfg_11ac->param.vht_cfg.bwcfg = MFALSE;
@@ -2967,9 +3138,9 @@ woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40)
 		cfg_11ac->param.vht_cfg.vht_cap_info &=
 			~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
 		cfg_11ac->param.vht_cfg.vht_tx_mcs =
-			fw_info.hw_dot_11ac_mcs_support >> 16;
+			fw_info.usr_dot_11ac_mcs_support >> 16;
 		cfg_11ac->param.vht_cfg.vht_rx_mcs =
-			fw_info.hw_dot_11ac_mcs_support & 0xffff;
+			fw_info.usr_dot_11ac_mcs_support & 0xffff;
 	}
 	PRINTM(MCMND,
 	       "Uap:11ac=%d vht_cap_info=0x%x, vht_tx_mcs=0x%x, vht_rx_mcs=0x%x\n",
@@ -3046,7 +3217,7 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 					       "Skipping SSID, found again!\n");
 					continue;
 				}
-				if (strlen(value) > MLAN_MAX_SSID_LENGTH) {
+				if (strlen(value) >= MLAN_MAX_SSID_LENGTH) {
 					PRINTM(MERROR,
 					       "SSID length exceeds max length\n");
 					ret = -EFAULT;
@@ -3054,7 +3225,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 				}
 				ap_cfg->ssid.ssid_len = strlen(value);
 				strncpy((char *)ap_cfg->ssid.ssid, value,
-					strlen(value));
+					MIN(MLAN_MAX_SSID_LENGTH - 1,
+					    strlen(value)));
 				PRINTM(MINFO, "ssid=%s, len=%d\n",
 				       ap_cfg->ssid.ssid,
 				       (int)ap_cfg->ssid.ssid_len);
@@ -3125,7 +3297,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 				ap_cfg->wep_cfg.key0.is_default = 1;
 				ap_cfg->wep_cfg.key0.length = strlen(value);
 				memcpy(ap_cfg->wep_cfg.key0.key, value,
-				       strlen(value));
+				       MIN(sizeof(ap_cfg->wep_cfg.key0.key),
+					   strlen(value)));
 				set_key = 1;
 				continue;
 			}
@@ -3144,7 +3317,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 			}
 			ap_cfg->wpa_cfg.length = strlen(value);
 			memcpy(ap_cfg->wpa_cfg.passphrase, value,
-			       strlen(value));
+			       MIN(sizeof(ap_cfg->wpa_cfg.passphrase),
+				   strlen(value)));
 			set_key = 1;
 		} else if (!strncmp(opt, "CHANNEL", strlen("CHANNEL"))) {
 			if (set_chan) {
@@ -3175,8 +3349,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 				ret = -EINVAL;
 				goto done;
 			}
-			/* This is a READ only value from FW, so we can not set
-			   this and pass it successfully */
+			/* This is a READ only value from FW, so we
+			 * can not set this and pass it successfully */
 			set_preamble = 1;
 		} else if (!strncmp(opt, "MAX_SCB", strlen("MAX_SCB"))) {
 			if (set_scb) {
@@ -3223,7 +3397,7 @@ woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 {
 	int ret = 0;
 	static char buf[MAX_BUF_LEN];
-	mlan_uap_bss_param sys_config;
+	mlan_uap_bss_param *sys_config = NULL;
 	int restart = 0;
 
 	ENTER();
@@ -3234,23 +3408,29 @@ woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 		ret = -EINVAL;
 		goto done;
 	}
+	sys_config = kzalloc(sizeof(mlan_uap_bss_param), GFP_ATOMIC);
+	if (!sys_config) {
+		PRINTM(MERROR, "Fail to alloc memory for mlan_uap_bss_param\n");
+		ret = -EFAULT;
+		goto done;
+	}
 
 	memset(buf, 0, MAX_BUF_LEN);
 	memcpy(buf, data, MIN(len, (sizeof(buf) - 1)));
 
 	/* Initialize the uap bss values which are uploaded from firmware */
-	woal_uap_get_bss_param(priv, &sys_config, MOAL_IOCTL_WAIT);
+	woal_uap_get_bss_param(priv, sys_config, MOAL_IOCTL_WAIT);
 
 	/* Setting the default values */
-	sys_config.channel = 6;
-	sys_config.preamble_type = 0;
+	sys_config->channel = 6;
+	sys_config->preamble_type = 0;
 
-	ret = woal_uap_ap_cfg_parse_data(&sys_config, buf);
+	ret = woal_uap_ap_cfg_parse_data(sys_config, buf);
 	if (ret)
 		goto done;
 
-	/* If BSS already started stop it first and restart after changing the
-	   setting */
+	/* If BSS already started stop it first and restart
+	 * after changing the setting */
 	if (priv->bss_started == MTRUE) {
 		ret = woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_STOP);
 		if (ret)
@@ -3258,19 +3438,21 @@ woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 		restart = 1;
 	}
 
-	/* If the security mode is configured as WEP or WPA-PSK, it will
-	   disable 11n automatically, and if configured as open(off) or
-	   wpa2-psk, it will automatically enable 11n */
-	if ((sys_config.protocol == PROTOCOL_STATIC_WEP)
-	    || (sys_config.protocol == PROTOCOL_WPA)) {
+	/* If the security mode is configured as WEP or WPA-PSK,
+	 * it will disable 11n automatically, and if configured as
+	 * open(off) or wpa2-psk, it will automatically enable 11n */
+	if ((sys_config->protocol == PROTOCOL_STATIC_WEP)
+	    || (sys_config->protocol == PROTOCOL_WPA)) {
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_uap_set_11n_status(&sys_config, MLAN_ACT_DISABLE)) {
+		    woal_uap_set_11n_status(priv, sys_config,
+					    MLAN_ACT_DISABLE)) {
 			ret = -EFAULT;
 			goto done;
 		}
 	} else {
 		if (MLAN_STATUS_SUCCESS !=
-		    woal_uap_set_11n_status(&sys_config, MLAN_ACT_ENABLE)) {
+		    woal_uap_set_11n_status(priv, sys_config,
+					    MLAN_ACT_ENABLE)) {
 			ret = -EFAULT;
 			goto done;
 		}
@@ -3278,7 +3460,7 @@ woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_get_sys_config(priv, MLAN_ACT_SET, MOAL_IOCTL_WAIT,
-				    &sys_config)) {
+				    sys_config)) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -3288,6 +3470,7 @@ woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len)
 		ret = woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_START);
 
 done:
+	kfree(sys_config);
 	LEAVE();
 	return ret;
 }
@@ -3351,7 +3534,7 @@ done:
  */
 mlan_status
 woal_set_get_ap_channel(moal_private *priv, t_u16 action, t_u8 wait_option,
-			mlan_chan_info * uap_channel)
+			chan_band_info * uap_channel)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_bss *bss = NULL;
@@ -3370,13 +3553,13 @@ woal_set_get_ap_channel(moal_private *priv, t_u16 action, t_u8 wait_option,
 	req->req_id = MLAN_IOCTL_BSS;
 	req->action = action;
 
-	memcpy(&bss->param.ap_channel, uap_channel, sizeof(mlan_chan_info));
+	memcpy(&bss->param.ap_channel, uap_channel, sizeof(chan_band_info));
 	ret = woal_request_ioctl(priv, req, wait_option);
 	if (ret != MLAN_STATUS_SUCCESS)
 		goto done;
 	if (action == MLAN_ACT_GET)
 		memcpy(uap_channel, &bss->param.ap_channel,
-		       sizeof(mlan_chan_info));
+		       sizeof(chan_band_info));
 
 done:
 	if (ret != MLAN_STATUS_PENDING)
@@ -3421,9 +3604,13 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		if (priv->bss_started == MTRUE) {
 			PRINTM(MWARN, "Warning: BSS already started!\n");
 			/* goto done; */
-		} else if (!priv->uap_host_based) {
+		} else if (!priv->uap_host_based
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			   || dfs_offload
+#endif
+			) {
 			/* about to start bss: issue channel check */
-			woal_11h_channel_check_ioctl(priv, wait_option);
+			woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
 		}
 		bss->sub_command = MLAN_OID_BSS_START;
 		bss->param.host_based = priv->uap_host_based;
@@ -3431,11 +3618,12 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 	case UAP_BSS_STOP:
 		if (priv->bss_started == MFALSE) {
 			PRINTM(MWARN, "Warning: BSS already stopped!\n");
-			/* This is a situation where CAC it started and BSS
-			   start is dealyed and before CAC timer expires BSS
-			   stop is triggered. Do not skip sending the BSS_STOP
-			   command since there are many routines triggered on
-			   BSS_STOP command response. */
+			/* This is a situation where CAC it started and BSS start is dealyed
+			 * and before CAC timer expires BSS stop is triggered.
+			 *
+			 * Do not skip sending the BSS_STOP command since there are many
+			 * routines triggered on BSS_STOP command response.
+			 */
 			woal_cancel_cac_block(priv);
 		}
 		bss->sub_command = MLAN_OID_BSS_STOP;
@@ -3586,7 +3774,7 @@ woal_uap_get_version(moal_private *priv, char *version, int max_len)
 	req->req_id = MLAN_IOCTL_GET_INFO;
 	req->action = MLAN_ACT_GET;
 
-	status = woal_request_ioctl(priv, req, MOAL_PROC_WAIT);
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (status == MLAN_STATUS_SUCCESS) {
 		PRINTM(MINFO, "MOAL UAP VERSION: %s\n",
 		       info->param.ver_ext.version_str);

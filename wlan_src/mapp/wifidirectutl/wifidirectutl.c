@@ -4,7 +4,7 @@
  *
  *   Usage: ./wifidirectutl <iface> <command> <params>
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -101,6 +101,11 @@ hexdump(void *p, t_s32 len, char delim)
 }
 #endif
 
+/**
+ *  @brief		wifidirect use fixed ie indices
+ *
+ *  @return         	1 or 0
+ */
 static int
 wifidir_use_fixed_ie_indices(void)
 {
@@ -113,23 +118,6 @@ wifidir_use_fixed_ie_indices(void)
 	} else {
 		return 0;
 	}
-}
-
-/**
- *    @brief isdigit for String.
- *
- *    @param x            Char string
- *    @return             FAILURE for non-digit.
- *                        SUCCESS for digit
- */
-inline int
-ISDIGIT(char *x)
-{
-	unsigned int i;
-	for (i = 0; i < strlen(x); i++)
-		if (isdigit(x[i]) == 0)
-			return FAILURE;
-	return SUCCESS;
 }
 
 /**
@@ -688,10 +676,8 @@ wifidirectcmd_gas_comeback_discovery(int argc, char *argv[])
 		if (strcmp(args[0], "wifidirect_gas_comeback_request") == 0) {
 			wifidirect_level =
 				WIFIDIRECT_DISCOVERY_REQUEST_RESPONSE;
-			/* For wifidirect_service_gas_comeback, basic
-			   initialization here */
-			/* Subtract extra two bytes added as a part of query
-			   request structure */
+			/* For wifidirect_service_gas_comeback, basic initialization here */
+			/* Subtract extra two bytes added as a part of query request structure */
 			cmd_len = sizeof(wifidirect_gas_comeback_request) - 2;
 			buffer = (t_u8 *)malloc(cmd_len);
 			if (!buffer) {
@@ -710,10 +696,8 @@ wifidirectcmd_gas_comeback_discovery(int argc, char *argv[])
 			wifidirect_level =
 				WIFIDIRECT_DISCOVERY_REQUEST_RESPONSE;
 			req_resp = 1;
-			/* For wifidirect_service_discovery, basic
-			   initialization here */
-			/* Subtract extra two bytes added as a part of query
-			   response structure */
+			/* For wifidirect_service_discovery, basic initialization here */
+			/* Subtract extra two bytes added as a part of query response structure */
 			cmd_len = sizeof(wifidirect_gas_comeback_response) - 2;
 			buffer = (t_u8 *)malloc(cmd_len);
 			if (!buffer) {
@@ -1166,8 +1150,7 @@ wifidirectcmd_service_discovery(int argc, char *argv[])
 		if (strcmp(args[0], "wifidirect_discovery_request") == 0) {
 			wifidirect_level =
 				WIFIDIRECT_DISCOVERY_REQUEST_RESPONSE;
-			/* For wifidirect_service_discovery, basic
-			   initialization here */
+			/* For wifidirect_service_discovery, basic initialization here */
 			cmd_len = sizeof(wifidirect_discovery_request);
 			buffer = (t_u8 *)malloc(cmd_len);
 			if (!buffer) {
@@ -1186,8 +1169,7 @@ wifidirectcmd_service_discovery(int argc, char *argv[])
 			wifidirect_level =
 				WIFIDIRECT_DISCOVERY_REQUEST_RESPONSE;
 			req_resp = 1;
-			/* For wifidirect_service_discovery, basic
-			   initialization here */
+			/* For wifidirect_service_discovery, basic initialization here */
 			cmd_len = sizeof(wifidirect_discovery_response);
 			buffer = (t_u8 *)malloc(cmd_len);
 			if (!buffer) {
@@ -2864,8 +2846,7 @@ wifidirect_file_params_config(char *file_name, char *cmd_name, t_u8 *pbuf,
 						secondary_dev_count;
 					endian_convert_tlv_wifidirect_header_out
 						(tlv);
-					/* Parameters within secondary_dev_info
-					   are already htons'ed */
+					/* Parameters within secondary_dev_info are already htons'ed */
 					memcpy(tlv->secondary_dev_info,
 					       secondary_dev_info,
 					       secondary_dev_count *
@@ -2921,10 +2902,8 @@ wifidirect_file_params_config(char *file_name, char *cmd_name, t_u8 *pbuf,
 					       sizeof
 					       (wifidirect_client_dev_info) +
 					       tlv_offset);
-					/* Parameters within secondary_dev_info
-					   are already htons'ed */
-					// wps_hexdump(DEBUG_WLAN,"Group Info
-					// Hexdump:", (t_u8*)tlv, tlv_len);
+					/* Parameters within secondary_dev_info are already htons'ed */
+					//wps_hexdump(DEBUG_WLAN,"Group Info Hexdump:", (t_u8*)tlv, tlv_len);
 					endian_convert_tlv_wifidirect_header_out
 						(tlv);
 					flag = 1;
@@ -3313,8 +3292,7 @@ wifidirect_file_params_config(char *file_name, char *cmd_name, t_u8 *pbuf,
 					endian_convert_tlv_wps_header_out(tlv);
 					cmd_len_wps += tlv_len;
 
-					/* Append TLV for WPSConfigurationError
-					 */
+					/* Append TLV for WPSConfigurationError */
 					tlv_len =
 						sizeof(tlvbuf_wps_ie) +
 						sizeof(WPS_configurationerror);
@@ -3595,8 +3573,7 @@ wifidirect_ie_config(t_u16 *ie_index, t_u16 data_len_wifidirect,
 		if (tlv->tag == MRVL_MGMT_IE_LIST_TLV_ID) {
 			ie_ptr = (custom_ie *)(tlv->ie_data);
 			for (i = 0; i < MAX_MGMT_IE_INDEX; i++) {
-				/* zero mask indicates a wps IE, return
-				   previous index */
+				/* zero mask indicates a wps IE, return previous index */
 				if (ie_ptr->mgmt_subtype_mask == MGMT_MASK_AUTO
 				    && ie_ptr->ie_length) {
 					*ie_index = ie_ptr->ie_index;
@@ -3903,8 +3880,7 @@ wifidirectcmd_config(int argc, char *argv[])
 								(wifidirect_tlv->
 								 dev_address);
 							printf("\n");
-							/* display
-							   config_methods */
+							/* display config_methods */
 							printf("\t Config methods - 0x%02X\n", ntohs(wifidirect_tlv->config_methods));
 							printf("\t Primary device type = %02d-%02X%02X%02X%02X-%02d\n", (int)ntohs(wifidirect_tlv->primary_category), (int)wifidirect_tlv->primary_oui[0], (int)wifidirect_tlv->primary_oui[1], (int)wifidirect_tlv->primary_oui[2], (int)wifidirect_tlv->primary_oui[3], (int)ntohs(wifidirect_tlv->primary_subcategory));
 							printf("\t Secondary Device Count = %d\n", (int)wifidirect_tlv->secondary_dev_count);
@@ -4030,8 +4006,7 @@ wifidirectcmd_config(int argc, char *argv[])
 										sizeof
 										(temp);
 								}
-								/* display
-								   device name */
+								/* display device name */
 								array_ptr =
 									temp_ptr->
 									wifidirect_device_name

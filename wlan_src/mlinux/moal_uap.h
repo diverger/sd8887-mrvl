@@ -2,7 +2,7 @@
   *
   * @brief This file contains uap driver specific defines etc.
   *
-  * Copyright (C) 2009-2016, Marvell International Ltd.
+  * Copyright (C) 2009-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -80,6 +80,8 @@ Change log:
 
 #define UAP_OPERATION_CTRL       22
 
+#define UAP_CHAN_SWITCH_COUNT_CFG     23
+
 /** Private command ID to Power Mode */
 #define	UAP_POWER_MODE			(SIOCDEVPRIVATE + 3)
 
@@ -91,8 +93,6 @@ Change log:
 #define UAP_BSS_STOP                1
 /** BSS RESET */
 #define UAP_BSS_RESET               2
-/** Band config 5GHz */
-#define BAND_CONFIG_5GHZ            0x01
 
 /** wapi_msg */
 typedef struct _wapi_msg {
@@ -202,7 +202,6 @@ typedef struct _encrypt_key {
 } encrypt_key;
 
 /** Packet inject command ioctl number */
-#define UAPHOSTPKTINJECT            WOAL_MGMT_FRAME_TX_IOCTL
 /** pkt_header */
 typedef struct _pkt_header {
     /** pkt_len */
@@ -214,6 +213,7 @@ typedef struct _pkt_header {
 } pkt_header;
 /** uap get station list */
 #define UAP_GET_STA_LIST            (SIOCDEVPRIVATE + 11)
+#define UAPHOSTPKTINJECT            WOAL_MGMT_FRAME_TX_IOCTL
 
 /** Private command ID to set/get custom IE buffer */
 #define	UAP_CUSTOM_IE               (SIOCDEVPRIVATE + 13)
@@ -425,7 +425,7 @@ typedef struct _dfs_testing_param {
     /** Set/Get */
 	t_u32 action;
     /** user CAC period (msec) */
-	t_u16 usr_cac_period;
+	t_u32 usr_cac_period;
     /** user NOP period (sec) */
 	t_u16 usr_nop_period;
     /** don't change channel on radar */
@@ -434,6 +434,16 @@ typedef struct _dfs_testing_param {
 	t_u8 fixed_new_chan;
 } dfs_testing_para;
 #endif
+
+/** Channel switch count config */
+typedef struct _cscount_cfg_t {
+    /** subcmd */
+	t_u32 subcmd;
+    /** Set/Get */
+	t_u32 action;
+    /** user channel switch count */
+	t_u8 cs_count;
+} cscount_cfg_t;
 
 /** domain_info parameters */
 typedef struct _domain_info_param {
@@ -459,9 +469,17 @@ int woal_set_get_uap_power_mode(moal_private *priv, t_u32 action,
 void woal_uap_set_multicast_list(struct net_device *dev);
 int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data);
+#ifdef UAP_CFG80211
+#if defined(DFS_TESTING_SUPPORT)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+int woal_uap_get_channel_nop_info(moal_private *priv, t_u8 wait_option,
+				  mlan_ds_11h_chan_nop_info * ch_info);
+#endif
+#endif
+#endif
 mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 				    t_u8 wait_option,
-				    mlan_chan_info * uap_channel);
+				    chan_band_info * uap_channel);
 #ifdef CONFIG_PROC_FS
 void woal_uap_get_version(moal_private *priv, char *version, int max_len);
 #endif
@@ -483,9 +501,11 @@ mlan_status woal_set_get_sys_config(moal_private *priv,
 mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
 				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
-int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40);
-int woal_set_uap_ht_tx_cfg(moal_private *priv, t_u8 band_cfg, t_u8 en);
-mlan_status woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action);
+int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40,
+			     IEEEtypes_VHTCap_t *vhtcap_ie);
+int woal_set_uap_ht_tx_cfg(moal_private *priv, Band_Config_t bandcfg, t_u8 en);
+mlan_status woal_uap_set_11n_status(moal_private *priv,
+				    mlan_uap_bss_param *sys_cfg, t_u8 action);
 #ifdef UAP_WEXT
 void woal_ioctl_get_uap_info_resp(moal_private *priv, mlan_ds_get_info *info);
 int woal_set_get_custom_ie(moal_private *priv, t_u16 mask, t_u8 *ie,

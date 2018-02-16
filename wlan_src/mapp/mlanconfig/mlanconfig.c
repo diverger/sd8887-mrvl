@@ -4,7 +4,7 @@
   *
   * Usage: mlanconfig mlanX cmd [...]
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -236,9 +236,10 @@ ISDIGIT(t_s8 *x)
 static int
 get_private_info(const t_s8 *ifname)
 {
-	/* This function sends the SIOCGIWPRIV command, which is handled by the
-	   kernel and gets the total number of private ioctl's available in the
-	   host driver. */
+	/* This function sends the SIOCGIWPRIV command, which is
+	 * handled by the kernel and gets the total number of
+	 * private ioctl's available in the host driver.
+	 */
 	struct iwreq iwr;
 	int s, ret = MLAN_STATUS_SUCCESS;
 	struct iw_priv_args *ppriv = NULL;
@@ -273,14 +274,12 @@ get_private_info(const t_s8 *ifname)
 			result = errno;
 			ret = MLAN_STATUS_FAILURE;
 			if (result == E2BIG) {
-				/* We need a bigger buffer. Check if kernel
-				   gave us any hints. */
+				/* We need a bigger buffer. Check if kernel gave us any hints. */
 				if (iwr.u.data.length > size) {
 					/* Kernel provided required size */
 					size = iwr.u.data.length;
 				} else {
-					/* No hint from kernel, double the
-					   buffer size */
+					/* No hint from kernel, double the buffer size */
 					size *= 2;
 				}
 			} else {
@@ -740,9 +739,7 @@ fparse_for_cmd_and_hex(FILE * fp, t_u8 *dst, t_u8 *cmd)
 				if (!(ptr = readCurCmd(ptr, curCmd)))
 					return MLAN_STATUS_FAILURE;
 
-				if (strcasecmp(curCmd, (char *)cmd))	/* Not
-									   equal
-									 */
+				if (strcasecmp(curCmd, (char *)cmd))	/* Not equal */
 					isCurCmd = 0;
 				else
 					isCurCmd = 1;
@@ -997,7 +994,7 @@ process_qconfig(int argc, char *argv[])
 	iwr.u.data.flags = subioctl_val;
 
 	if (strcmp(argv[3], "get") == 0) {
-		/* 3 4 5 */
+		/*    3     4    5   */
 		/* qconfig get [qid] */
 		if (argc == 4) {
 			ac_idx_start = WMM_AC_BK;
@@ -1026,7 +1023,7 @@ process_qconfig(int argc, char *argv[])
 		}
 	} else if (strcmp(argv[3], "set") == 0) {
 		if ((argc >= 5) && strcmp(argv[4], "msdu") == 0) {
-			/* 3 4 5 6 7 */
+			/*    3     4    5     6      7   */
 			/* qconfig set msdu <value> [qid] */
 			if (argc == 6) {
 				ac_idx_start = WMM_AC_BK;
@@ -1063,7 +1060,7 @@ process_qconfig(int argc, char *argv[])
 			return -EINVAL;
 		}
 	} else if (strncmp(argv[3], "def", strlen("def")) == 0) {
-		/* 3 4 5 */
+		/*    3     4    5   */
 		/* qconfig def [qid] */
 		if (argc == 4) {
 			ac_idx_start = WMM_AC_BK;
@@ -1205,9 +1202,9 @@ process_qstats(int argc, char *argv[])
 		}
 	} else if ((argc >= 3) &&
 		   ((argc == 3) ? 1 : (strcmp(argv[3], "get") == 0))) {
-		/* If the user types: "mlanconfig mlanX qstats" without get
-		   argument.  The mlanconfig application invokes "get" option
-		   for all UPs */
+		/* If the user types: "mlanconfig mlanX qstats" without get argument.
+		 *   The mlanconfig application invokes "get" option for all UPs
+		 */
 		if ((argc == 4) || (argc == 3)) {
 			up_idx_start = 0;
 			up_idx_stop = 7;
@@ -1671,8 +1668,7 @@ process_custom_ie(int argc, char *argv[])
 			print_custom_ie_usage();
 			return MLAN_STATUS_FAILURE;
 		}
-		/* If above check is passed and mask is not hex, then it must
-		   be 0 */
+		/* If above check is passed and mask is not hex, then it must be 0 */
 		if ((ISDIGIT(argv[4]) == MLAN_STATUS_SUCCESS) && atoi(argv[4])) {
 			printf("ERR:Mask value must be 0 or hex digits\n ");
 			print_custom_ie_usage();
@@ -1843,7 +1839,7 @@ read_line:
 		}
 
 		/* Remove # comments unless they are within a double quoted
-		   string. Remove trailing white space. */
+		 * string. Remove trailing white space. */
 		if ((end = strstr(start, "\""))) {
 			if (!(end = strstr(end + 1, "\"")))
 				end = start;
@@ -1938,8 +1934,7 @@ typedef struct {
 	t_u8 type;		  /**< Type */
 	t_u8 reserve[3];   /**< so 4-byte align val array */
 	/* byte sequence is the largest among all the operands and operators. */
-	/* byte sequence format: 1 byte of num of bytes, then variable num
-	   bytes */
+	/* byte sequence format: 1 byte of num of bytes, then variable num bytes */
 	t_u8 val[MAX_BYTESEQ + 1];/**< Value */
 } op_t;
 
@@ -4244,8 +4239,8 @@ process_tdls_channel_switch(int argc, char *argv[])
 			memcpy(param_buf->peer_mac, peer_mac, ETH_ALEN);
 		} else if (strcmp(args[0], "Band") == 0) {
 			param_buf->band = (t_u16)A2HEXDECIMAL(args[1]);
-			if (param_buf->band != BAND_BG &&
-			    param_buf->band != BAND_A) {
+			if (param_buf->band != BAND_BG
+			    && param_buf->band != BAND_A) {
 				printf("ERR: Incorrect Band value %s\n",
 				       args[1]);
 				goto done;

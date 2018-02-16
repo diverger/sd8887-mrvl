@@ -2,7 +2,7 @@
   *
   * @brief This files contains mlanutl regclass command handling.
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -164,8 +164,7 @@ reg_class_dump_chan_table(int argc, char *argv[])
 		strncpy((char *)buffer + strlen(CMD_MARVELL), HOSTCMD,
 			strlen(HOSTCMD));
 
-		/* buffer = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN><CMD_DS>
-		 */
+		/* buffer = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN><CMD_DS> */
 		hostcmd =
 			(HostCmd_DS_GEN *)(buffer + cmd_header_len +
 					   sizeof(t_u32));
@@ -450,8 +449,7 @@ reg_class_multidomain(int argc, char *argv[])
 		strncpy((char *)buffer + strlen(CMD_MARVELL), HOSTCMD,
 			strlen(HOSTCMD));
 
-		/* buffer = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN><CMD_DS>
-		 */
+		/* buffer = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN><CMD_DS> */
 		hostcmd =
 			(HostCmd_DS_GEN *)(buffer + cmd_header_len +
 					   sizeof(t_u32));

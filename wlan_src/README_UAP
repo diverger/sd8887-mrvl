@@ -1,7 +1,7 @@
 ===============================================================================
 			U S E R  M A N U A L
 
- Copyright (C) 2009-2016, Marvell International Ltd.
+ Copyright (C) 2009-2018, Marvell International Ltd.
  All Rights Reserved
 
 1) FOR DRIVER BUILD
@@ -9,7 +9,7 @@
 	Goto source code directory wlan_src.
 		make [clean] build
 	The driver binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel up to 3.4.
+	The driver code supports Linux kernel up to 4.14.
 
 2) FOR DRIVER INSTALL
 
@@ -271,6 +271,7 @@ hostcmd <txpwrlimit_cfg.conf> txpwrlimit_5g_cfg_set
 tx_data_pause [ENABLE][TX_BUF_CNT]
 vhtcfg <j> <k> [l] [m] [n] [o]
 dfstesting [<user_cac_pd> <user_nop_pd> <no_chan_change> <fixed_chan_num>]
+cscount [<channel_switch_count>]
 mgmtframectrl [MASK]
 
 -------------------------------------------------------------------
@@ -286,12 +287,13 @@ sys_cfg_scan_channels [CHANNEL[.BAND]]
 sys_cfg_rates [RATES]
 sys_cfg_rates_ext [rates RATES] [mbrate RATE]
 sys_cfg_tx_power [TX_POWER]
-sys_cfg_bcast_ssid_ctl [1|0]
+sys_cfg_bcast_ssid_ctl [0|1|2]
 sys_cfg_preamble_ctl
 sys_cfg_bss_status
 sys_cfg_rts_threshold [RTS_THRESHOLD]
 sys_cfg_frag_threshold [FRAG_THRESHOLD]
 sys_cfg_rsn_replay_prot [1|0]
+sys_cfg_tx_beacon_rate [TX_BEACON_RATE]
 sys_cfg_mcbc_data_rate [MCBC_DATA_RATE]
 sys_cfg_pkt_fwd_ctl [PKT_FWD_CTRL]
 sys_cfg_sta_ageout_timer [STA_AGEOUT_TIMER]
@@ -822,25 +824,33 @@ sys_cfg_tx_power
 
 sys_cfg_bcast_ssid_ctl
 ----------------------
-    "./uaputl.exe sys_cfg_bcast_ssid_ctl [1|0]"
+    "./uaputl.exe sys_cfg_bcast_ssid_ctl [0|1|2]"
 
     This command is used to set or get the SSID broadcast feature setting.
 
     The supported options are:
-        0     - Disable SSID broadcast
+        0     - Disable SSID broadcast, send empty SSID (length=0) in beacon.
         1     - Enable SSID broadcast
+        2     - Disable SSID broadcast, clear SSID (ACSII 0) in beacon, but keep the original length
         empty - Get current SSID broadcast setting
 
     When broadcast SSID is enabled, the AP responds to probe requests from
     client stations that contain null SSID.
 
-    When broadcast SSID is disabled, the AP:
+    When broadcast SSID is disabled (sys_cfg_bcast_ssid_ctl = 0/2), the AP:
         1. Does not respond to probe requests that contain null SSID.
-        2. Generates beacons that contain null SSID.
+        2. when sys_cfg_bcast_ssid_ctl = 0, generates beacons that contain null SSID (length=0).
+        3. when sys_cfg_bcast_ssid_ctl = 2, clear SSID (ACSII 0) in beacon and keep the original length
 
    Example:
+        ./uaputl.exe sys_cfg_bcast_ssid_ctl 0
+                Disable SSID broadcast, send empty SSID (length=0) in beacon.
+
 	./uaputl.exe sys_cfg_bcast_ssid_ctl 1
 		Enable SSID broadcast
+
+        ./uaputl.exe sys_cfg_bcast_ssid_ctl 2
+                Disable SSID broadcast, clear SSID (ACSII 0) in beacon, but keep the original length
 
 	./uaputl.exe sys_cfg_bcast_ssid_ctl
 		Get SSID broadcast setting
@@ -917,6 +927,34 @@ sys_cfg_rsn_replay_prot
 	./uaputl.exe sys_cfg_rsn_replay_prot
 		Get RSN replay protection setting
 
+sys_cfg_tx_beacon_rate
+--------------------
+    "./uaputl.exe sys_cfg_tx_beacon_rate [TX_BEACON_RATE]"
+
+    This command is used to set or get the Tx beacon rate settings.
+
+    The supported options are:
+        0     - Auto rate
+        >0    - Set specified beacon rate
+        empty - Get current beacon rate
+
+    Tx beacon rate is represented in units of 500 kbps. While setting Tx beacon
+    rates, only zero or rates currently configured are allowed.
+
+	Following is the list of supported rates in units of 500 Kbps:
+	    2,    4,    11,   22,   12,   18,   24,   36,   48,   72,   96,   108
+	    0x02, 0x04, 0x0b, 0x16, 0x0C, 0x12, 0x18, 0x24, 0x30, 0x48, 0x60, 0x6c
+
+    Example:
+	./uaputl.exe sys_cfg_tx_beacon_rate 0x04
+		Set AP Tx beacon rate to 2 M
+
+   	./uaputl.exe sys_cfg_tx_beacon_rate 4
+		Set AP Tx data beacon to 2 M
+
+	./uaputl.exe sys_cfg_tx_beacon_rate
+		Get AP Tx beacon rate
+
 sys_cfg_mcbc_data_rate
 ----------------------
     "./uaputl.exe sys_cfg_mcbc_data_rate [MCBC_DATA_RATE]"
@@ -984,7 +1022,7 @@ sys_cfg_sta_ageout_timer
 
     Value of 0 will mean that stations will never be aged out.
 
-    Minimum value for this is 300. Maximum allowed setting should be 864000.
+    Minimum value for this is 100. Maximum allowed setting should be 864000.
 
     If no arguments are given, this command returns the current STA ageout
     value.
@@ -2143,7 +2181,13 @@ httxcfg
 
 	where <m> is <txcfg>
 	This is a bitmap and should be used as following
-		Bit 15-8: Reserved set to 0
+		Bit 15-10: Reserved set to 0
+        Bit 9-8: Rx STBC set to 0x01
+        BIT9 BIT8  Description
+        0    0     No spatial streams
+        0    1     One spatial streams supported
+        1    0     Reserved
+        1    1     Reserved
 		Bit 7: STBC enable/disable
 		Bit 6: Short GI in 40 Mhz enable/disable
 		Bit 5: Short GI in 20 Mhz enable/disable
@@ -2410,6 +2454,23 @@ dfstesting
     ./uaputl.exe dfstesting 2000 0 0 0  : user_cac=2sec, others disabled/default
     ./uaputl.exe dfstesting 0 0 1 0     : only no_chan_change enabled
     ./uaputl.exe dfstesting 0 120 0 64  : user_nop=2min, force chan 64 on radar
+
+cscount
+---------------
+
+  "./uaputl.exe cscount [<channel_switch_count>]"
+
+    This command is used to configure the number of beacons AP sends with channel switch IE, before channel change due to
+    radar detection. If not configured, <channel_switch_count> is set to 5 by default.
+
+    The supported options are:
+        <channel_switch_count>: user configured channel switch count
+                                5-20 = configure with that value
+
+   Example:
+   ./uaputl.exe cscount         : Get user configured channel switch count value
+   ./uaputl.exe cscount 10      : Set channel switch count to 10
+
 
 mgmtframectrl
 -------------

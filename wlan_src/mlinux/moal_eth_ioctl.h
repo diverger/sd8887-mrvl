@@ -1,8 +1,9 @@
+
 /** @file moal_eth_ioctl.h
  *
  * @brief This file contains definition for private IOCTL call.
  *
- * Copyright (C) 2014-2016, Marvell International Ltd.
+ * Copyright (C) 2014-2018, Marvell International Ltd.
  *
  * This software file (the "File") is distributed by Marvell International
  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -67,6 +68,8 @@ Change log:
 #define PRIV_CMD_REJECTADDBAREQ  "rejectaddbareq"
 /** Private command: 11AC Cfg */
 #define PRIV_CMD_VHTCFG     "vhtcfg"
+/** Private command: 11AC Oper Mode Cfg */
+#define PRIV_CMD_OPERMODECFG     "opermodecfg"
 #define PRIV_CMD_DATARATE   "getdatarate"
 #define PRIV_CMD_TXRATECFG  "txratecfg"
 #define PRIV_CMD_GETLOG     "getlog"
@@ -87,6 +90,7 @@ Change log:
 #define PRIV_CMD_GETSCANTABLE   "getscantable"
 #define PRIV_CMD_SETUSERSCAN    "setuserscan"
 #define PRIV_CMD_EXTCAPCFG      "extcapcfg"
+#define PRIV_CMD_CANCELSCAN     "cancelscan"
 #endif
 #define PRIV_CMD_DEEPSLEEP      "deepsleep"
 #define PRIV_CMD_IPADDR         "ipaddr"
@@ -96,6 +100,7 @@ Change log:
 #define PRIV_CMD_TCPACKENH      "tcpackenh"
 #ifdef REASSOCIATION
 #define PRIV_CMD_ASSOCESSID      "assocessid"
+#define PRIV_CMD_ASSOCBSSID      "assocessid_bssid"
 #endif
 #define PRIV_CMD_WAKEUPREASON     "wakeupreason"
 #ifdef STA_SUPPORT
@@ -106,6 +111,7 @@ Change log:
 #endif
 #define PRIV_CMD_HSCFG          "hscfg"
 #define PRIV_CMD_HSSETPARA      "hssetpara"
+#define PRIV_CMD_MGMT_FILTER    "mgmtfilter"
 #define PRIV_CMD_SCANCFG        "scancfg"
 #define PRIV_CMD_SET_BSS_MODE   "setbssmode"
 #ifdef STA_SUPPORT
@@ -120,6 +126,7 @@ Change log:
 #define PRIV_CMD_WARMRESET      "warmreset"
 #define PRIV_CMD_TXPOWERCFG     "txpowercfg"
 #define PRIV_CMD_PSCFG          "pscfg"
+#define PRIV_CMD_BCNTIMEOUTCFG     "bcntimeoutcfg"
 #define PRIV_CMD_SLEEPPD        "sleeppd"
 #define PRIV_CMD_TXCONTROL      "txcontrol"
 #define PRIV_CMD_REGRDWR        "regrdwr"
@@ -138,10 +145,9 @@ Change log:
 #define PRIV_CMD_MAC_CTRL       "macctrl"
 #define PRIV_CMD_GETWAP         "getwap"
 #define PRIV_CMD_REGION_CODE    "regioncode"
+#define PRIV_CMD_CFPINFO        "cfpinfo"
 #define PRIV_CMD_FWMACADDR      "fwmacaddr"
-#if defined(WIFI_DIRECT_SUPPORT)
 #define PRIV_CMD_OFFCHANNEL     "offchannel"
-#endif
 #define PRIV_CMD_DSCP_MAP       "dscpmap"
 /** Private command: Verext */
 #define PRIV_CMD_VEREXT         "verext"
@@ -182,6 +188,10 @@ Change log:
 #define PRIV_CMD_MPA_CTRL           "mpactrl"
 #endif
 #define PRIV_CMD_SLEEP_PARAMS       "sleepparams"
+#define PRIV_CMD_NET_MON            "netmon"
+#if defined(STA_CFG80211) && defined(UAP_CFG80211)
+#define PRIV_CMD_MONITOR_MODE       "monitormode"
+#endif
 #if defined(DFS_TESTING_SUPPORT)
 #define PRIV_CMD_DFS_TESTING        "dfstesting"
 #endif
@@ -195,15 +205,17 @@ Change log:
 #define PRIV_CMD_PORT_CTRL      "port_ctrl"
 #define PRIV_CMD_PB_BYPASS      "pb_bypass"
 #define PRIV_CMD_COALESCE_STATUS    "coalesce_status"
+#define PRIV_CMD_FW_WAKEUP_METHOD   "fwwakeupmethod"
 #define PRIV_CMD_SD_CMD53_RW        "sdcmd53rw"
 #ifdef RX_PACKET_COALESCE
 #define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
 #endif
 #define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
 #define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
+#define PRIV_CMD_DRCS_CFG "mc_cfg_ext"
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(UAP_CFG80211)
-#if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
+#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
 #define PRIV_CMD_CFG_NOA            "cfg_noa"
 #define PRIV_CMD_CFG_OPP_PS         "cfg_opp_ps"
 #endif
@@ -218,15 +230,28 @@ Change log:
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
 #define PRIV_CMD_AUTO_TDLS          "autotdls"
 
+#define PRIV_CMD_GET_SENSOR_TEMP        "get_sensor_temp"
+
 #if defined(UAP_SUPPORT)
 #define PRIV_CMD_EXTEND_CHAN_SWITCH        "channel_switch"
 #endif
 
 #define PRIV_CMD_TDLS_IDLE_TIME          "tdls_idle_time"
 
+#define PRIV_CMD_DYN_BW          "dyn_bw"
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#define PRIV_CMD_DFS_OFFLOAD            "dfs_offload"
+#endif
+
 #if defined(SDIO_SUSPEND_RESUME)
 #define PRIV_CMD_AUTO_ARP	"auto_arp"
 #endif
+
+#define PRIV_CMD_DEAUTH_CTRL    "ctrldeauth"
+
+/**Private command ID to set/get independent reset*/
+#define PRIV_CMD_IND_RST_CFG            "indrstcfg"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD        (SIOCDEVPRIVATE + 1)
@@ -245,6 +270,11 @@ Change log:
 
 /** Private command ID to get BSS type */
 #define WOAL_GET_BSS_TYPE           (SIOCDEVPRIVATE + 15)
+
+/** Private command ID for robustcoex */
+#define PRIV_CMD_ROBUSTCOEX           "robustcoex"
+
+#define PRIV_CMD_BOOTSLEEP            "bootsleep"
 
 int woal_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 
@@ -295,7 +325,7 @@ typedef struct _android_wifi_priv_cmd {
 #define MW_MODE_MESH    7	/* Mesh (IEEE 802.11s) network */
 
 #define MW_POWER_TYPE       0xF000	/* Type of parameter */
-#define MW_POWER_PERIOD     0x1000	/* Value is a period/duration of */
+#define MW_POWER_PERIOD     0x1000	/* Value is a period/duration of  */
 #define MW_POWER_TIMEOUT    0x2000	/* Value is a timeout (to go asleep) */
 
 #define MW_AUTH_INDEX       0x0FFF
@@ -338,7 +368,7 @@ struct mw_param {
  *  pointer to memory allocated in user space.
  */
 struct mw_point {
-	t_u8 *pointer;		/* Pointer to the data (in user space) */
+	t_u8 *pointer;		/* Pointer to the data  (in user space) */
 	t_u16 length;		/* number of fields or size in bytes */
 	t_u16 flags;		/* Optional params */
 };
@@ -420,6 +450,8 @@ typedef struct woal_priv_esuppmode_cfg {
 } woal_esuppmode_cfg;
 
 mlan_status woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len);
+mlan_status woal_ioctl_aggr_prio_tbl(moal_private *priv, t_u32 action,
+				     mlan_ds_11n_aggr_prio_tbl *aggr_prio_tbl);
 
 int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req);
 

@@ -2,7 +2,7 @@
   *
   * @brief This file contains mbtchar driver specific defines etc
   *
-  * Copyright (C) 2010-2016, Marvell International Ltd.
+  * Copyright (C) 2010-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -27,6 +27,9 @@
 /** Define ioctl */
 #define MBTCHAR_IOCTL_RELEASE       _IO('M', 1)
 #define MBTCHAR_IOCTL_QUERY_TYPE    _IO('M', 2)
+#ifdef BLE_WAKEUP
+#define MBTCHAR_IOCTL_BLE_WAKEUP_PARAM _IO('M', 4)
+#endif
 
 #define MBTCHAR_MAJOR_NUM            (0)
 

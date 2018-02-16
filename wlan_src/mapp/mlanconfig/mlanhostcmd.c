@@ -2,7 +2,7 @@
   *
   * @brief This file contains mlanconfig helper functions
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -486,33 +486,7 @@ process_host_cmd_resp(t_u8 *buf)
 					le16_to_cpu((t_u16)
 						    *(buf + S_DS_GEN +
 						      sizeof(t_u16)));
-				if (alg != CIPHER_TEST_AES_CCM) {
-					HostCmd_DS_802_11_CRYPTO *cmd =
-						(HostCmd_DS_802_11_CRYPTO *)(buf
-									     +
-									     S_DS_GEN);
-					cmd->encdec = le16_to_cpu(cmd->encdec);
-					cmd->algorithm =
-						le16_to_cpu(cmd->algorithm);
-					cmd->key_IV_length =
-						le16_to_cpu(cmd->key_IV_length);
-					cmd->key_length =
-						le16_to_cpu(cmd->key_length);
-					cmd->data.header.type =
-						le16_to_cpu(cmd->data.header.
-							    type);
-					cmd->data.header.len =
-						le16_to_cpu(cmd->data.header.
-							    len);
-
-					printf("crypto_result: encdec=%d algorithm=%d,KeyIVLen=%d," " KeyLen=%d,dataLen=%d\n", cmd->encdec, cmd->algorithm, cmd->key_IV_length, cmd->key_length, cmd->data.header.len);
-					hexdump("KeyIV", cmd->keyIV,
-						cmd->key_IV_length, ' ');
-					hexdump("Key", cmd->key,
-						cmd->key_length, ' ');
-					hexdump("Data", cmd->data.data,
-						cmd->data.header.len, ' ');
-				} else {
+				if (alg == CIPHER_TEST_AES_CCM) {
 					HostCmd_DS_802_11_CRYPTO_AES_CCM
 						*cmd_aes_ccm =
 						(HostCmd_DS_802_11_CRYPTO_AES_CCM
@@ -552,6 +526,62 @@ process_host_cmd_resp(t_u8 *buf)
 					hexdump("Data", cmd_aes_ccm->data.data,
 						cmd_aes_ccm->data.header.len,
 						' ');
+				} else if (alg == CIPHER_TEST_WAPI) {
+					HostCmd_DS_802_11_CRYPTO_WAPI *cmd_wapi
+						=
+						(HostCmd_DS_802_11_CRYPTO_WAPI
+						 *) (buf + S_DS_GEN);
+
+					cmd_wapi->encdec
+						= le16_to_cpu(cmd_wapi->encdec);
+					cmd_wapi->algorithm
+						=
+						le16_to_cpu(cmd_wapi->
+							    algorithm);
+					cmd_wapi->key_length =
+						le16_to_cpu(cmd_wapi->
+							    key_length);
+					cmd_wapi->nonce_length =
+						le16_to_cpu(cmd_wapi->
+							    nonce_length);
+					cmd_wapi->AAD_length =
+						le16_to_cpu(cmd_wapi->
+							    AAD_length);
+
+					printf("crypto_result: encdec=%d algorithm=%d, KeyLen=%d," " NonceLen=%d,AADLen=%d,dataLen=%d\n", cmd_wapi->encdec, cmd_wapi->algorithm, cmd_wapi->key_length, cmd_wapi->nonce_length, cmd_wapi->AAD_length, cmd_wapi->data_length);
+
+					hexdump("Key", cmd_wapi->key,
+						cmd_wapi->key_length, ' ');
+					hexdump("Nonce", cmd_wapi->nonce,
+						cmd_wapi->nonce_length, ' ');
+					hexdump("AAD", cmd_wapi->AAD,
+						cmd_wapi->AAD_length, ' ');
+				} else {
+					HostCmd_DS_802_11_CRYPTO *cmd =
+						(HostCmd_DS_802_11_CRYPTO *)(buf
+									     +
+									     S_DS_GEN);
+					cmd->encdec = le16_to_cpu(cmd->encdec);
+					cmd->algorithm =
+						le16_to_cpu(cmd->algorithm);
+					cmd->key_IV_length =
+						le16_to_cpu(cmd->key_IV_length);
+					cmd->key_length =
+						le16_to_cpu(cmd->key_length);
+					cmd->data.header.type =
+						le16_to_cpu(cmd->data.header.
+							    type);
+					cmd->data.header.len =
+						le16_to_cpu(cmd->data.header.
+							    len);
+
+					printf("crypto_result: encdec=%d algorithm=%d,KeyIVLen=%d," " KeyLen=%d,dataLen=%d\n", cmd->encdec, cmd->algorithm, cmd->key_IV_length, cmd->key_length, cmd->data.header.len);
+					hexdump("KeyIV", cmd->keyIV,
+						cmd->key_IV_length, ' ');
+					hexdump("Key", cmd->key,
+						cmd->key_length, ' ');
+					hexdump("Data", cmd->data.data,
+						cmd->data.header.len, ' ');
 				}
 				break;
 			}

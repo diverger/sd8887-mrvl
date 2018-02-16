@@ -2,7 +2,7 @@
   *
   * @brief This file handle the functions for proc files
   *
-  * Copyright (C) 2007-2016, Marvell International Ltd.
+  * Copyright (C) 2007-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -37,9 +37,9 @@
 static struct proc_dir_entry *proc_mbt;
 
 #define     CMD52_STR_LEN   50
-static bt_private *bpriv;
 static char cmd52_string[CMD52_STR_LEN];
 
+/** proc data structure */
 struct proc_data {
 	/** Read length */
 	int rdlen;
@@ -51,6 +51,8 @@ struct proc_data {
 	int maxwrlen;
 	/** Write buffer */
 	char *wrbuf;
+	/** Private structure */
+	struct _bt_private *pbt;
 	void (*on_close) (struct inode *, struct file *);
 };
 
@@ -323,6 +325,8 @@ proc_write(struct file *file,
 	loff_t pos = *offset;
 	struct proc_data *pdata = (struct proc_data *)file->private_data;
 	int func = 0, reg = 0, val = 0;
+	int config_data = 0;
+	char *line = NULL;
 
 	if (!pdata->wrbuf || (pos < 0))
 		return -EINVAL;
@@ -332,18 +336,26 @@ proc_write(struct file *file,
 		len = pdata->maxwrlen - pos;
 	if (copy_from_user(pdata->wrbuf + pos, buffer, len))
 		return -EFAULT;
-	if (!strncmp(buffer, "sdcmd52rw=", strlen("sdcmd52rw="))) {
-		parse_cmd52_string(buffer, len, &func, &reg, &val);
-		sd_write_cmd52_val(bpriv, func, reg, val);
+	if (!strncmp(pdata->wrbuf + pos, "fw_reload", strlen("fw_reload"))) {
+		if (!strncmp
+		    (pdata->wrbuf + pos, "fw_reload=", strlen("fw_reload="))) {
+			line = pdata->wrbuf + pos;
+			line += strlen("fw_reload") + 1;
+			config_data = string_to_number(line);
+		} else
+			config_data = FW_RELOAD_SDIO_INBAND_RESET;
+		PRINTM(MSG, "Request fw_reload=%d\n", config_data);
+		bt_request_fw_reload(pdata->pbt, config_data);
 	}
-	if (!strncmp(buffer, "debug_dump", strlen("debug_dump"))) {
-		bt_dump_sdio_regs(bpriv);
-		bt_dump_firmware_info_v2(bpriv);
+	if (!strncmp(pdata->wrbuf + pos, "sdcmd52rw=", strlen("sdcmd52rw="))) {
+		parse_cmd52_string(pdata->wrbuf + pos, len, &func, &reg, &val);
+		sd_write_cmd52_val(pdata->pbt, func, reg, val);
 	}
-	if (!strncmp(buffer, "fw_reload", strlen("fw_reload"))) {
-		PRINTM(MSG, "Request fw_reload...\n");
-		bt_request_fw_reload(bpriv);
+	if (!strncmp(pdata->wrbuf + pos, "debug_dump", strlen("debug_dump"))) {
+		bt_dump_sdio_regs(pdata->pbt);
+		bt_dump_firmware_info_v2(pdata->pbt);
 	}
+
 	if (pos + len > pdata->wrlen)
 		pdata->wrlen = len + file->f_pos;
 	*offset = pos + len;
@@ -433,6 +445,7 @@ proc_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 	}
 	pdata = (struct proc_data *)file->private_data;
+	pdata->pbt = priv->pbt;
 	pdata->rdbuf = kmalloc(priv->bufsize, GFP_KERNEL);
 	if (pdata->rdbuf == NULL) {
 		PRINTM(ERROR, "BT: Can not alloc mem for rdbuf\n");
@@ -467,8 +480,8 @@ proc_open(struct inode *inode, struct file *file)
 			if (!strncmp
 			    (priv->pdata[i].name, "sdcmd52rw",
 			     strlen("sdcmd52rw"))) {
-				sd_read_cmd52_val(bpriv);
-				form_cmd52_string(bpriv);
+				sd_read_cmd52_val(priv->pbt);
+				form_cmd52_string(priv->pbt);
 			}
 			p += sprintf(p, "%s=%s\n", priv->pdata[i].name,
 				     (char *)priv->pdata[i].addr);
@@ -479,12 +492,14 @@ proc_open(struct inode *inode, struct file *file)
 	return BT_STATUS_SUCCESS;
 }
 
+/** Proc read ops */
 static const struct file_operations proc_read_ops = {
 	.read = proc_read,
 	.open = proc_open,
 	.release = proc_close
 };
 
+/** Proc Read-Write ops */
 static const struct file_operations proc_rw_ops = {
 	.read = proc_read,
 	.write = proc_write,
@@ -609,6 +624,14 @@ bt_histogram_read(struct seq_file *sfp, void *data)
 	return 0;
 }
 
+/**
+ *  @brief Proc open function for histogram
+ *
+ *  @param inode     A pointer to inode structure
+ *  @param file		 A pointer to file structure
+ *
+ *  @return        Number of output data or MLAN_STATUS_FAILURE
+ */
 static int
 bt_histogram_proc_open(struct inode *inode, struct file *file)
 {
@@ -619,6 +642,7 @@ bt_histogram_proc_open(struct inode *inode, struct file *file)
 #endif
 }
 
+/** Histogram proc fops */
 static const struct file_operations histogram_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = bt_histogram_proc_open,
@@ -645,7 +669,6 @@ bt_proc_init(bt_private *priv, struct m_dev *m_dev, int seq)
 	char hist_entry[50];
 	ENTER();
 
-	bpriv = priv;
 	memset(cmd52_string, 0, CMD52_STR_LEN);
 	if (proc_mbt) {
 		priv->dev_proc[seq].proc_entry =

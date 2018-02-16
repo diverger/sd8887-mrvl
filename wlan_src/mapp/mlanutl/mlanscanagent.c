@@ -4,7 +4,7 @@
   *
   * Usage: mlanutl mlanX scanagent [...]
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -598,9 +598,12 @@ scanagent_exec_scan(int argc, char *argv[])
 		} else if (strncmp(argv[arg_idx], "type=", strlen("type=")) ==
 			   0) {
 			/*
-			   if (strcmp(argv[arg_idx] + strlen("type="), "prof")
-			   == 0) { scan_exec->scan_type = CONFIG_PROFILE; }
-			   else { scan_exec->scan_type = CONFIG_SITE_SURVEY; } */
+			   if (strcmp(argv[arg_idx] + strlen("type="), "prof") == 0) {
+			   scan_exec->scan_type = CONFIG_PROFILE;
+			   } else {
+			   scan_exec->scan_type = CONFIG_SITE_SURVEY;
+			   }
+			 */
 			scan_exec->scan_type = CONFIG_SITE_SURVEY;
 			scan_exec->scan_type =
 				cpu_to_le16(scan_exec->scan_type);

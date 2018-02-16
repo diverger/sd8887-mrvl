@@ -1,5 +1,5 @@
 # File: Makefile
-# Copyright (C) 2007-2016, Marvell International Ltd.
+# Copyright (C) 2007-2018, Marvell International Ltd.
 #
 
 CC=		$(CROSS_COMPILE)gcc
@@ -18,6 +18,7 @@ YMD=		`date +%Y%m%d%H%M`
 # 1: PRINTM(MSG,...), PRINTM(FATAL,...), PRINTM(WARN,...) and PRINTM(INFO,...)
 # 2: All PRINTM()
 CONFIG_DEBUG=1
+
 
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
@@ -43,6 +44,7 @@ endif
 ifeq ($(CONFIG_BLE_WAKEUP), y)
         EXTRA_CFLAGS += -DBLE_WAKEUP
 endif
+
 
 
 
@@ -83,7 +85,6 @@ INSTALLDIR ?= /tftpboot/pxa3xx/root
 # Default values of ARCH for specific platform are set below.
 ARCH ?= arm
 
-
 EXTRA_CFLAGS += -I$(KERNELDIR)/include
 
 EXTRA_CFLAGS += -I$(M)/bt
@@ -122,9 +123,13 @@ BTOBJS = bt/bt_main.o bt/bt_sdiommc.o bt/bt_proc.o bt/mbt_char.o
 
 BTOBJS += bt/bt_init.o
 
+ifeq ($(CONFIG_MULTI_INTERFACE), y)
+obj-m := bt8xxx_sdio.o
+bt8xxx_sdio-objs := $(BTOBJS)
+else
 obj-m := bt8xxx.o
 bt8xxx-objs := $(BTOBJS)
-
+endif
 
 
 # Otherwise we were called directly from the command line; invoke the kernel build system.
@@ -154,6 +159,8 @@ build:		echo default
 	cp -r config $(BINDIR)
 
 
+
+
 	cp -f README $(BINDIR)
 
 	$(MAKE) -C app/fm_app $@ INSTALLDIR=$(BINDIR);
@@ -166,6 +173,8 @@ clean:
 	-find . -name "*.mod.c" -exec rm {} \;
 	-find . -name "*.symvers" -exec rm {} \;
 	-find . -name "modules.order" -exec rm {} \;
+	-find . -name ".*.dwo" -exec rm {} \;
+	-find . -name "*dwo" -exec rm {} \;
 	-rm -rf .tmp_versions
 	$(MAKE) -C app/fm_app $@
 
@@ -184,6 +193,8 @@ distclean:
 	-find . -name "*.ko" -exec rm {} \;
 	-find . -name ".*.cmd" -exec rm {} \;
 	-find . -name "*.mod.c" -exec rm {} \;
+	-find . -name ".*.dwo" -exec rm {} \;
+	-find . -name "*dwo" -exec rm {} \;
 	-rm -rf .tmp_versions
 	$(MAKE) -C app/fm_app $@
 # End of file;

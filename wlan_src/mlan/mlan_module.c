@@ -2,7 +2,7 @@
  *
  *  @brief This file declares the exported symbols from MLAN.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -46,6 +46,9 @@ EXPORT_SYMBOL(mlan_main_process);
 EXPORT_SYMBOL(mlan_rx_process);
 EXPORT_SYMBOL(mlan_select_wmm_queue);
 EXPORT_SYMBOL(mlan_interrupt);
+#if defined(SYSKT)
+EXPORT_SYMBOL(mlan_hs_callback);
+#endif /* SYSKT_MULTI || SYSKT */
 
 EXPORT_SYMBOL(mlan_pm_wakeup_card);
 EXPORT_SYMBOL(mlan_is_main_process_running);

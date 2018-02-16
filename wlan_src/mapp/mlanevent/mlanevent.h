@@ -2,7 +2,7 @@
  *
  *  @brief Header file for mlanevent application
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -308,17 +308,6 @@ typedef PACK_START struct _event_header {
 /** WEP key user input length */
 #define WEP_KEY_USER_INPUT           13
 
-/** Band config ACS mode */
-#define BAND_CONFIG_ACS_MODE    0x40
-/** Band Config 2.4GHz */
-#define BAND_CONFIG_2_4GHZ      0x00
-/** Band config 5GHz */
-#define BAND_CONFIG_5GHZ        0x01
-/** secondary channel is below */
-#define SECOND_CHANNEL_BELOW    0x30
-/** secondary channel is above */
-#define SECOND_CHANNEL_ABOVE    0x10
-
 /** TLV buffer header*/
 typedef PACK_START struct _tlvbuf_header {
     /** Header type */
@@ -509,22 +498,67 @@ typedef PACK_START struct _IEEEtypes_ReAssocRqst_t {
 	t_u8 ie_buffer[0];
 } PACK_END IEEEtypes_ReAssocRqst_t;
 
+/** channel band */
+enum {
+	BAND_2GHZ = 0,
+	BAND_5GHZ = 1,
+	BAND_4GHZ = 2,
+};
+
+/** channel offset */
+enum {
+	SEC_CHAN_NONE = 0,
+	SEC_CHAN_ABOVE = 1,
+	SEC_CHAN_5MHZ = 2,
+	SEC_CHAN_BELOW = 3
+};
+
+/** channel bandwidth */
+enum {
+	CHAN_BW_20MHZ = 0,
+	CHAN_BW_10MHZ,
+	CHAN_BW_40MHZ,
+	CHAN_BW_80MHZ,
+};
+
+/** scan mode */
+enum {
+	SCAN_MODE_MANUAL = 0,
+	SCAN_MODE_ACS,
+	SCAN_MODE_USER,
+};
+
+/** Band_Config_t */
+typedef PACK_START struct _Band_Config_t {
+#ifdef BIG_ENDIAN_SUPPORT
+    /** Channel Selection Mode - (00)=manual, (01)=ACS,  (02)=user*/
+	t_u8 scanMode:2;
+    /** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
+	t_u8 chan2Offset:2;
+    /** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	t_u8 chanWidth:2;
+    /** Band Info - (00)=2.4GHz, (01)=5GHz */
+	t_u8 chanBand:2;
+#else
+    /** Band Info - (00)=2.4GHz, (01)=5GHz */
+	t_u8 chanBand:2;
+    /** Channel Width - (00)=20MHz, (10)=40MHz, (11)=80MHz */
+	t_u8 chanWidth:2;
+    /** Secondary Channel Offset - (00)=None, (01)=Above, (11)=Below */
+	t_u8 chan2Offset:2;
+    /** Channel Selection Mode - (00)=manual, (01)=ACS, (02)=Adoption mode*/
+	t_u8 scanMode:2;
+#endif
+} PACK_END Band_Config_t;
+
 /** TLV buffer : Channel Config */
 typedef PACK_START struct _tlvbuf_channel_config {
     /** Type */
 	t_u16 type;
     /** Length */
 	t_u16 len;
-    /** Band Configuration
-      *
-      * [7-6] Channel Selection Mode; 00 manual, 01 ACS
-      * [5-4] 00 - no secondary channel,
-      *       01 -- secondary channel is above
-      *       03 -- secondary channel is below
-      * [3-2] Channel Width; 00 20 MHz
-      * [1-0] Band Info; 00 2.4 GHz
-      */
-	t_u8 band_config_type;
+    /** Band Configuration */
+	Band_Config_t bandcfg;
     /** Channel number */
 	t_u8 chan_number;
 } PACK_END tlvbuf_channel_config;
@@ -1355,6 +1389,22 @@ typedef PACK_START struct _eventbuf_debug {
 } PACK_END eventbuf_debug;
 
 int ishexstring(void *hex);
-inline int ISDIGIT(char *x);
 unsigned int a2hex(char *s);
+/**
+ *    @brief isdigit for String.
+ *
+ *    @param x            Char string
+ *    @return             MLAN_EVENT_FAILURE for non-digit.
+ *                        0 for digit
+ */
+static inline int
+ISDIGIT(char *x)
+{
+	unsigned int i;
+	for (i = 0; i < strlen(x); i++)
+		if (isdigit(x[i]) == 0)
+			return MLAN_EVENT_FAILURE;
+	return 0;
+}
+
 #endif /* _MLAN_EVENT_H */

@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of RxReordering in wlan
  *  driver.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -806,7 +806,7 @@ mlan_11n_rxreorder_pkt(void *priv, t_u16 seq_num, t_u16 tid,
 
 	rx_reor_tbl_ptr =
 		wlan_11n_get_rxreorder_tbl((mlan_private *)priv, tid, ta);
-	if (!rx_reor_tbl_ptr) {
+	if (!rx_reor_tbl_ptr || rx_reor_tbl_ptr->win_size <= 1) {
 		if (pkt_type != PKT_TYPE_BAR)
 			wlan_11n_dispatch_pkt(priv, payload);
 
@@ -1048,12 +1048,14 @@ done:
  *  @param peer_mac     MAC address to send delba
  *  @param type         TYPE_DELBA_SENT	or TYPE_DELBA_RECEIVE
  *  @param initiator    MTRUE if we are initiator of ADDBA, MFALSE otherwise
+ *  @param reason_code  delete ba reason
  *
  *  @return             N/A
  */
 void
 mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
-			     t_u8 *peer_mac, t_u8 type, int initiator)
+			     t_u8 *peer_mac, t_u8 type, int initiator,
+			     t_u16 reason_code)
 {
 	RxReorderTbl *rx_reor_tbl_ptr;
 	TxBAStreamTbl *ptxtbl;
@@ -1069,7 +1071,8 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 		cleanup_rx_reorder_tbl = (initiator) ? MFALSE : MTRUE;
 
 	PRINTM(MEVENT, "delete_bastream_tbl: " MACSTR " tid=%d, type=%d"
-	       "initiator=%d\n", MAC2STR(peer_mac), tid, type, initiator);
+	       "initiator=%d reason=%d\n", MAC2STR(peer_mac), tid, type,
+	       initiator, reason_code);
 
 	if (cleanup_rx_reorder_tbl) {
 		rx_reor_tbl_ptr =
@@ -1081,19 +1084,33 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 		}
 		wlan_11n_delete_rxreorder_tbl_entry(priv, rx_reor_tbl_ptr);
 	} else {
-		ptxtbl = wlan_11n_get_txbastream_tbl(priv, tid, peer_mac);
+		wlan_request_ralist_lock(priv);
+		ptxtbl = wlan_11n_get_txbastream_tbl(priv, tid, peer_mac,
+						     MFALSE);
 		if (!ptxtbl) {
 			PRINTM(MWARN, "TID, RA not found in table!\n");
+			wlan_release_ralist_lock(priv);
 			LEAVE();
 			return;
 		}
+		wlan_11n_delete_txbastream_tbl_entry(priv, ptxtbl);
+		wlan_release_ralist_lock(priv);
 		tid_down = wlan_get_wmm_tid_down(priv, tid);
 		ra_list = wlan_wmm_get_ralist_node(priv, tid_down, peer_mac);
 		if (ra_list) {
 			ra_list->amsdu_in_ampdu = MFALSE;
 			ra_list->ba_status = BA_STREAM_NOT_SETUP;
+			if (type == TYPE_DELBA_RECEIVE) {
+				if (reason_code == REASON_CODE_STA_TIMEOUT)
+					ra_list->del_ba_count = 0;
+				else
+					ra_list->del_ba_count++;
+				ra_list->packet_count = 0;
+				ra_list->ba_packet_threshold =
+					wlan_get_random_ba_threshold(priv->
+								     adapter);
+			}
 		}
-		wlan_11n_delete_txbastream_tbl_entry(priv, ptxtbl);
 	}
 
 	LEAVE();
@@ -1127,8 +1144,9 @@ wlan_ret_11n_addba_resp(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 
 	tid = (padd_ba_rsp->block_ack_param_set & BLOCKACKPARAM_TID_MASK)
 		>> BLOCKACKPARAM_TID_POS;
-	/* Check if we had rejected the ADDBA, if yes then do not create the
-	   stream */
+	/* Check  if we had rejected the ADDBA, if yes then do not create the
+	 * stream
+	 */
 	if (padd_ba_rsp->status_code == BA_RESULT_SUCCESS) {
 		PRINTM(MCMND,
 		       "ADDBA RSP: " MACSTR
@@ -1494,27 +1512,8 @@ wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 #endif
 
 			} else {
-#ifdef STA_SUPPORT
-				if (priv->bss_type == MLAN_BSS_TYPE_STA)
-					priv->add_ba_param.rx_win_size =
-						MLAN_STA_AMPDU_DEF_RXWINSIZE;
-#endif
-#ifdef WIFI_DIRECT_SUPPORT
-				if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
-					priv->add_ba_param.rx_win_size =
-						pmadapter->psdio_device->
-						ampdu_info->
-						ampdu_wfd_txrxwinsize;
-#endif
-				if (priv->bss_type == MLAN_BSS_TYPE_NAN)
-					priv->add_ba_param.rx_win_size =
-						MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
-#ifdef UAP_SUPPORT
-				if (priv->bss_type == MLAN_BSS_TYPE_UAP)
-					priv->add_ba_param.rx_win_size =
-						pmadapter->psdio_device->
-						ampdu_info->ampdu_uap_rxwinsize;
-#endif
+				priv->add_ba_param.rx_win_size =
+					priv->user_rxwinsize;
 			}
 			if (pmadapter->coex_win_size &&
 			    pmadapter->coex_rx_win_size)
@@ -1536,7 +1535,7 @@ wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 }
 
 /**
- *  @brief check coex for
+ *  @brief This function updates ampdu rx_win_size
  *
  *  @param pmadapter    A pointer to mlan_adapter
  *

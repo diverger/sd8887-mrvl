@@ -2,7 +2,7 @@
   *
   * @brief This file contains the char device function calls
   *
-  * Copyright (C) 2010-2016, Marvell International Ltd.
+  * Copyright (C) 2010-2018, Marvell International Ltd.
   *
   * This software file (the "File") is distributed by Marvell International
   * Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -24,6 +24,9 @@
 #include <linux/mount.h>
 
 #include "bt_drv.h"
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
 #include "mbt_char.h"
 
 static LIST_HEAD(char_dev_list);
@@ -32,6 +35,13 @@ static DEFINE_SPINLOCK(char_dev_list_lock);
 
 static int mbtchar_major = MBTCHAR_MAJOR_NUM;
 
+/**
+ *	@brief  Gets char device structure
+ *
+ *	@param dev		A pointer to char_dev
+ *
+ *	@return			kobject structure
+ */
 struct kobject *
 chardev_get(struct char_dev *dev)
 {
@@ -47,6 +57,13 @@ chardev_get(struct char_dev *dev)
 	return kobj;
 }
 
+/**
+ *	@brief  Prints char device structure
+ *
+ *	@param dev		A pointer to char_dev
+ *
+ *	@return			N/A
+ */
 void
 chardev_put(struct char_dev *dev)
 {
@@ -88,7 +105,11 @@ mbtchar_chmod(char *name, mode_t mode)
 	} while (ret);
 	inode = path.dentry->d_inode;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_lock(&inode->i_mutex);
+#else
+	inode_lock(inode);
+#endif
 	ret = mnt_want_write(path.mnt);
 	if (ret)
 		goto out_unlock;
@@ -103,14 +124,22 @@ mbtchar_chmod(char *name, mode_t mode)
 		ret = inode_setattr(inode, &newattrs);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 
 	path_put(&path);
 	LEAVE();
 	return ret;
 out_unlock:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 	path_put(&path);
 	return ret;
@@ -145,7 +174,11 @@ mbtchar_chown(char *name, uid_t user, gid_t group)
 		}
 	} while (ret);
 	inode = path.dentry->d_inode;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_lock(&inode->i_mutex);
+#else
+	inode_lock(inode);
+#endif
 	ret = mnt_want_write(path.mnt);
 	if (ret)
 		goto out_unlock;
@@ -178,14 +211,22 @@ mbtchar_chown(char *name, uid_t user, gid_t group)
 		ret = inode_setattr(inode, &newattrs);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 
 	path_put(&path);
 	LEAVE();
 	return ret;
 out_unlock:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 	path_put(&path);
 	return ret;
@@ -500,7 +541,7 @@ chardev_open(struct inode *inode, struct file *filp)
 	m_dev = dev->m_dev;
 	mdev_req_lock(m_dev);
 	if (test_bit(HCI_UP, &m_dev->flags)) {
-		ret = -EALREADY;
+		atomic_inc(&m_dev->extra_cnt);
 		goto done;
 	}
 	if (m_dev->open(m_dev)) {
@@ -536,6 +577,10 @@ chardev_release(struct inode *inode, struct file *filp)
 		return -ENXIO;
 	}
 	m_dev = dev->m_dev;
+	if (m_dev && (atomic_dec_if_positive(&m_dev->extra_cnt) >= 0)) {
+		LEAVE();
+		return ret;
+	}
 	if (m_dev)
 		ret = dev->m_dev->close(dev->m_dev);
 	filp->private_data = NULL;

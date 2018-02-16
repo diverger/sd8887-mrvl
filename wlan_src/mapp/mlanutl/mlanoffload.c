@@ -2,7 +2,7 @@
  *
  * @brief This files contains mlanutl offload command handling.
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -545,8 +545,7 @@ profile_read_download(char *filename)
 				tempc = cpu_to_le16(TLV_TYPE_WEP_KEY);
 				memcpy((pos + cmd_len), &tempc, sizeof(t_u16));
 				cmd_len += 2;
-				/* wep_key_len + sizeof(keyIndex) +
-				   sizeof(IsDefault) */
+				/* wep_key_len + sizeof(keyIndex) + sizeof(IsDefault) */
 				tempc = cpu_to_le16(p_head->wep_key_len[i] + 1 +
 						    1);
 				memcpy((pos + cmd_len), &tempc, sizeof(t_u16));
@@ -1137,8 +1136,9 @@ process_chanrpt(int argc, char *argv[])
 		goto done;
 	}
 
-	/* TSF is a t_u64, some formatted printing libs have trouble printing
-	   long longs, so cast and dump as bytes */
+	/* TSF is a t_u64, some formatted printing libs have
+	 *   trouble printing long longs, so cast and dump as bytes
+	 */
 	pByte = (t_u8 *)&pChanRptRsp->startTsf;
 
 	printf("\n");
@@ -2510,100 +2510,6 @@ process_txpowdisp(int argc, char *argv[])
 
 		process_chantrpcdisp(ratePower[20].rate,
 				     ratePower[rates - 1].rate);
-	}
-
-	puts("\n");
-
-done:
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-	return ret;
-}
-
-/**
- *  @brief Issue a tsf command
- *
- *  @param argc     number of arguments
- *  @param argv     A pointer to arguments array
- *
- *  @return         MLAN_STATUS_SUCCESS--success, otherwise--fail
- */
-int
-process_tsf(int argc, char *argv[])
-{
-	int ret = MLAN_STATUS_SUCCESS;
-	int x;
-	struct ifreq ifr;
-	t_u8 *buffer = NULL, *pos = NULL;
-	t_u32 cmd_len = 0, cmd_header_len;
-	struct eth_priv_cmd *cmd = NULL;
-	HostCmd_DS_GEN *hostcmd;
-
-	cmd_header_len = strlen(CMD_MARVELL) + strlen(HOSTCMD);
-
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (buffer == NULL) {
-		fprintf(stderr, "Cannot alloc memory\n");
-		ret = ENOMEM;
-		goto done;
-	}
-	memset(buffer, 0, BUFFER_LENGTH);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = ENOMEM;
-		goto done;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* buffer = MRVL_CMD<cmd> */
-	strncpy((char *)buffer, CMD_MARVELL, strlen(CMD_MARVELL));
-	strncpy((char *)buffer + strlen(CMD_MARVELL), HOSTCMD, strlen(HOSTCMD));
-
-	/* buffer = MRVL_CMD<cmd><hostcmd_size><HostCmd_DS_GEN><CMD_DS> */
-	hostcmd = (HostCmd_DS_GEN *)(buffer + cmd_header_len + sizeof(t_u32));
-
-	/* Point after host command header */
-	pos = (t_u8 *)hostcmd + S_DS_GEN;
-
-	cmd_len = S_DS_GEN + sizeof(t_u64);
-
-	hostcmd->command = cpu_to_le16(HostCmd_CMD_GET_TSF);
-	hostcmd->size = cpu_to_le16(cmd_len);
-	hostcmd->seq_num = 0;
-	hostcmd->result = 0;
-
-	/* Put buffer length */
-	memcpy(buffer + cmd_header_len, &cmd_len, sizeof(t_u32));
-
-	/* Initialize the ifr structure */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-	/* Perform ioctl */
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("ioctl[hostcmd]");
-		printf("ERR:Command sending failed!\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	printf("TSF=");
-
-	for (x = 7; x >= 0; x--) {
-		printf("%02x", pos[x]);
 	}
 
 	puts("\n");

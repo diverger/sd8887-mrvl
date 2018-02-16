@@ -6,7 +6,7 @@
  *   Usage: uaputl.exe [-option params]
  *   or		uaputl.exe [command] [params]
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -141,10 +141,9 @@ is_protocol_valid(int protocol)
 /**
  *  @brief Function to check valid rate
  *
- *
  *  @param  rate    Rate to verify
  *
- *  return 	    UAP_SUCCESS or UAP_FAILURE
+ *  @return 	    UAP_SUCCESS or UAP_FAILURE
  **/
 int
 is_rate_valid(int rate)
@@ -169,30 +168,6 @@ is_rate_valid(int rate)
 		break;
 	}
 	return ret;
-}
-
-/**
- *  @brief  Detects duplicates rate in array of strings
- *          Note that 0x82 and 0x2 are same for rate
- *
- *  @param  argc    Number of elements
- *  @param  argv    Array of strings
- *  @return UAP_FAILURE or UAP_SUCCESS
- */
-inline int
-has_dup_rate(int argc, char *argv[])
-{
-	int i, j;
-	/* Check for duplicate */
-	for (i = 0; i < (argc - 1); i++) {
-		for (j = i + 1; j < argc; j++) {
-			if ((A2HEXDECIMAL(argv[i]) & ~BASIC_RATE_SET_BIT) ==
-			    (A2HEXDECIMAL(argv[j]) & ~BASIC_RATE_SET_BIT)) {
-				return UAP_FAILURE;
-			}
-		}
-	}
-	return UAP_SUCCESS;
 }
 
 /**
@@ -279,61 +254,6 @@ check_mandatory_rates(int argc, char **argv)
 		printf("OFDM Rates 12, 24 and 48 ( 500Kb units)\n"
 		       "must be present in basic or non-basic rates\n");
 		return UAP_FAILURE;
-	}
-	return UAP_SUCCESS;
-}
-
-/**
- *  @brief  Detects duplicates channel in array of strings
- *
- *  @param  argc    Number of elements
- *  @param  argv    Array of strings
- *  @return UAP_FAILURE or UAP_SUCCESS
- */
-inline int
-has_dup_channel(int argc, char *argv[])
-{
-	int i, j;
-	/* Check for duplicate */
-	for (i = 0; i < (argc - 1); i++) {
-		for (j = i + 1; j < argc; j++) {
-			if (atoi(argv[i]) == atoi(argv[j])) {
-				return UAP_FAILURE;
-			}
-		}
-	}
-	return UAP_SUCCESS;
-}
-
-/**
- *  @brief  Detects if band is different across the list of scan channels
- *
- *  @param  argc    Number of elements
- *  @param  argv    Array of strings
- *  @return UAP_FAILURE or UAP_SUCCESS
- */
-inline int
-has_diff_band(int argc, char *argv[])
-{
-	int i = 0;
-	int channel = 0;
-	int band[MAX_CHANNELS];
-	/* Check for different bands */
-	for (i = 0; i < argc; i++) {
-		band[i] = -1;
-		sscanf(argv[i], "%d.%d", &channel, &band[i]);
-		if (band[i] == -1) {
-			if (channel > MAX_CHANNELS_BG) {
-				band[i] = 1;
-			} else {
-				band[i] = 0;
-			}
-		}
-	}
-	for (i = 0; i <= (argc - 2); i++) {
-		if (band[i] != band[i + 1]) {
-			return UAP_FAILURE;
-		}
 	}
 	return UAP_SUCCESS;
 }
@@ -444,7 +364,7 @@ hex2num(char c)
 /**
  *  @brief Show usage information for the sys_info command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_sys_info_usage(void)
@@ -871,7 +791,7 @@ apcmd_sys_info(int argc, char *argv[])
 /**
  *  @brief Show usage information for deepsleep command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_deepsleep_usage(void)
@@ -1163,7 +1083,7 @@ _exit_:
 /**
  *  @brief Show usage information for cmd52rw command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_cmd52rw_usage(void)
@@ -1264,7 +1184,7 @@ apcmd_cmd52_readwrite(int argc, char *argv[])
 /**
  *  @brief Show usage information for addbapara command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_addbapara_usage(void)
@@ -1382,7 +1302,7 @@ apcmd_addbapara(int argc, char *argv[])
 /**
  *  @brief Show usage information for aggrpriotbl command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_aggrpriotbl_usage(void)
@@ -1715,7 +1635,7 @@ apcmd_sys_cfg_ht_tx(int argc, char *argv[])
 /**
  *  @brief Show usage information for vhtcfg command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_vht_usage(void)
@@ -1745,7 +1665,7 @@ print_vht_usage(void)
  *
  *  @param vhtcfg    Pointer to structure eth_priv_vhtcfg
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_vht_response(struct eth_priv_vhtcfg *vhtcfg)
@@ -1787,14 +1707,13 @@ apcmd_sys_cfg_vht(int argc, char *argv[])
 {
 	int opt, i = 0;
 	vht_cfg_para param;
-	struct eth_priv_vhtcfg *vhtcfg = NULL;
+	struct eth_priv_vhtcfg vhtcfg;
 	struct ifreq ifr;
 	t_s32 sockfd;
 	t_u8 *respbuf = NULL, num = 0;
 	fw_info fw;
-
 	if (0 == get_fw_info(&fw)) {
-		/* check whether support 802.11AC through BAND_AAC bit */
+		/*check whether support 802.11AC through BAND_AAC bit */
 		if (!(fw.fw_bands & BAND_AAC)) {
 			printf("ERR: No support 802 11AC.\n");
 			return UAP_FAILURE;
@@ -1919,11 +1838,11 @@ apcmd_sys_cfg_vht(int argc, char *argv[])
 		/* Process result */
 		/* the first attribute is the number of vhtcfg entries */
 		num = *respbuf;
-		vhtcfg = (struct eth_priv_vhtcfg *)(respbuf + 1);
 		printf("11AC VHT Configuration: \n");
 		for (i = 0; i < num; i++) {
-			print_vht_response(vhtcfg);
-			vhtcfg++;
+			memcpy(&vhtcfg, respbuf + 1 + i * sizeof(vhtcfg),
+			       sizeof(vhtcfg));
+			print_vht_response(&vhtcfg);
 		}
 	} else
 		printf("11AC VHT Configuration success!\n");
@@ -1938,7 +1857,7 @@ apcmd_sys_cfg_vht(int argc, char *argv[])
 /**
  *  @brief Show usage information for TX BF command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_tx_bf_usage(void)
@@ -1962,7 +1881,7 @@ print_tx_bf_usage(void)
  *
  *  @param param    Pointer to structure tx_bf_cfg_para
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_tx_bf_response(tx_bf_cfg_para *param)
@@ -2234,7 +2153,7 @@ apcmd_sys_cfg_tx_bf(int argc, char *argv[])
 /**
  *  @brief Show usage information for hscfg command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_hscfg_usage(void)
@@ -2360,7 +2279,7 @@ apcmd_hscfg(int argc, char *argv[])
 /**
  *  @brief Show usage information for hssetpara command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_hssetpara_usage(void)
@@ -2581,7 +2500,7 @@ send_power_mode_ioctl(ps_mgmt * pm, int flag)
 /**
  *  @brief Show usage information for the pscfg command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_pscfg_usage(void)
@@ -2849,7 +2768,7 @@ send_bss_ctl_ioctl(int mode)
 /**
  *  @brief Show usage information for the sys_reset command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_sys_reset_usage(void)
@@ -2991,7 +2910,7 @@ done:
 /**
  *  @brief Show usage information for the bss_stop command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_bss_stop_usage(void)
@@ -3068,6 +2987,7 @@ print_sta_list_usage(void)
  *
  *  @param argc     Number of arguments
  *  @param argv     Pointer to the arguments
+ *
  *  @return         UAP_SUCCESS/UAP_FAILURE
  */
 int
@@ -3126,7 +3046,19 @@ apcmd_sta_list(int argc, char *argv[])
 		printf("\nPower mfg status: %s\n",
 		       (list.info[i].power_mfg_status ==
 			0) ? "active" : "power save");
-
+		printf("Mode: %s\n",
+		       (list.info[i].bandmode ==
+			BAND_B) ? "11b," : (list.info[i].bandmode ==
+					    BAND_G) ? "11g," : (list.info[i].
+								bandmode ==
+								BAND_A) ? "11a,"
+		       : (list.info[i].bandmode ==
+			  BAND_GN) ? "2.4G_11n," : (list.info[i].bandmode ==
+						    BAND_AN) ? "5G_11n,"
+		       : (list.info[i].bandmode ==
+			  BAND_GAC) ? "2.4G_11ac," : (list.info[i].bandmode ==
+						      BAND_AAC) ? "5G_11ac," :
+		       "unkown");
 	/** On some platform, s8 is same as unsigned char*/
 		rssi = (int)list.info[i].rssi;
 		if (rssi > 0x7f)
@@ -3141,7 +3073,7 @@ apcmd_sta_list(int argc, char *argv[])
 /**
  *  @brief Show usage information for the sta_deauth command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_sta_deauth_usage(void)
@@ -3157,6 +3089,7 @@ print_sta_deauth_usage(void)
  *
  *  @param argc     Number of arguments
  *  @param argv     Pointer to the arguments
+ *
  *  @return         UAP_SUCCESS/UAP_FAILURE
  */
 int
@@ -3259,6 +3192,7 @@ print_sta_deauth_ext_usage(void)
  *
  *  @param argc     Number of arguments
  *  @param argv     Pointer to the arguments
+ *
  *  @return         UAP_SUCCESS/UAP_FAILURE
  */
 int
@@ -3410,7 +3344,7 @@ apcmd_radio_ctl(int argc, char *argv[])
 /**
  *  @brief Show usage information for the txratecfg command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_txratecfg_usage(void)
@@ -3567,8 +3501,7 @@ apcmd_tx_rate_cfg(int argc, char *argv[])
 		if (argc == 3)
 			tx_rate_config.nss = A2HEXDECIMAL(argv[2]);
 		tx_rate_config.user_data_cnt = argc;
-		/* If bss is already started and uAP is in (short GI in 20 MHz
-		   + GF) mode, block MCS0-MCS7 rates */
+		/* If bss is already started and uAP is in (short GI in 20 MHz + GF) mode, block MCS0-MCS7 rates */
 		if (get_bss_status(&status) != UAP_SUCCESS) {
 			printf("ERR:Cannot get current bss status!\n");
 			return UAP_FAILURE;
@@ -3646,7 +3579,7 @@ apcmd_tx_rate_cfg(int argc, char *argv[])
  *  @brief Show usage information for the antcfg
  *   command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_antcfg_usage(void)
@@ -3839,6 +3772,14 @@ apcmd_htstreamcfg(int argc, char *argv[])
 	return UAP_SUCCESS;
 }
 
+/**
+ *  @brief                Get 802.11 configuration
+ *
+ *  @param vhtcfg	   pointer to eth_priv_vhtcfg structure
+ *
+ *  @return           	   UAP_FAILURE or UAP_SUCCESS
+ */
+
 static int
 get_802_11ac_cfg(struct eth_priv_vhtcfg *vhtcfg)
 {
@@ -3862,7 +3803,7 @@ get_802_11ac_cfg(struct eth_priv_vhtcfg *vhtcfg)
 		return UAP_FAILURE;
 	}
 
-	/* prepare command: mlanutl uap0 vhtcfg 2 3 , GET operation */
+	/*prepare command: mlanutl uap0 vhtcfg 2 3 , GET operation */
 	pos = buf;
 	strncpy((char *)pos, CMD_MARVELL, strlen(CMD_MARVELL));
 	pos += strlen(CMD_MARVELL);
@@ -3909,7 +3850,7 @@ get_802_11ac_cfg(struct eth_priv_vhtcfg *vhtcfg)
 /**
  *  @brief Show usage information for the sys_config command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_sys_config_usage(void)
@@ -3923,7 +3864,7 @@ print_sys_config_usage(void)
 /**
  *  @brief Show usage information for the rdeeprom command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_apcmd_read_eeprom_usage(void)
@@ -3939,7 +3880,7 @@ print_apcmd_read_eeprom_usage(void)
  *
  *  @param protocol Protocol number
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_protocol(t_u16 protocol)
@@ -3972,7 +3913,7 @@ print_protocol(t_u16 protocol)
  *
  *  @param tlv     Pointer to wep tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_wep_key(tlvbuf_wep_key *tlv)
@@ -4154,6 +4095,7 @@ apcmd_sys_config_profile(int argc, char *argv[])
 	tlvbuf_channel_config *channel_band_tlv = NULL;
 	int filter_mac_count = -1;
 	int tx_data_rate = -1;
+	int tx_beacon_rate = -1;
 	int mcbc_data_rate = -1;
 	t_u8 rate[MAX_RATES];
 	int found = 0;
@@ -4225,6 +4167,59 @@ apcmd_sys_config_profile(int argc, char *argv[])
 							goto done;
 						}
 					}
+				}
+				if (tx_beacon_rate != -1) {
+					if ((!rate[0]) && (tx_beacon_rate) &&
+					    (is_tx_rate_valid
+					     ((t_u8)tx_beacon_rate) !=
+					     UAP_SUCCESS)) {
+						printf("ERR: Invalid Tx Beacon Rate \n");
+						ret = UAP_FAILURE;
+						goto done;
+					}
+					if (rate[0] && tx_beacon_rate) {
+						for (i = 0; rate[i] != 0; i++) {
+							if ((rate[i] &
+							     ~BASIC_RATE_SET_BIT)
+							    == tx_beacon_rate) {
+								found = 1;
+								break;
+							}
+						}
+						if (!found) {
+							printf("ERR: Invalid Tx Beacon Rate \n");
+							ret = UAP_FAILURE;
+							goto done;
+						}
+					}
+					/* Append a new TLV */
+					tlvbuf_tx_data_rate *tlv = NULL;
+					tlv_len = sizeof(tlvbuf_tx_data_rate);
+					tmp_buffer =
+						realloc(buffer,
+							cmd_len + tlv_len);
+					if (!tmp_buffer) {
+						printf("ERR:Cannot append tx beacon rate TLV!\n");
+						ret = UAP_FAILURE;
+						goto done;
+					} else {
+						buffer = tmp_buffer;
+						tmp_buffer = NULL;
+					}
+					cmd_buf =
+						(apcmdbuf_sys_configure *)
+						buffer;
+					tlv = (tlvbuf_tx_data_rate *)(buffer +
+								      cmd_len);
+					cmd_len += tlv_len;
+					/* Set TLV fields */
+					tlv->tag = MRVL_TX_BEACON_RATE_TLV_ID;
+					tlv->length = 2;
+					tlv->tx_data_rate = tx_beacon_rate;
+					endian_convert_tlv_header_out(tlv);
+					tlv->tx_data_rate =
+						uap_cpu_to_le16(tlv->
+								tx_data_rate);
 				}
 				if (mcbc_data_rate != -1) {
 					if ((!rate[0]) && (mcbc_data_rate) &&
@@ -4344,17 +4339,13 @@ apcmd_sys_config_profile(int argc, char *argv[])
 				}
 
 				if (0 == get_fw_info(&fw)) {
-					/* check whether support 802.11AC
-					   through BAND_AAC bit */
+					/*check whether support 802.11AC through BAND_AAC bit */
 					if (fw.fw_bands & BAND_AAC) {
 						ret = get_802_11ac_cfg(&vhtcfg);
 						if (ret != UAP_SUCCESS)
 							goto done;
 						if (enable_11n != -1) {
-							/* Note: When 11AC is
-							   disabled, FW sets
-							   vht_rx_mcs to 0xffff
-							 */
+							/* Note: When 11AC is disabled, FW sets vht_rx_mcs to 0xffff */
 							if ((vhtcfg.
 							     vht_rx_mcs !=
 							     0xffff) &&
@@ -4425,10 +4416,7 @@ apcmd_sys_config_profile(int argc, char *argv[])
 						cmd_len += tlv_len;
 						/* Set TLV fields */
 						tlv->tag = MRVL_AKMP_TLV_ID;
-						tlv->length = 4;	/* sizeof(tlvbuf_akmp)
-									   -
-									   TLVHEADER
-									 */
+						tlv->length = 4;	/* sizeof(tlvbuf_akmp) - TLVHEADER */
 						tlv->key_mgmt = KEY_MGMT_PSK;
 						endian_convert_tlv_header_out
 							(tlv);
@@ -4917,12 +4905,11 @@ apcmd_sys_config_profile(int argc, char *argv[])
 				sscanf(args[i + 1], "%d.%d", &chan_number,
 				       &band_flag);
 				pchan_list->chan_number = chan_number;
-				pchan_list->band_config_type &=
-					(~BAND_CONFIG_MASK);
+				pchan_list->bandcfg.chanBand = BAND_2GHZ;
 				if (((band_flag != -1) && (band_flag)) ||
 				    (chan_number > MAX_CHANNELS_BG)) {
-					pchan_list->band_config_type |=
-						BAND_CONFIG_5GHZ;
+					pchan_list->bandcfg.chanBand =
+						BAND_5GHZ;
 				}
 				pchan_list++;
 			}
@@ -4952,7 +4939,8 @@ apcmd_sys_config_profile(int argc, char *argv[])
 			cmd_len += tlv_len;
 			/* Set TLV fields */
 			tlv->tag = MRVL_CHANNELCONFIG_TLV_ID;
-			tlv->length = 2;
+			tlv->length =
+				sizeof(tlvbuf_channel_config) - TLVHEADER_LEN;
 			tlv->chan_number = (t_u8)atoi(args[1]);
 			if (tlv->chan_number > MAX_CHANNELS_BG)
 				band = BAND_A;
@@ -4960,21 +4948,22 @@ apcmd_sys_config_profile(int argc, char *argv[])
 				band = BAND_B | BAND_G;
 			if ((arg_num - 1) == 2) {
 				chan_mode = atoi(args[2]);
-				tlv->band_config_type = 0;
+				memset(&(tlv->bandcfg), 0,
+				       sizeof(tlv->bandcfg));
 				if (chan_mode & BITMAP_ACS_MODE) {
-					tlv->band_config_type |=
-						BAND_CONFIG_ACS_MODE;
+					tlv->bandcfg.scanMode = SCAN_MODE_ACS;
 				}
 				if (chan_mode & BITMAP_CHANNEL_ABOVE)
-					tlv->band_config_type |=
-						SECOND_CHANNEL_ABOVE;
+					tlv->bandcfg.chan2Offset =
+						SEC_CHAN_ABOVE;
 				if (chan_mode & BITMAP_CHANNEL_BELOW)
-					tlv->band_config_type |=
-						SECOND_CHANNEL_BELOW;
+					tlv->bandcfg.chan2Offset =
+						SEC_CHAN_BELOW;
 			} else
-				tlv->band_config_type = 0;
+				memset(&(tlv->bandcfg), 0,
+				       sizeof(tlv->bandcfg));
 			if (tlv->chan_number > MAX_CHANNELS_BG) {
-				tlv->band_config_type |= BAND_CONFIG_5GHZ;
+				tlv->bandcfg.chanBand = BAND_5GHZ;
 			}
 			endian_convert_tlv_header_out(tlv);
 		}
@@ -4990,13 +4979,11 @@ apcmd_sys_config_profile(int argc, char *argv[])
 				goto done;
 			}
 			/* If band is provided, clear previous value of band */
-			channel_band_tlv->band_config_type &=
-				(~BAND_CONFIG_MASK);
+			channel_band_tlv->bandcfg.chanBand = BAND_2GHZ;
 			if (atoi(args[1]) == 0) {
 				band = BAND_B | BAND_G;
 			} else {
-				channel_band_tlv->band_config_type |=
-					BAND_CONFIG_5GHZ;
+				channel_band_tlv->bandcfg.chanBand = BAND_5GHZ;
 				band = BAND_A;
 			}
 		}
@@ -5231,6 +5218,14 @@ apcmd_sys_config_profile(int argc, char *argv[])
 			tlv->length = 1;
 			tlv->rsn_replay_prot = (t_u8)atoi(args[1]);
 			endian_convert_tlv_header_out(tlv);
+		}
+		if (strcmp(args[0], "TxBeaconRate") == 0) {
+			if (is_input_valid(TXBEACONRATE, arg_num - 1, args + 1)
+			    != UAP_SUCCESS) {
+				ret = UAP_FAILURE;
+				goto done;
+			}
+			tx_beacon_rate = (t_u16)A2HEXDECIMAL(args[1]);
 		}
 		if (strcmp(args[0], "MCBCdataRate") == 0) {
 			if (is_input_valid(MCBCDATARATE, arg_num - 1, args + 1)
@@ -5929,9 +5924,9 @@ apcmd_sys_config_profile(int argc, char *argv[])
 				goto done;
 			}
 			if (0 == get_fw_info(&fw)) {
-				/* Check upper nibble of MCS support value and
-				   block MCS_SET_1 when 2X2 is not supported
-				   by the underlying hardware */
+				/* Check upper nibble of MCS support value
+				 * and block MCS_SET_1 when 2X2 is not supported
+				 * by the underlying hardware */
 				if (((fw.hw_dev_mcs_support & 0xf0) <
 				     STREAM_2X2_MASK) &&
 				    (A2HEXDECIMAL(args[1]) & MCS_SET_1_MASK)) {
@@ -5940,8 +5935,7 @@ apcmd_sys_config_profile(int argc, char *argv[])
 				}
 			}
 
-			/* Find HT tlv pointer in buffer and set supported MCS
-			   set */
+			/* Find HT tlv pointer in buffer and set supported MCS set */
 			tlvbuf_htcap_t *tlv = NULL;
 			tlv = (tlvbuf_htcap_t *)(buffer + tlv_offset_11n);
 			supported_mcs_set = (t_u32)A2HEXDECIMAL(args[1]);
@@ -6032,7 +6026,7 @@ get_band(int *band)
 	cmd_buf->seq_num = 0;
 	cmd_buf->result = 0;
 	tlv->tag = MRVL_CHANNELCONFIG_TLV_ID;
-	tlv->length = 2;
+	tlv->length = sizeof(tlvbuf_channel_config) - TLVHEADER_LEN;
 	cmd_buf->action = ACTION_GET;
 
 	endian_convert_tlv_header_out(tlv);
@@ -6073,7 +6067,7 @@ done:
 /**
  *  @brief Show usage information for the cfg_80211d command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_apcmd_cfg_80211d_usage(void)
@@ -6085,7 +6079,7 @@ print_apcmd_cfg_80211d_usage(void)
 /**
  *  @brief Show usage information for the uap_stats command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_apcmd_uap_stats(void)
@@ -6374,9 +6368,8 @@ apcmd_cfg_80211d(int argc, char *argv[])
 				print_apcmd_cfg_80211d_usage();
 				return UAP_FAILURE;
 			}
-			/* Only 2 characters of country code are copied here as
-			   indoor/outdoor conditions are not handled in domain
-			   file */
+			/* Only 2 characters of country code are copied here as indoor/outdoor
+			 * conditions are not handled in domain file */
 			strncpy(country, argv[output[1][0] + 1], 2);
 
 			for (i = 0; (unsigned int)i < strlen(country); i++) {
@@ -6463,8 +6456,8 @@ apcmd_cfg_80211d(int argc, char *argv[])
 	cmd_buf->cmd_code = HostCmd_CMD_802_11D_DOMAIN_INFO;
 
 	if (cflag) {
-		/* third character of country code is copied here as
-		   indoor/outdoor condition is not supported in domain file */
+		/* third character of country code is copied here as indoor/outdoor
+		 * condition is not supported in domain file*/
 		strncpy(country, argv[output[1][0] + 1], sizeof(country) - 1);
 		for (i = 0; (unsigned int)i < strlen(country); i++) {
 			if ((country[i] < 'A') || (country[i] > 'z')) {
@@ -6722,8 +6715,7 @@ update_domain_info(char *country_80211d, int band)
 		country[0] = cmd_buf->domain.country_code[0];
 		country[1] = cmd_buf->domain.country_code[1];
 	} else {
-		/* country_80211d will only be used if country code is not
-		   already set */
+		/* country_80211d will only be used if country code is not already set */
 		country[0] = country_80211d[0];
 		country[1] = country_80211d[1];
 	}
@@ -6787,7 +6779,7 @@ update_domain_info(char *country_80211d, int band)
 
 	if ((band == BAND_A) && domain_code) {
 		/* Send 11D_CMD a second time, with reg_dom_code TLV appended.
-		   Use hostcmd instead of re-route. */
+		 * Use hostcmd instead of re-route. */
 		cmd_len = cmd_buf->size + BUF_HEADER_SIZE;
 		prgn_dom_code = (rgn_dom_code_t *)((t_u8 *)cmd_buf + cmd_len);
 		cmd_len += sizeof(rgn_dom_code_t);
@@ -6827,7 +6819,7 @@ done:
 }
 
 /**
- *  @brief Covert MCS Rate Bitmap to MCS Rate index
+ *  @brief Convert MCS Rate Bitmap to MCS Rate index
  *
  *  @param rate_bitmap  Pointer to rate bitmap
  *  @param size         Size of the bitmap array
@@ -6852,6 +6844,7 @@ get_rate_index_from_bitmap(t_u16 *rate_bitmap, int size)
  *
  *  @param buf     pointer to TLV buffer
  *  @param len     TLV buffer length
+ *
  *  @return        UAP_SUCCESS/UAP_FAILURE
  */
 int
@@ -6982,15 +6975,13 @@ check_sys_config(t_u8 *buf, t_u16 len)
 				printf("ERR: Invalid channel 14, 802.11d disabled, country code JP!\n");
 				return UAP_FAILURE;
 			}
-
-			if (channel_tlv->band_config_type & BAND_CONFIG_5GHZ)
+			if (channel_tlv->bandcfg.chanBand == BAND_5GHZ)
 				channel_tlv_band = BAND_A;
-			secondary_ch_set = channel_tlv->band_config_type & 0x30;
+			secondary_ch_set = channel_tlv->bandcfg.chan2Offset;
 			if (channel_tlv_band != BAND_A) {
-				/* When country code is not Japan, allow
-				   channels 5-11 for US and 5-13 for non-US
-				   only for secondary channel below */
-				if (secondary_ch_set == SECOND_CHANNEL_BELOW) {
+				/* When country code is not Japan, allow channels 5-11 for US and 5-13 for non-US
+				 * only for secondary channel below */
+				if (secondary_ch_set == SEC_CHAN_BELOW) {
 					if (!strncmp
 					    (country_80211d, "US",
 					     COUNTRY_CODE_LEN - 1)) {
@@ -7011,10 +7002,9 @@ check_sys_config(t_u8 *buf, t_u16 len)
 					}
 				}
 
-				/* When country code is not Japan, allow
-				   channels 1-7 for US and 1-9 for non-US only
-				   for secondary channel above */
-				if (secondary_ch_set == SECOND_CHANNEL_ABOVE) {
+				/* When country code is not Japan, allow channels 1-7 for US and 1-9 for non-US
+				 * only for secondary channel above */
+				if (secondary_ch_set == SEC_CHAN_ABOVE) {
 					if (!strncmp
 					    (country_80211d, "US",
 					     COUNTRY_CODE_LEN - 1)) {
@@ -7035,16 +7025,13 @@ check_sys_config(t_u8 *buf, t_u16 len)
 					}
 				}
 			}
-			if (!
-			    (channel_tlv->
-			     band_config_type & BAND_CONFIG_ACS_MODE)) {
+			if (!(channel_tlv->bandcfg.scanMode == SCAN_MODE_ACS)) {
 				if (check_channel_validity_11d
 				    (channel_tlv->chan_number, channel_tlv_band,
 				     1) == UAP_FAILURE)
 					return UAP_FAILURE;
 				if (state_80211d) {
-					/* Set country code to JP if channel is
-					   8 or 12 and band is 5GHZ */
+					/* Set country code to JP if channel is 8 or 12 and band is 5GHZ */
 					if ((channel_tlv->chan_number <
 					     MAX_CHANNELS_BG) &&
 					    (channel_tlv_band == BAND_A))
@@ -7084,8 +7071,8 @@ check_sys_config(t_u8 *buf, t_u16 len)
 			for (i = 0; i < chan_list_len; i++) {
 				scan_channels_band = BAND_B | BAND_G;
 				if ((scan_channels_band != BAND_A) &&
-				    (pchan_list->
-				     band_config_type & BAND_CONFIG_5GHZ)) {
+				    (pchan_list->bandcfg.chanBand ==
+				     BAND_5GHZ)) {
 					scan_channels_band = BAND_A;
 				}
 				if (check_channel_validity_11d
@@ -7237,13 +7224,11 @@ check_sys_config(t_u8 *buf, t_u16 len)
 		}
 
 		if (!state_80211d) {
-			/* Block scan channels 8 and 12 in 5GHz band if 11d is
-			   not enabled and country code not set to JP */
+			/* Block scan channels 8 and 12 in 5GHz band if 11d is not enabled and country code not set to JP */
 			pchan_list =
 				(channel_list *) & (chnlist_tlv->chan_list);
 			for (i = 0; i < chan_list_len; i++) {
-				if ((pchan_list->
-				     band_config_type & BAND_CONFIG_5GHZ)
+				if ((pchan_list->bandcfg.chanBand == BAND_5GHZ)
 				    && ((pchan_list->chan_number == 8) ||
 					(pchan_list->chan_number == 12))) {
 					printf("ERR: Invalid band for scan channel %d\n", pchan_list->chan_number);
@@ -7259,8 +7244,7 @@ check_sys_config(t_u8 *buf, t_u16 len)
 			pchan_list =
 				(channel_list *) & (chnlist_tlv->chan_list);
 			for (i = 0; i < chan_list_len; i++) {
-				/* Set country code to JP if channel is 8 or 12
-				   and band is 5GHZ */
+				/* Set country code to JP if channel is 8 or 12 and band is 5GHZ */
 				if ((pchan_list->chan_number < MAX_CHANNELS_BG)
 				    && (scan_channels_band == BAND_A)) {
 					strncpy(country_80211d, "JP ",
@@ -7354,15 +7338,14 @@ check_sys_config(t_u8 *buf, t_u16 len)
 #define ISSUPP_SHORTGI40(Dot11nDevCap) (Dot11nDevCap & MBIT(24))
 
 	if (enable_40Mhz) {
-		if (!ISSUPP_CHANWIDTH40(uap_le32_to_cpu(fw.hw_dot_11n_dev_cap))) {
+		if (!ISSUPP_CHANWIDTH40(fw.hw_dot_11n_dev_cap)) {
 			printf("ERR: It's not support HT40 from Hardware Cap\n");
 			return UAP_FAILURE;
 		}
 	}
 
 	if (enable_11n) {
-		/* For protocol = Mixed, 11n enabled, only allow TKIP cipher
-		   for WPA protocol, not for WPA2 */
+		/*For protocol = Mixed, 11n enabled, only allow TKIP cipher for WPA protocol, not for WPA2 */
 		if ((protocol == PROTOCOL_WPA2_MIXED) &&
 		    (pairwise_cipher_wpa2 == CIPHER_TKIP)) {
 			printf("ERR: WPA2 pairwise cipher cannot be TKIP when AP operates in 802.11n Mixed mode.\n");
@@ -7402,8 +7385,7 @@ check_sys_config(t_u8 *buf, t_u16 len)
 		}
 	}
 
-	/* if 11d enabled, Channel 14, country code "JP", only B rates are
-	   allowed */
+	/* if 11d enabled, Channel 14, country code "JP", only B rates are allowed */
 	if ((channel == 14) && state_80211d &&
 	    (strncmp(country_80211d, "JP", COUNTRY_CODE_LEN - 1) == 0)) {
 		if (rates_tlv == NULL) {
@@ -7467,12 +7449,11 @@ check_sys_config(t_u8 *buf, t_u16 len)
 	}
 
 	if (0 == get_fw_info(&fw)) {
-		/* check whether support 802.11AC through BAND_AAC bit */
+		/*check whether support 802.11AC through BAND_AAC bit */
 		if (fw.fw_bands & BAND_AAC) {
 			ret = get_802_11ac_cfg(&vhtcfg);
 			if (UAP_SUCCESS == ret) {
-				/* Note: When 11AC is disabled, FW sets
-				   vht_rx_mcs to 0xffff */
+				/* Note: When 11AC is disabled, FW sets vht_rx_mcs to 0xffff */
 				if ((vhtcfg.vht_rx_mcs != 0xffff) &&
 				    (!enable_11n)) {
 					printf("ERR: 11ac enable while 11n disable, it is forbidden! \n");
@@ -7578,6 +7559,26 @@ check_bss_config(t_u8 *buf)
 		return UAP_FAILURE;
 	}
 
+	if ((fw.fw_bands & (BAND_B | BAND_G | BAND_GN | BAND_GAC))
+	    && !(fw.fw_bands & (BAND_A | BAND_AAC))
+		) {
+		if (bss_config->channel > MAX_CHANNELS_BG) {
+			printf("ERR: Invalid channel in 2.4GHz band!\n");
+			return UAP_FAILURE;
+		}
+	}
+
+	if (!(fw.fw_bands & (BAND_B | BAND_G
+			     | BAND_GN
+			     | BAND_GAC)) && (fw.fw_bands & (BAND_A
+							     | BAND_AAC))) {
+		if (bss_config->channel < 36 ||
+		    bss_config->channel > MAX_CHANNELS) {
+			printf("ERR: Invalid channel in 5GHz band!\n");
+			return UAP_FAILURE;
+		}
+	}
+
 	if ((!state_80211d) && (bss_config->channel == MAX_CHANNELS_BG)
 	    && (strncmp(country_80211d, "JP", COUNTRY_CODE_LEN - 1) == 0)
 		) {
@@ -7585,14 +7586,14 @@ check_bss_config(t_u8 *buf)
 		return UAP_FAILURE;
 	}
 
-	if (bss_config->band_cfg & BAND_CONFIG_5GHZ)
+	if (bss_config->bandcfg.chanBand == BAND_5GHZ)
 		channel_tlv_band = BAND_A;
 
-	secondary_ch_set = bss_config->band_cfg & 0x30;
+	secondary_ch_set = bss_config->bandcfg.chan2Offset;
 	if (channel_tlv_band != BAND_A) {
-		/* When country code is not Japan, allow channels 5-11 for US
-		   and 5-13 for non-US only for secondary channel below */
-		if (secondary_ch_set == SECOND_CHANNEL_BELOW) {
+		/* When country code is not Japan, allow channels 5-11 for US and 5-13 for non-US
+		 * only for secondary channel below */
+		if (secondary_ch_set == SEC_CHAN_BELOW) {
 			if (!strncmp
 			    (country_80211d, "US", COUNTRY_CODE_LEN - 1)) {
 				if (bss_config->channel >
@@ -7611,9 +7612,9 @@ check_bss_config(t_u8 *buf)
 			}
 		}
 
-		/* When country code is not Japan, allow channels 1-7 for US
-		   and 1-9 for non-US only for secondary channel above */
-		if (secondary_ch_set == SECOND_CHANNEL_ABOVE) {
+		/* When country code is not Japan, allow channels 1-7 for US and 1-9 for non-US
+		 * only for secondary channel above */
+		if (secondary_ch_set == SEC_CHAN_ABOVE) {
 			if (!strncmp
 			    (country_80211d, "US", COUNTRY_CODE_LEN - 1)) {
 				if (bss_config->channel >
@@ -7633,13 +7634,12 @@ check_bss_config(t_u8 *buf)
 		}
 	}
 
-	if (!(bss_config->band_cfg & BAND_CONFIG_ACS_MODE)) {
+	if (!(bss_config->bandcfg.scanMode == SCAN_MODE_ACS)) {
 		if (check_channel_validity_11d
 		    (bss_config->channel, channel_tlv_band, 1) == UAP_FAILURE)
 			return UAP_FAILURE;
 		if (state_80211d) {
-			/* Set country code to JP if channel is 8 or 12 and
-			   band is 5GHZ */
+			/* Set country code to JP if channel is 8 or 12 and band is 5GHZ */
 			if ((bss_config->channel < MAX_CHANNELS_BG) &&
 			    (channel_tlv_band == BAND_A))
 				strncpy(country_80211d, "JP ",
@@ -7666,8 +7666,7 @@ check_bss_config(t_u8 *buf)
 	for (i = 0; i < bss_config->num_of_chan; i++) {
 		scan_channels_band = BAND_B | BAND_G;
 		if ((scan_channels_band != BAND_A) &&
-		    (bss_config->chan_list[i].
-		     band_config_type & BAND_CONFIG_5GHZ)) {
+		    (bss_config->chan_list[i].bandcfg.chanBand == BAND_5GHZ)) {
 			scan_channels_band = BAND_A;
 		}
 		if (check_channel_validity_11d
@@ -7765,11 +7764,10 @@ check_bss_config(t_u8 *buf)
 		}
 
 		if (!state_80211d) {
-			/* Block scan channels 8 and 12 in 5GHz band if 11d is
-			   not enabled and country code not set to JP */
+			/* Block scan channels 8 and 12 in 5GHz band if 11d is not enabled and country code not set to JP */
 			for (i = 0; i < bss_config->num_of_chan; i++) {
-				if ((bss_config->chan_list[i].
-				     band_config_type & BAND_CONFIG_5GHZ)
+				if ((bss_config->chan_list[i].bandcfg.
+				     chanBand == BAND_5GHZ)
 				    &&
 				    ((bss_config->chan_list[i].chan_number == 8)
 				     || (bss_config->chan_list[i].chan_number ==
@@ -7785,8 +7783,7 @@ check_bss_config(t_u8 *buf)
 			strncpy(country_80211d, "US ",
 				sizeof(country_80211d) - 1);
 			for (i = 0; i < bss_config->num_of_chan; i++) {
-				/* Set country code to JP if channel is 8 or 12
-				   and band is 5GHZ */
+				/* Set country code to JP if channel is 8 or 12 and band is 5GHZ */
 				if ((bss_config->chan_list[i].chan_number <
 				     MAX_CHANNELS_BG) &&
 				    (scan_channels_band == BAND_A)) {
@@ -7879,15 +7876,14 @@ check_bss_config(t_u8 *buf)
 #define ISSUPP_SHORTGI40(Dot11nDevCap) (Dot11nDevCap & MBIT(24))
 
 	if (enable_40Mhz) {
-		if (!ISSUPP_CHANWIDTH40(uap_le32_to_cpu(fw.hw_dot_11n_dev_cap))) {
+		if (!ISSUPP_CHANWIDTH40(fw.hw_dot_11n_dev_cap)) {
 			printf("ERR: It's not support HT40 from Hardware Cap\n");
 			return UAP_FAILURE;
 		}
 	}
 
 	if (enable_11n) {
-		/* For protocol = Mixed, 11n enabled, only allow TKIP cipher
-		   for WPA protocol, not for WPA2 */
+		/*For protocol = Mixed, 11n enabled, only allow TKIP cipher for WPA protocol, not for WPA2 */
 		if ((bss_config->protocol == PROTOCOL_WPA2_MIXED) &&
 		    (bss_config->wpa_cfg.pairwise_cipher_wpa2 == CIPHER_TKIP)) {
 			printf("ERR: WPA2 pairwise cipher cannot be TKIP when AP operates in 802.11n Mixed mode.\n");
@@ -7930,7 +7926,7 @@ check_bss_config(t_u8 *buf)
 /* if 11d enabled, Channel 14, country code "JP", only B rates are allowed*/
 	if ((bss_config->channel == 14) && state_80211d &&
 	    (strncmp(country_80211d, "JP", COUNTRY_CODE_LEN - 1) == 0)) {
-		if (0 != bss_config->rates[0]) {
+		if (0 == bss_config->rates[0]) {
 			printf("ERR:No rates found\n");
 			return UAP_FAILURE;
 		}
@@ -7986,14 +7982,12 @@ check_bss_config(t_u8 *buf)
 			return UAP_FAILURE;
 		}
 	}
-
 	if (0 == get_fw_info(&fw)) {
-		/* check whether support 802.11AC through BAND_AAC bit */
+		/*check whether support 802.11AC through BAND_AAC bit */
 		if (fw.fw_bands & BAND_AAC) {
 			ret = get_802_11ac_cfg(&vhtcfg);
 			if (UAP_SUCCESS == ret) {
-				/* Note: When 11AC is disabled, FW sets
-				   vht_rx_mcs to 0xffff */
+				/* Note: When 11AC is disabled, FW sets vht_rx_mcs to 0xffff */
 				if ((vhtcfg.vht_rx_mcs != 0xffff) &&
 				    (!enable_11n)) {
 					printf("ERR: 11ac enable while 11n disable, it is forbidden! \n");
@@ -8245,7 +8239,7 @@ apcmd_regrdwr(int argc, char *argv[])
  *    @brief Show usage information for the memaccess command
  *    command
  *
- *    $return         N/A
+ *    @return         N/A
  */
 void
 print_memaccess_usage(void)
@@ -8461,6 +8455,7 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 	int gwkcipher = -1;
 	int protocol = -1;
 	int tx_data_rate = -1;
+	int tx_beacon_rate = -1;
 	int mcbc_data_rate = -1;
 	int num_rates = 0;
 	int found = 0;
@@ -8543,6 +8538,37 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 					/* Set Tx data rate field */
 					bss->tx_data_rate = tx_data_rate;
 				}
+				if (tx_beacon_rate != -1) {
+					if ((!bss->rates[0]) && (tx_beacon_rate)
+					    &&
+					    (is_tx_rate_valid
+					     ((t_u8)tx_beacon_rate) !=
+					     UAP_SUCCESS)) {
+						printf("ERR: Invalid Tx Beacon Rate \n");
+						retval = UAP_FAILURE;
+						goto done;
+					}
+					if (bss->rates[0] && tx_beacon_rate) {
+						for (i = 0; bss->rates[i] != 0;
+						     i++) {
+							if ((bss->
+							     rates[i] &
+							     ~BASIC_RATE_SET_BIT)
+							    == tx_beacon_rate) {
+								found = 1;
+								break;
+							}
+						}
+						if (!found) {
+							printf("ERR: Invalid Tx Beacon Rate \n");
+							retval = UAP_FAILURE;
+							goto done;
+						}
+					}
+
+					/* Set Tx beacon rate field */
+					bss->tx_beacon_rate = tx_beacon_rate;
+				}
 				if (mcbc_data_rate != -1) {
 					if ((!bss->rates[0]) && (mcbc_data_rate)
 					    &&
@@ -8587,8 +8613,7 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 					goto done;
 				}
 				if (0 == get_fw_info(&fw)) {
-					/* check whether support 802.11AC
-					   through BAND_AAC bit */
+					/*check whether support 802.11AC through BAND_AAC bit */
 					if (fw.fw_bands & BAND_AAC) {
 						retval = get_802_11ac_cfg
 							(&vhtcfg);
@@ -8665,8 +8690,7 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 							goto done;
 						}
 					}
-					/* Set pairwise and group cipher fields
-					 */
+					/* Set pairwise and group cipher fields */
 					bss->wpa_cfg.pairwise_cipher_wpa =
 						pwkcipher_wpa;
 					bss->wpa_cfg.pairwise_cipher_wpa2 =
@@ -8754,8 +8778,7 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 				continue;
 			}
 		}
-		/* Check for beginning of Sticky Tim Sta MAC address
-		   Configurations */
+		/* Check for beginning of Sticky Tim Sta MAC address Configurations */
 		if (strcmp(args[0], "Wmm_parameters") == 0) {
 			is_wmm_parameters = 1;
 			memset(&(bss->wmm_para), 0, sizeof(bss->wmm_para));
@@ -8866,12 +8889,11 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 				sscanf(args[i + 1], "%d.%d", &chan_number,
 				       &band_flag);
 				bss->chan_list[i].chan_number = chan_number;
-				bss->chan_list[i].band_config_type &=
-					~BAND_CONFIG_MASK;
+				bss->chan_list[i].bandcfg.chanBand = BAND_2GHZ;
 				if (((band_flag != -1) && (band_flag)) ||
 				    (chan_number > MAX_CHANNELS_BG)) {
-					bss->chan_list[i].band_config_type |=
-						BAND_CONFIG_5GHZ;
+					bss->chan_list[i].bandcfg.chanBand =
+						BAND_5GHZ;
 				}
 			}
 		}
@@ -8885,17 +8907,21 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 			bss->channel = (t_u8)atoi(args[1]);
 			if ((arg_num - 1) == 2) {
 				chan_mode = atoi(args[2]);
-				bss->band_cfg = 0;
+				memset(&(bss->bandcfg), 0,
+				       sizeof(bss->bandcfg));
 				if (chan_mode & BITMAP_ACS_MODE) {
 				}
 				if (chan_mode & BITMAP_CHANNEL_ABOVE)
-					bss->band_cfg |= SECOND_CHANNEL_ABOVE;
+					bss->bandcfg.chan2Offset =
+						SEC_CHAN_ABOVE;
 				if (chan_mode & BITMAP_CHANNEL_BELOW)
-					bss->band_cfg |= SECOND_CHANNEL_BELOW;
+					bss->bandcfg.chan2Offset =
+						SEC_CHAN_BELOW;
 			} else
-				bss->band_cfg = 0;
+				memset(&(bss->bandcfg), 0,
+				       sizeof(bss->bandcfg));
 			if (bss->channel > MAX_CHANNELS_BG)
-				bss->band_cfg |= BAND_CONFIG_5GHZ;
+				bss->bandcfg.chanBand = BAND_5GHZ;
 		}
 		if (strcmp(args[0], "Band") == 0) {
 			if (is_input_valid(BAND, arg_num - 1, args + 1) !=
@@ -8904,9 +8930,9 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 				goto done;
 			}
 			/* Clear previously set band */
-			bss->band_cfg &= (~BAND_CONFIG_MASK);
+			bss->bandcfg.chanBand = BAND_2GHZ;
 			if (atoi(args[1]) == 1)
-				bss->band_cfg |= BAND_CONFIG_5GHZ;
+				bss->bandcfg.chanBand = BAND_5GHZ;
 		}
 		if (strcmp(args[0], "AP_MAC") == 0) {
 			int ret;
@@ -9025,6 +9051,14 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 			}
 			/* Set Groupwise Hanshake Retries */
 			bss->gwk_retries = (t_u32)atoi(args[1]);
+		}
+		if (strcmp(args[0], "TxBeaconRate") == 0) {
+			if (is_input_valid(TXBEACONRATE, arg_num - 1, args + 1)
+			    != UAP_SUCCESS) {
+				retval = UAP_FAILURE;
+				goto done;
+			}
+			tx_beacon_rate = (t_u16)A2HEXDECIMAL(args[1]);
 		}
 		if (strcmp(args[0], "MCBCdataRate") == 0) {
 			if (is_input_valid(MCBCDATARATE, arg_num - 1, args + 1)
@@ -9442,9 +9476,9 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 				goto done;
 			}
 			if (0 == get_fw_info(&fw)) {
-				/* Check upper nibble of MCS support value and
-				   block MCS_SET_1 when 2X2 is not supported
-				   by the underlying hardware */
+				/* Check upper nibble of MCS support value
+				 * and block MCS_SET_1 when 2X2 is not supported
+				 * by the underlying hardware */
 				if (((fw.hw_dev_mcs_support & 0xf0) <
 				     STREAM_2X2_MASK) &&
 				    (A2HEXDECIMAL(args[1]) & MCS_SET_1_MASK)) {
@@ -9478,7 +9512,7 @@ done:
  *
  *  @param buf     Pointer to BSS configuration buffer
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_bss_config(bss_config_t *buf)
@@ -9615,23 +9649,22 @@ print_bss_config(bss_config_t *buf)
 	/* Print channel */
 	printf("Channel = %d\n", buf->channel);
 	printf("Band = %s\n",
-	       (buf->band_cfg & BAND_CONFIG_5GHZ) ? "5GHz" : "2.4GHz");
+	       (buf->bandcfg.chanBand == BAND_5GHZ) ? "5GHz" : "2.4GHz");
 	printf("Channel Select Mode = %s\n",
-	       (buf->band_cfg & BAND_CONFIG_ACS_MODE) ? "ACS" : "Manual");
-	buf->band_cfg &= 0x30;
-	if (buf->band_cfg == 0)
+	       (buf->bandcfg.scanMode == SCAN_MODE_ACS) ? "ACS" : "Manual");
+	if (buf->bandcfg.chan2Offset == SEC_CHAN_NONE)
 		printf("no secondary channel\n");
-	else if (buf->band_cfg == SECOND_CHANNEL_ABOVE)
+	else if (buf->bandcfg.chan2Offset == SEC_CHAN_ABOVE)
 		printf("secondary channel is above primary channel\n");
-	else if (buf->band_cfg == SECOND_CHANNEL_BELOW)
+	else if (buf->bandcfg.chan2Offset == SEC_CHAN_BELOW)
 		printf("secondary channel is below primary channel\n");
 
 	/* Print channel list */
 	printf("Channels List = ");
 	for (i = 0; (unsigned int)i < buf->num_of_chan; i++) {
 		printf("\n%d\t%sGHz", buf->chan_list[i].chan_number,
-		       (buf->chan_list[i].
-			band_config_type & BAND_CONFIG_5GHZ) ? "5" : "2.4");
+		       (buf->chan_list[i].bandcfg.chanBand ==
+			BAND_5GHZ) ? "5" : "2.4");
 	}
 	printf("\n");
 
@@ -10401,7 +10434,7 @@ apcmd_coex_config(int argc, char *argv[])
 /**
  *  @brief Show usage information for the mic_err command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_mic_err_usage(void)
@@ -10483,7 +10516,7 @@ apcmd_mic_err(int argc, char *argv[])
 /**
  *  @brief Show usage information for the sta_deauth_ext command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_set_key_usage(void)
@@ -10745,9 +10778,8 @@ apcmd_sys_cfg_custom_ie(int argc, char *argv[])
 	t_s32 sockfd;
 
 	if (argc == 1 && max_mgmt_ie_print == 0) {
-		/* Print buffer sizes only if (argc == 1) i.e. get all indices
-		   one by one && (max_mgmt_ie_print == 0) i.e. max mgmt IE is
-		   not printed via sys_config cmd */
+		/* Print buffer sizes only if (argc == 1) i.e. get all indices one by one
+		 * && (max_mgmt_ie_print == 0) i.e. max mgmt IE is not printed via sys_config cmd */
 		print_flag = 1;
 	}
 
@@ -10815,8 +10847,7 @@ apcmd_sys_cfg_custom_ie(int argc, char *argv[])
 			print_sys_cfg_custom_ie_usage();
 			return UAP_FAILURE;
 		}
-		/* If above check is passed and mask is not hex, then it must
-		   be 0 */
+		/* If above check is passed and mask is not hex, then it must be 0 */
 		if ((ISDIGIT(argv[2]) == UAP_SUCCESS) && atoi(argv[2])) {
 			printf("ERR:Mask value must be 0 or hex digits\n ");
 			print_sys_cfg_custom_ie_usage();
@@ -11012,7 +11043,7 @@ apcmd_sys_cfg_custom_ie(int argc, char *argv[])
 /**
  *  @brief Show usage information for the dfstesting command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_dfstesting_usage(void)
@@ -11078,11 +11109,11 @@ apcmd_dfstesting(int argc, char *argv[])
 		}
 
 		val = A2HEXDECIMAL(argv[0]);
-		if (val > 0xffff) {
+		if (val > 0xfffff) {
 			printf("ERR: invalid user_cac_pd value!\n");
 			return UAP_FAILURE;
 		}
-		dfs_test.usr_cac_period = (t_u16)val;
+		dfs_test.usr_cac_period = (t_u32)val;
 
 		val = A2HEXDECIMAL(argv[1]);
 		if (val > 0xffff) {
@@ -11142,6 +11173,92 @@ apcmd_dfstesting(int argc, char *argv[])
 	return UAP_SUCCESS;
 }
 #endif /* DFS_SUPPORT && DFS_TESTING_SUPPORT */
+
+/**
+ *  @brief Show usage information for the cscount_cfg
+ *   command
+ *
+ *  $return         N/A
+ */
+void
+print_cscount_cfg_usage(void)
+{
+	printf("\nUsage : cscount [<n>]");
+	printf("\n        Where  <n>  ");
+	printf("\n        5-20: No of beacons with Channel Switch Count IE\n");
+	return;
+}
+
+/**
+ *  @brief Set/get cs_count configuration
+ *  @param argc     Number of arguments
+ *  @param argv     Pointer to the arguments
+ *  @return         UAP_SUCCESS/UAP_FAILURE
+ */
+int
+apcmd_cscount_cfg(int argc, char *argv[])
+{
+	int opt;
+	cscount_cfg_t cscount_cfg;
+	struct ifreq ifr;
+	t_s32 sockfd;
+
+	while ((opt = getopt_long(argc, argv, "+", cmd_options, NULL)) != -1) {
+		switch (opt) {
+		default:
+			print_cscount_cfg_usage();
+			return UAP_SUCCESS;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	/* Check arguments */
+
+	memset(&cscount_cfg, 0, sizeof(cscount_cfg));
+	if (argc == 0) {
+		cscount_cfg.action = ACTION_GET;
+	} else if (argc == 1) {
+		if ((t_u32)A2HEXDECIMAL(argv[0]) < 5
+		    && (t_u32)A2HEXDECIMAL(argv[0]) > 20) {
+			printf("ERR:Invalid Channel switch count value\n");
+			return UAP_FAILURE;
+		}
+		cscount_cfg.action = ACTION_SET;
+		cscount_cfg.cs_count = (t_u32)A2HEXDECIMAL(argv[0]);
+	} else {
+		print_cscount_cfg_usage();
+		return UAP_FAILURE;
+	}
+	cscount_cfg.subcmd = UAP_CHAN_SWITCH_COUNT_CFG;
+
+	/* Open socket */
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		printf("ERR:Cannot open socket\n");
+		return UAP_FAILURE;
+	}
+	/* Initialize the ifr structure */
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, IFNAMSIZ - 1);
+	ifr.ifr_ifru.ifru_data = (void *)&cscount_cfg;
+	/* Perform ioctl */
+	errno = 0;
+	if (ioctl(sockfd, UAP_IOCTL_CMD, &ifr)) {
+		perror("");
+		printf("ERR: Channel switch count configuration failed\n");
+		close(sockfd);
+		return UAP_FAILURE;
+	}
+
+	/* Handle response */
+	if (cscount_cfg.action == ACTION_GET) {
+		printf("Channel Switch count = %d\n", cscount_cfg.cs_count);
+	}
+
+	/* Close socket */
+	close(sockfd);
+	return UAP_SUCCESS;
+}
 
 /**
  *  @brief Show usage information for the mgmtframectrl command
@@ -11232,7 +11349,7 @@ apcmd_mgmt_frame_control(int argc, char *argv[])
  *  @brief Show usage information for the sys_cfg_tdls_ext_cap
  *   command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_sys_cfg_tdls_ext_cap_usage(void)
@@ -11354,8 +11471,7 @@ parse_tdls_config(int argc, char *argv[], tlvbuf_tdls_ext_cap *ext_cap_tlv)
 	}
 	memset(buffer, 0, MAX_TDLS_EXT_CAP_LEN);
 	prev_ext_cap_tlv = (tlvbuf_tdls_ext_cap *)buffer;
-	/* Get previous setting of extended capability from FW and copy it to
-	   ext_cap_tlv */
+	/* Get previous setting of extended capability from FW and copy it to ext_cap_tlv */
 	if (UAP_SUCCESS != get_tdls_ext_cap(prev_ext_cap_tlv)) {
 		printf("ERR: Couldn't get TDLS extended capability setting!\n");
 		return UAP_FAILURE;
@@ -11557,10 +11673,9 @@ apcmd_sys_cfg_tdls_ext_cap(int argc, char *argv[])
 }
 
 /**
- *    @brief Show usage information for the sys_cfg_pmf command
- *    command
+ *    @brief Print usage information for the sys_cfg_pmf command
  *
- *    $return         N/A
+ *    @return         N/A
  */
 void
 print_sys_cfg_pmf(void)
@@ -11578,6 +11693,14 @@ print_sys_cfg_pmf(void)
 	return;
 }
 
+/**
+ *    @brief Show usage information for the sys_cfg_pmf command
+ *
+ *    @param argc     Number of arguments
+ *    @param argv     Pointer to the arguments
+ *
+ *    @return         UAP_SUCCESS or UAP_FAILURE
+ */
 int
 apcmd_sys_cfg_pmf(int argc, char *argv[])
 {
@@ -11671,7 +11794,7 @@ apcmd_sys_cfg_pmf(int argc, char *argv[])
 /**
  *  @brief Show usage information for uap operation control command
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_uap_oper_ctrl_usage(void)
@@ -11842,6 +11965,8 @@ static command_table ap_command[] = {
 	{"sys_cfg_frag_threshold", apcmd_sys_cfg_frag_threshold,
 	 "Set/get uAP frag threshold"},
 	{"radioctrl", apcmd_radio_ctl, "Set/get uAP radio on/off"},
+	{"sys_cfg_tx_beacon_rate", apcmd_sys_cfg_tx_beacon_rate,
+	 "Set/get uAP tx beacon rate"},
 	{"txratecfg", apcmd_tx_rate_cfg, "Set/get trasnmit data rate"},
 	{"sys_cfg_mcbc_data_rate", apcmd_sys_cfg_mcbc_data_rate,
 	 "Set/get uAP MCBC rate"},
@@ -11929,6 +12054,7 @@ static command_table ap_command[] = {
 #if defined(DFS_TESTING_SUPPORT)
 	{"dfstesting", apcmd_dfstesting, "\tConfigure DFS Testing settings."},
 #endif
+	{"cscount", apcmd_cscount_cfg, "\tConfigure DFS Channel Switch Count."},
 	{"mgmtframectrl", apcmd_mgmt_frame_control,
 	 "\tSpecifies mask indicating management frames to be sent from host."},
 	{"sys_cfg_tdls_ext_cap", apcmd_sys_cfg_tdls_ext_cap,
@@ -11976,23 +12102,6 @@ static struct option ap_options[] = {
 	{"version", 0, NULL, 'v'},
 	{NULL, 0, NULL, '\0'}
 };
-
-/**
- *    @brief isdigit for String.
- *
- *    @param x            Char string
- *    @return             UAP_FAILURE for non-digit.
- *                        UAP_SUCCESS for digit
- */
-inline int
-ISDIGIT(char *x)
-{
-	unsigned int i;
-	for (i = 0; i < strlen(x); i++)
-		if (isdigit(x[i]) == 0)
-			return UAP_FAILURE;
-	return UAP_SUCCESS;
-}
 
 /**
  * @brief Checks if given channel in 'a' band is valid or not.
@@ -12415,8 +12524,9 @@ is_input_valid(valid_inputs cmd, int argc, char *argv[])
 			ret = UAP_FAILURE;
 		} else {
 			if ((ISDIGIT(argv[0]) == 0) ||
-			    ((atoi(argv[0]) != 0) && (atoi(argv[0]) != 1))) {
-				printf("ERR:Illegal parameter %s for BROADCASTSSID. Must be either '0' or '1'.\n", argv[0]);
+			    ((atoi(argv[0]) != 0) && (atoi(argv[0]) != 1) &&
+			     (atoi(argv[0]) != 2))) {
+				printf("ERR:Illegal parameter %s for BROADCASTSSID. Must be either '0', '1' or '2'.\n", argv[0]);
 				ret = UAP_FAILURE;
 			}
 		}
@@ -12536,6 +12646,7 @@ is_input_valid(valid_inputs cmd, int argc, char *argv[])
 		}
 		break;
 	case MCBCDATARATE:
+	case TXBEACONRATE:
 		if (argc != 1) {
 			printf("ERR:Incorrect number of arguments for DATARATE\n");
 			ret = UAP_FAILURE;
@@ -13007,7 +13118,7 @@ ishexstring(void *hex)
  *
  *  @param tlv     Pointer to auth tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_auth(tlvbuf_auth_mode *tlv)
@@ -13034,7 +13145,7 @@ print_auth(tlvbuf_auth_mode *tlv)
  *
  *  @param tlv     Pointer to cipher tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_cipher(tlvbuf_cipher *tlv)
@@ -13077,7 +13188,7 @@ print_cipher(tlvbuf_cipher *tlv)
  *
  *  @param tlv     Pointer to pairwise cipher tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_pwk_cipher(tlvbuf_pwk_cipher *tlv)
@@ -13118,7 +13229,7 @@ print_pwk_cipher(tlvbuf_pwk_cipher *tlv)
  *
  *  @param tlv     Pointer to group cipher tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_gwk_cipher(tlvbuf_gwk_cipher *tlv)
@@ -13144,7 +13255,7 @@ print_gwk_cipher(tlvbuf_gwk_cipher *tlv)
  *
  *  @param tlv     Pointer to filter tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_mac_filter(tlvbuf_sta_mac_addr_filter *tlv)
@@ -13181,7 +13292,7 @@ print_mac_filter(tlvbuf_sta_mac_addr_filter *tlv)
  *
  *  @param tlv      Pointer to rate tlv
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_rate(tlvbuf_rates *tlv)
@@ -13216,7 +13327,7 @@ print_rate(tlvbuf_rates *tlv)
  *  @param buf     Pointer to tlv buffer
  *  @param len     Tlv buffer len
  *
- *  $return         N/A
+ *  @return         N/A
  */
 void
 print_tlv(t_u8 *buf, t_u16 len)
@@ -13325,21 +13436,18 @@ print_tlv(t_u8 *buf, t_u16 len)
 			channel_tlv = (tlvbuf_channel_config *)pcurrent_tlv;
 			printf("Channel = %d\n", channel_tlv->chan_number);
 			printf("Band = %s\n",
-			       (channel_tlv->
-				band_config_type & BAND_CONFIG_5GHZ) ? "5GHz" :
-			       "2.4GHz");
+			       (channel_tlv->bandcfg.chanBand ==
+				BAND_5GHZ) ? "5GHz" : "2.4GHz");
 			printf("Channel Select Mode = %s\n",
-			       (channel_tlv->
-				band_config_type & BAND_CONFIG_ACS_MODE) ? "ACS"
-			       : "Manual");
-			channel_tlv->band_config_type &= 0x30;
-			if (channel_tlv->band_config_type == 0)
+			       (channel_tlv->bandcfg.scanMode ==
+				SCAN_MODE_ACS) ? "ACS" : "Manual");
+			if (channel_tlv->bandcfg.chan2Offset == SEC_CHAN_NONE)
 				printf("no secondary channel\n");
-			else if (channel_tlv->band_config_type ==
-				 SECOND_CHANNEL_ABOVE)
+			else if (channel_tlv->bandcfg.chan2Offset ==
+				 SEC_CHAN_ABOVE)
 				printf("secondary channel is above primary channel\n");
-			else if (channel_tlv->band_config_type ==
-				 SECOND_CHANNEL_BELOW)
+			else if (channel_tlv->bandcfg.chan2Offset ==
+				 SEC_CHAN_BELOW)
 				printf("secondary channel is below primary channel\n");
 			break;
 		case MRVL_CHANNELLIST_TLV_ID:
@@ -13354,9 +13462,8 @@ print_tlv(t_u8 *buf, t_u16 len)
 			     (unsigned int)i < (tlv_len / sizeof(channel_list));
 			     i++) {
 				printf("\n%d\t%sGHz", pchan_list->chan_number,
-				       (pchan_list->
-					band_config_type & BAND_CONFIG_5GHZ) ?
-				       "5" : "2.4");
+				       (pchan_list->bandcfg.chanBand ==
+					BAND_5GHZ) ? "5" : "2.4");
 				pchan_list++;
 			}
 			printf("\n");

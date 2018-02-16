@@ -3,7 +3,7 @@
  *  @brief This file contains declaration referring to
  *  functions defined in uapcmd.c
  *
- * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  * MARVELL CONFIDENTIAL
  * The source code contained or described herein and all documents related to
@@ -49,6 +49,7 @@ int apcmd_sys_cfg_rts_threshold(int argc, char *argv[]);
 int apcmd_sys_cfg_frag_threshold(int argc, char *argv[]);
 int apcmd_sys_cfg_radio_ctl(int argc, char *argv[]);
 int apcmd_sys_cfg_rsn_replay_prot(int argc, char *argv[]);
+int apcmd_sys_cfg_tx_beacon_rate(int argc, char *argv[]);
 int apcmd_sys_cfg_mcbc_data_rate(int argc, char *argv[]);
 int apcmd_sys_cfg_pkt_fwd_ctl(int argc, char *argv[]);
 int apcmd_sys_cfg_sta_ageout_timer(int argc, char *argv[]);

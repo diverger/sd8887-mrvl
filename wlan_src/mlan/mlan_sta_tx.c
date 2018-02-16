@@ -3,7 +3,7 @@
  *  @brief This file contains the handling of data packet
  *  transmission in MLAN module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
  *
  *  MARVELL CONFIDENTIAL
  *  The source code contained or described herein and all documents related to
@@ -89,12 +89,12 @@ wlan_ops_sta_process_txpd(IN t_void *priv, IN pmlan_buffer pmbuf)
 		pmbuf->data_len -= sizeof(pkt_type) + sizeof(tx_control);
 	}
 
-	if (pmbuf->data_offset < (sizeof(TxPD) + INTF_HEADER_LEN +
+	if (pmbuf->data_offset < (sizeof(TxPD) + pmpriv->intf_hr_len +
 				  DMA_ALIGNMENT)) {
 		PRINTM(MERROR,
 		       "not enough space for TxPD: headroom=%d pkt_len=%d, required=%d\n",
 		       pmbuf->data_offset, pmbuf->data_len,
-		       sizeof(TxPD) + INTF_HEADER_LEN + DMA_ALIGNMENT);
+		       sizeof(TxPD) + pmpriv->intf_hr_len + DMA_ALIGNMENT);
 		pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
 		goto done;
 	}
@@ -102,15 +102,14 @@ wlan_ops_sta_process_txpd(IN t_void *priv, IN pmlan_buffer pmbuf)
 	/* head_ptr should be aligned */
 	head_ptr =
 		pmbuf->pbuf + pmbuf->data_offset - sizeof(TxPD) -
-		INTF_HEADER_LEN;
+		pmpriv->intf_hr_len;
 	head_ptr = (t_u8 *)((t_ptr)head_ptr & ~((t_ptr)(DMA_ALIGNMENT - 1)));
 
-	plocal_tx_pd = (TxPD *)(head_ptr + INTF_HEADER_LEN);
+	plocal_tx_pd = (TxPD *)(head_ptr + pmpriv->intf_hr_len);
 	memset(pmadapter, plocal_tx_pd, 0, sizeof(TxPD));
 	/* Set the BSS number to TxPD */
 	plocal_tx_pd->bss_num = GET_BSS_NUM(pmpriv);
 	plocal_tx_pd->bss_type = pmpriv->bss_type;
-
 	plocal_tx_pd->tx_pkt_length = (t_u16)pmbuf->data_len;
 
 	plocal_tx_pd->priority = (t_u8)pmbuf->priority;
@@ -152,12 +151,10 @@ wlan_ops_sta_process_txpd(IN t_void *priv, IN pmlan_buffer pmbuf)
 	}
 
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_STATUS) {
-		plocal_tx_pd->tx_token_id = (t_u8)pmbuf->tx_seq_num;
+		plocal_tx_pd->tx_control_1 |= pmbuf->tx_seq_num << 8;
 		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TX_PACKET_STATUS;
 	}
-
 	endian_convert_TxPD(plocal_tx_pd);
-
 	/* Adjust the data offset and length to include TxPD in pmbuf */
 	pmbuf->data_len += pmbuf->data_offset;
 	pmbuf->data_offset = (t_u32)(head_ptr - pmbuf->pbuf);
@@ -188,7 +185,7 @@ wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	t_u8 *ptr;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 #ifdef DEBUG_LEVEL1
-	t_u32 sec, usec;
+	t_u32 sec = 0, usec = 0;
 #endif
 
 	ENTER();
@@ -223,9 +220,10 @@ wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	memset(pmadapter, pmbuf->pbuf, 0, data_len);
 	pmbuf->bss_index = priv->bss_index;
 	pmbuf->buf_type = MLAN_BUF_TYPE_DATA;
+	pmbuf->flags |= MLAN_BUF_FLAG_NULL_PKT;
 	ptr = pmbuf->pbuf + pmbuf->data_offset;
-	pmbuf->data_len = sizeof(TxPD) + INTF_HEADER_LEN;
-	ptx_pd = (TxPD *)(ptr + INTF_HEADER_LEN);
+	pmbuf->data_len = sizeof(TxPD) + priv->intf_hr_len;
+	ptx_pd = (TxPD *)(ptr + priv->intf_hr_len);
 	ptx_pd->tx_control = priv->pkt_tx_ctrl;
 	ptx_pd->flags = flags;
 	ptx_pd->priority = WMM_HIGHEST_PRIORITY;
@@ -265,7 +263,7 @@ wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	PRINTM_GET_SYS_TIME(MDATA, &sec, &usec);
 	PRINTM_NETINTF(MDATA, priv);
 	PRINTM(MDATA, "%lu.%06lu : Null data => FW\n", sec, usec);
-	DBG_HEXDUMP(MDAT_D, "Null data", ptr, sizeof(TxPD) + INTF_HEADER_LEN);
+	DBG_HEXDUMP(MDAT_D, "Null data", ptr, sizeof(TxPD) + priv->intf_hr_len);
 done:
 	LEAVE();
 	return ret;
@@ -299,7 +297,7 @@ wlan_check_last_packet_indication(pmlan_private priv)
 			ret = MTRUE;
 	}
 	if (ret && !pmadapter->cmd_sent && !pmadapter->curr_cmd
-	    && !IS_COMMAND_PENDING(pmadapter)) {
+	    && !wlan_is_cmd_pending(pmadapter)) {
 		pmadapter->delay_null_pkt = MFALSE;
 		ret = MTRUE;
 	} else {

@@ -2,7 +2,7 @@
  *  @brief This file contains SDIO (interface) module
  *  related macros, enum, and structure.
  *
- *  Copyright (C) 2007-2016, Marvell International Ltd.
+ *  Copyright (C) 2007-2018, Marvell International Ltd.
  *
  *  This software file (the "File") is distributed by Marvell International
  *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
@@ -38,6 +38,8 @@
 #define CARD_TYPE_SD8977   0x06
 /** SD8997 card type */
 #define CARD_TYPE_SD8997   0x07
+/** SD8987 card type */
+#define CARD_TYPE_SD8987   0x08
 
 /** IRQ return type */
 typedef irqreturn_t IRQ_RET_TYPE;
@@ -77,6 +79,12 @@ typedef IRQ_RET_TYPE (*isr_notifier_fn_t) (s32 irq, void *dev_id,
 #define SD_BUS_WIDTH_MASK		0x03
 /** Asynchronous interrupt mode */
 #define ASYNC_INT_MODE			0x20
+
+/** magic register */
+#define CARD_MAGIC_REG          0xF0
+/** magic value */
+#define MAGIC_VAL               0x24
+
 /* Host Control Registers */
 /** Host Control Registers : Configuration */
 #define CONFIGURATION_REG		0x00
@@ -381,6 +389,10 @@ static const struct sdio_device bt_sdio_sd8977 = {
 };
 
 static const struct sdio_device bt_sdio_sd8997 = {
+	.reg = &bt_reg_8977_8997,
+};
+
+static const struct sdio_device bt_sdio_sd8987 = {
 	.reg = &bt_reg_8977_8997,
 };
 

@@ -2,7 +2,7 @@
   *
   * @brief This file contains command structures for mlanconfig application
   *
-  * (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
   *
   * MARVELL CONFIDENTIAL
   * The source code contained or described herein and all documents related to
@@ -87,34 +87,34 @@ Change log:
 /** TLV  type ID definition */
 #define PROPRIETARY_TLV_BASE_ID     0x0100
 /** TLV type : Beacon RSSI low */
-#define TLV_TYPE_RSSI_LOW           (PROPRIETARY_TLV_BASE_ID + 0x04)	// 0x0104
+#define TLV_TYPE_RSSI_LOW           (PROPRIETARY_TLV_BASE_ID + 0x04)	//0x0104
 /** TLV type : Beacon SNR low */
-#define TLV_TYPE_SNR_LOW            (PROPRIETARY_TLV_BASE_ID + 0x05)	// 0x0105
+#define TLV_TYPE_SNR_LOW            (PROPRIETARY_TLV_BASE_ID + 0x05)	//0x0105
 /** TLV type : Fail count */
-#define TLV_TYPE_FAILCOUNT          (PROPRIETARY_TLV_BASE_ID + 0x06)	// 0x0106
+#define TLV_TYPE_FAILCOUNT          (PROPRIETARY_TLV_BASE_ID + 0x06)	//0x0106
 /** TLV type : BCN miss */
-#define TLV_TYPE_BCNMISS            (PROPRIETARY_TLV_BASE_ID + 0x07)	// 0x0107
+#define TLV_TYPE_BCNMISS            (PROPRIETARY_TLV_BASE_ID + 0x07)	//0x0107
 /** TLV type : Beacon RSSI high */
-#define TLV_TYPE_RSSI_HIGH          (PROPRIETARY_TLV_BASE_ID + 0x16)	// 0x0116
+#define TLV_TYPE_RSSI_HIGH          (PROPRIETARY_TLV_BASE_ID + 0x16)	//0x0116
 /** TLV type : Beacon SNR high */
-#define TLV_TYPE_SNR_HIGH           (PROPRIETARY_TLV_BASE_ID + 0x17)	// 0x0117
+#define TLV_TYPE_SNR_HIGH           (PROPRIETARY_TLV_BASE_ID + 0x17)	//0x0117
 /** TLV type : Auto Tx */
-#define TLV_TYPE_AUTO_TX            (PROPRIETARY_TLV_BASE_ID + 0x18)	// 0x0118
+#define TLV_TYPE_AUTO_TX            (PROPRIETARY_TLV_BASE_ID + 0x18)	//0x0118
 /** TLV type :Link Quality */
-#define TLV_TYPE_LINK_QUALITY       (PROPRIETARY_TLV_BASE_ID + 0x24)	// 0x0124
+#define TLV_TYPE_LINK_QUALITY       (PROPRIETARY_TLV_BASE_ID + 0x24)	//0x0124
 /** TLV type : Data RSSI low */
-#define TLV_TYPE_RSSI_LOW_DATA      (PROPRIETARY_TLV_BASE_ID + 0x26)	// 0x0126
+#define TLV_TYPE_RSSI_LOW_DATA      (PROPRIETARY_TLV_BASE_ID + 0x26)	//0x0126
 /** TLV type : Data SNR low */
-#define TLV_TYPE_SNR_LOW_DATA       (PROPRIETARY_TLV_BASE_ID + 0x27)	// 0x0127
+#define TLV_TYPE_SNR_LOW_DATA       (PROPRIETARY_TLV_BASE_ID + 0x27)	//0x0127
 /** TLV type : Data RSSI high */
-#define TLV_TYPE_RSSI_HIGH_DATA     (PROPRIETARY_TLV_BASE_ID + 0x28)	// 0x0128
+#define TLV_TYPE_RSSI_HIGH_DATA     (PROPRIETARY_TLV_BASE_ID + 0x28)	//0x0128
 /** TLV type : Data SNR high */
-#define TLV_TYPE_SNR_HIGH_DATA      (PROPRIETARY_TLV_BASE_ID + 0x29)	// 0x0129
+#define TLV_TYPE_SNR_HIGH_DATA      (PROPRIETARY_TLV_BASE_ID + 0x29)	//0x0129
 /** TLV type: Pre-Beacon Lost */
-#define TLV_TYPE_PRE_BEACON_LOST    (PROPRIETARY_TLV_BASE_ID + 0x49)	// 0x0149
+#define TLV_TYPE_PRE_BEACON_LOST    (PROPRIETARY_TLV_BASE_ID + 0x49)	//0x0149
 
 /** TLV type : Channel TRPC */
-#define TLV_TYPE_CHAN_TRPC              (PROPRIETARY_TLV_BASE_ID + 0x89)	// 0x0189
+#define TLV_TYPE_CHAN_TRPC              (PROPRIETARY_TLV_BASE_ID + 0x89)	//0x0189
 
 /* Define general hostcmd data structure */
 /** HostCmd_DS_GEN */
@@ -230,6 +230,21 @@ typedef struct MAPP_HostCmd_DS_802_11_CRYPTO_AES_CCM {
 	MrvlIEtypes_Data_t data;   /**< Plain text if encdec=Encrypt, Ciphertext data if encdec=Decrypt*/
 } __ATTRIB_PACK__ HostCmd_DS_802_11_CRYPTO_AES_CCM;
 
+/** HostCmd_DS_802_11_CRYPTO_WAPI */
+typedef struct MAPP_HostCmd_DS_802_11_CRYPTO_WAPI {
+	t_u16 encdec;	  /**< Decrypt=0, Encrypt=1 */
+	t_u16 algorithm;  /**< WAPI =5 */
+	t_u16 key_length;  /**< Length of Key (bytes)  */
+	t_u8 key[32];	  /**< Key  */
+	t_u16 nonce_length;/**< Length of Nonce (bytes) */
+	t_u8 nonce[16];	  /**< Nonce */
+	t_u16 AAD_length;  /**< Length of AAD (bytes) */
+	t_u8 AAD[48];	  /**< AAD */
+	t_u16 data_length;  /**< Length of data (bytes)  */
+} __ATTRIB_PACK__ HostCmd_DS_802_11_CRYPTO_WAPI;
+
+/** WAPI cipher test */
+#define CIPHER_TEST_WAPI (5)
 /** AES CCM cipher test */
 #define CIPHER_TEST_AES_CCM (4)
 /** AutoTx_MacFrame_t */
