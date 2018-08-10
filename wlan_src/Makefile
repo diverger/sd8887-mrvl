@@ -56,10 +56,10 @@ CONFIG_STA_SUPPORT=y
 CONFIG_UAP_SUPPORT=y
 
 # Enable WIFIDIRECT support
-CONFIG_WIFI_DIRECT_SUPPORT=y
+CONFIG_WIFI_DIRECT_SUPPORT=n
 
 # Enable WIFIDISPLAY support
-CONFIG_WIFI_DISPLAY_SUPPORT=y
+CONFIG_WIFI_DISPLAY_SUPPORT=n
 
 # Re-association in driver
 CONFIG_REASSOCIATION=y
@@ -104,11 +104,14 @@ CONFIG_MULTI_CHAN_SUPPORT=y
 
 # Use static link for app build
 export CONFIG_STATIC_LINK=y
-CONFIG_ANDROID_KERNEL=y
+CONFIG_ANDROID_KERNEL=n
 
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=y
 
+
+CONFIG_64BIT=n
+CONFIG_WIRELESS_EXT=n
 
 #############################################################################
 # Select Platform Tools
@@ -126,9 +129,9 @@ ccflags-y += -DLINUX
 # Alternatively KERNELDIR can be set in the environment.
 # Default value for KERNELDIR is set below.
 ccflags-y += -fno-pic
-ARCH ?= arm64
+ARCH ?= arm
 KERNELDIR ?= /usr/src/arm/kk_linux-3.14-pxa1908
-CROSS_COMPILE ?= /usr/local/aarch64-linux-android-4.8/bin/aarch64-linux-android-
+CROSS_COMPILE ?= ''
 
 # CROSS_COMPILE specify the prefix used for all executables used
 # during compilation. Only gcc and related bin-utils executables
@@ -136,7 +139,7 @@ CROSS_COMPILE ?= /usr/local/aarch64-linux-android-4.8/bin/aarch64-linux-android-
 # make CROSS_COMPILE=</usr/local/arm/4.1.1/bin/>arm-linux-
 # Alternatively CROSS_COMPILE can be set in the environment.
 # Default value for CROSS_COMPILE is set below.
-CROSS_COMPILE ?= /usr/local/arm/4.1.1/bin/arm-linux-
+CROSS_COMPILE ?= ''
 
 # INSTALLDIR specify the path to install the kernel module after
 # succesful compilation.

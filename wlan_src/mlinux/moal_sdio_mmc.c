@@ -32,14 +32,12 @@ Change log:
 /** define marvell vendor id */
 #define MARVELL_VENDOR_ID 0x02df
 
-extern void pxa3xx_enable_wifi_host_sleep_pins(void);
-extern void pxa3xx_wifi_wakeup(int active);
 /** Initialize GPIO port */
-#define GPIO_PORT_INIT() pxa3xx_enable_wifi_host_sleep_pins()
+#define GPIO_PORT_INIT()
 /** Set GPIO port to high */
-#define GPIO_PORT_TO_HIGH() pxa3xx_wifi_wakeup(0)
+#define GPIO_PORT_TO_HIGH()
 /** Set GPIO port to low */
-#define GPIO_PORT_TO_LOW() pxa3xx_wifi_wakeup(1)
+#define GPIO_PORT_TO_LOW()
 
 /********************************************************
 		Local Variables
