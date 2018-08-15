@@ -100,6 +100,12 @@ sudo rmmod bt8xxx
 
 ### 8. Notes
 
+#### Building
+
+I modified the Makefiles for the two drivers with minimal changes to make it run.
+Only one source code change was needed, but this is natural for this driver (see
+Unresolved symbols note below).
+
 #### Firmware files
 
 There are three firmware files included: sd8887_uapsta_a2.bin, sd8887_wlan_a2.bin
@@ -126,7 +132,9 @@ the `GPIO_PORT_INIT`, `GPIO_PORT_TO_HIGH` and `GPIO_PORT_TO_LOW` macros. Those
 macros are hardware platform dependent and their definition should match the
 actual platform. For now I made their definitions empty and this functionality
 is disabled. When the host CPU is in sleep mode, the module may wake it up upon
-receipt of WLAN data. The module notifies the host with WL_HOST_WKUP (GPIO16).
+receipt of WLAN data. The module notifies the host with WL_HOST_WKUP. I am not
+aware how this could be implemented with our board and how essential that is
+for its operation.
 
 #### STA interface name - wlan0
 
@@ -137,12 +145,13 @@ The sta_name parameter defaults to `mlan`. We are redefining it as `wlan`.
 By default the driver will create a second interface `uap0`. This interface runs
 in access point mode and can be useful for control type of applications. In the
 future we may make WiFi Connect be able to run on two interfaces as well - one
-for the captive portal and one for establishing Internet connectivity.
+for the captive portal and one for establishing Internet connectivity. I imagine
+we can set defaults for Fin like this for easier setup.
 
 For now I have disabled the AP interface by specifying `drv_mode=1`, but we may
 consider leaving it running. We have users that use additional dongle or module
 for similar purposes and by leaving the AP interface exposed, they can take
-advantage of it. It could be a selling point for our board.
+advantage of it. It could be an additional selling point for our board.
 
 It is also possible to turn on the uAP interface during runtime using `echo
 drv_mode=3 > /proc/mwlan/config`, but it errored out with a firmware init error
