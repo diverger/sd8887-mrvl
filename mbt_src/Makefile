@@ -23,7 +23,7 @@ CONFIG_DEBUG=1
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
 
-
+CONFIG_64BIT=n
 
 #############################################################################
 # Select Platform Tools
@@ -57,9 +57,9 @@ endif
 # Alternatively KERNELDIR can be set in the environment.
 # Default value for KERNELDIR is set below.
 EXTRA_CFLAGS += -fno-pic
-ARCH ?= arm64
+ARCH ?= arm
 KERNELDIR ?= /usr/src/arm/kk_linux-3.14-pxa1908
-CROSS_COMPILE ?= /usr/local/aarch64-linux-android-4.8/bin/aarch64-linux-android-
+CROSS_COMPILE ?= ''
 
 # CROSS_COMPILE specify the prefix used for all executables used
 # during compilation. Only gcc and related bin-utils executables
@@ -67,7 +67,7 @@ CROSS_COMPILE ?= /usr/local/aarch64-linux-android-4.8/bin/aarch64-linux-android-
 # make CROSS_COMPILE=</usr/local/arm/4.1.1/bin/>arm-linux-
 # Alternatively CROSS_COMPILE can be set in the environment.
 # Default value for CROSS_COMPILE is set below.
-CROSS_COMPILE ?= /usr/local/arm/4.1.1/bin/arm-linux-
+CROSS_COMPILE ?= ''
 
 # INSTALLDIR specify the path to install the kernel module after
 # succesful compilation.
