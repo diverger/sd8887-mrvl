@@ -1,4 +1,4 @@
-Raspbian build instructions 
+Raspbian build instructions
 ---------------------------
 
 ### 1. Preparation
@@ -45,7 +45,7 @@ sudo modprobe cfg80211
 
 sudo insmod mlan.ko
 
-sudo insmod sd8xxx.ko cal_data_cfg=none drv_mode=1 sta_name=wlan
+sudo insmod sd8xxx.ko cal_data_cfg=none drv_mode=1 sta_name=wlan ps_mode=2
 ```
 
 ### 4. Verify
@@ -79,7 +79,7 @@ cd ~/sd8887-mrvl/mbt_src
 
 make -j 4 KERNELDIR=/usr/src/linux-headers-$(uname -r) build
 
-cd ../bin_sd8xxx/
+cd ../bin_sd8xxx_bt/
 
 sudo modprobe bluetooth
 
@@ -98,7 +98,32 @@ sudo hciconfig hciX down
 sudo rmmod bt8xxx
 ```
 
-### 8. Notes
+### 8. Persistent installation
+
+```bash
+
+sudo cp ~/sd8887-mrvl/bin_sd8xxx/mlan.ko /lib/modules/$(uname -r)/kernel/drivers/net/wireless/marvell/mlan.ko
+sudo cp ~/sd8887-mrvl/bin_sd8xxx/sd8xxx.ko /lib/modules/$(uname -r)/kernel/drivers/net/wireless/marvell/sd8xxx.ko
+sudo cp ~/sd8887-mrvl/bin_sd8xxx_bt/bt8xxx.ko /lib/modules/$(uname -r)/kernel/drivers/bluetooth
+sudo depmod
+sudo touch /etc/modules-load.d/sd8887-mrvl.conf
+```
+
+edit `/etc/modules-load.d/sd8887-mrvl.conf` like this:
+
+```bash
+mlan
+sd8xxx
+bt8xxx
+```
+
+create and edit `/etc/modprobe.d/sd8887-mrvl.conf` like this:
+
+```bash
+options sd8xxx cal_data_cfg=none drv_mode=1 sta_name=wlan ps_mode=2
+```
+
+### 9. Notes
 
 #### Building
 
