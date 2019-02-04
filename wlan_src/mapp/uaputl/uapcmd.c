@@ -2,24 +2,20 @@
  *
  *  @brief This file contains the handling of command.
  *
- * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
- * MARVELL CONFIDENTIAL
- * The source code contained or described herein and all documents related to
- * the source code ("Material") are owned by Marvell International Ltd or its
- * suppliers or licensors. Title to the Material remains with Marvell International Ltd
- * or its suppliers and licensors. The Material contains trade secrets and
- * proprietary and confidential information of Marvell or its suppliers and
- * licensors. The Material is protected by worldwide copyright and trade secret
- * laws and treaty provisions. No part of the Material may be used, copied,
- * reproduced, modified, published, uploaded, posted, transmitted, distributed,
- * or disclosed in any way without Marvell's prior express written permission.
+ * This software file (the "File") is distributed by Marvell International
+ * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ * (the "License").  You may use, redistribute and/or modify this File in
+ * accordance with the terms and conditions of the License, a copy of which
+ * is available along with the File in the gpl.txt file or by writing to
+ * the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ * 02111-1307 or on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
  *
- * No license under any patent, copyright, trade secret or other intellectual
- * property right is granted to or conferred upon you by disclosure or delivery
- * of the Materials, either expressly, by implication, inducement, estoppel or
- * otherwise. Any license under such intellectual property rights must be
- * express and approved by Marvell in writing.
+ * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ * this warranty disclaimer.
  *
  */
 /****************************************************************************
@@ -2984,6 +2980,136 @@ apcmd_sys_cfg_preamble_ctl(int argc, char *argv[])
 						1) ? "short" : "long"));
 		else {
 			printf("ERR:Could not get preamble type!\n");
+			ret = UAP_FAILURE;
+		}
+	} else {
+		printf("ERR:Command sending failed!\n");
+	}
+	if (buffer)
+		free(buffer);
+	return ret;
+}
+
+/**
+ *  @brief Creates a sys_cfg request for antenna configuration
+ *   and sends to the driver
+ *
+ *   Usage: "sys_cfg_antenna_ctl <ANTENNA> [MODE]"
+ *
+ *   Options: ANTENNA : 0 - Rx antenna
+ *                      1 - Tx antenna
+ *            MODE    : 0       - Antenna A
+ *                      1       - Antenna B
+ *                      empty   - Get current antenna settings
+ *
+ *  @param argc     Number of arguments
+ *  @param argv     Pointer to the arguments
+ *  @return         UAP_SUCCESS/UAP_FAILURE
+ */
+int
+apcmd_sys_cfg_antenna_ctl(int argc, char *argv[])
+{
+	apcmdbuf_sys_configure *cmd_buf = NULL;
+	tlvbuf_antenna_ctl *tlv = NULL;
+	t_u8 *buffer = NULL;
+	t_u16 cmd_len = 0;
+	t_u16 buf_len = MRVDRV_SIZE_OF_CMD_BUFFER;
+	int ret = UAP_SUCCESS;
+	int opt;
+	while ((opt = getopt_long(argc, argv, "+", cmd_options, NULL)) != -1) {
+		switch (opt) {
+		default:
+			print_sys_cfg_antenna_ctl_usage();
+			return UAP_SUCCESS;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+	/* Check arguments */
+	if ((argc == 0) || (argc > 2)) {
+		printf("ERR:wrong arguments.\n");
+		print_sys_cfg_antenna_ctl_usage();
+		return UAP_FAILURE;
+	} else if (argc == 1) {
+		if ((ISDIGIT(argv[0]) == 0) || (atoi(argv[0]) < 0) ||
+		    (atoi(argv[0]) > 1)) {
+			printf("ERR:Illegal ANTENNA parameter %s. Must be either '0' or '1'.\n", argv[0]);
+			print_sys_cfg_antenna_ctl_usage();
+			return UAP_FAILURE;
+		}
+	} else {
+		if ((ISDIGIT(argv[0]) == 0) || (atoi(argv[0]) < 0) ||
+		    (atoi(argv[0]) > 1)) {
+			printf("ERR:Illegal ANTENNA parameter %s. Must be either '0' or '1'.\n", argv[0]);
+			print_sys_cfg_antenna_ctl_usage();
+			return UAP_FAILURE;
+		}
+		if ((ISDIGIT(argv[1]) == 0) || (atoi(argv[1]) < 0) ||
+		    (atoi(argv[1]) > 1)) {
+			printf("ERR:Illegal MODE parameter %s. Must be either '0' or '1'.\n", argv[1]);
+			print_sys_cfg_antenna_ctl_usage();
+			return UAP_FAILURE;
+		}
+	}
+
+	/* Initialize the command length */
+	cmd_len = sizeof(apcmdbuf_sys_configure) + sizeof(tlvbuf_antenna_ctl);
+
+	/* Initialize the command buffer */
+	buffer = (t_u8 *)malloc(buf_len);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return UAP_FAILURE;
+	}
+	memset(buffer, 0, buf_len);
+
+	/* Locate headers */
+	cmd_buf = (apcmdbuf_sys_configure *)buffer;
+	tlv = (tlvbuf_antenna_ctl *)(buffer + sizeof(apcmdbuf_sys_configure));
+
+	/* Fill the command buffer */
+	cmd_buf->cmd_code = APCMD_SYS_CONFIGURE;
+	cmd_buf->size = cmd_len;
+	cmd_buf->seq_num = 0;
+	cmd_buf->result = 0;
+	tlv->tag = MRVL_ANTENNA_CTL_TLV_ID;
+	tlv->length = 2;
+	tlv->which_antenna = (t_u8)atoi(argv[0]);
+	if (argc == 1) {
+		cmd_buf->action = ACTION_GET;
+	} else {
+		cmd_buf->action = ACTION_SET;
+		tlv->antenna_mode = (t_u8)atoi(argv[1]);
+	}
+	endian_convert_tlv_header_out(tlv);
+	/* Send the command */
+	ret = uap_ioctl((t_u8 *)cmd_buf, &cmd_len, buf_len);
+	endian_convert_tlv_header_in(tlv);
+	/* Process response */
+	if (ret == UAP_SUCCESS) {
+		/* Verify response */
+		if ((cmd_buf->cmd_code !=
+		     (APCMD_SYS_CONFIGURE | APCMD_RESP_CHECK)) ||
+		    (tlv->tag != MRVL_ANTENNA_CTL_TLV_ID)) {
+			printf("ERR:Corrupted response! cmd_code=%x, Tlv->tag=%x\n", cmd_buf->cmd_code, tlv->tag);
+			free(buffer);
+			return UAP_FAILURE;
+		}
+		/* Print response */
+		if (cmd_buf->result == CMD_SUCCESS) {
+			if (argc == 1) {
+				printf("%s antenna: %s\n",
+				       (tlv->which_antenna == 0) ? "Rx" : "Tx",
+				       (tlv->antenna_mode == 0) ? "A" : "B");
+			} else {
+				printf("Antenna setting successful\n");
+			}
+		} else {
+			if (argc == 1) {
+				printf("ERR:Could not get antenna!\n");
+			} else {
+				printf("ERR:Could not set antenna!\n");
+			}
 			ret = UAP_FAILURE;
 		}
 	} else {
@@ -6659,16 +6785,10 @@ apcmd_sys_cfg_11n(int argc, char *argv[])
 			/* disable mcs rate */
 			tlv->ht_cap.supported_mcs_set[0] = 0;
 			tlv->ht_cap.supported_mcs_set[4] = 0;
-			tlv->ht_cap.supported_mcs_set[1] = 0;
 		} else {
 			t_u8 is_40MHz_supported = 0;
 			/* enable 802.11n */
 			memcpy(&tlv->ht_cap, &htcap, sizeof(HTCap_t));
-			if (0 == get_fw_info(&fw)) {
-				if ((fw.hw_dev_mcs_support & 0x0f) >= 2)
-					tlv->ht_cap.supported_mcs_set[1] =
-						DEFAULT_MCS_SET_1;
-			}
 			if (argc >= 2) {
 				tlv->ht_cap.ht_cap_info =
 					DEFAULT_HT_CAP_VALUE &

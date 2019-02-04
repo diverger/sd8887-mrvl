@@ -9,12 +9,12 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel up to 4.14.
+	The driver code supports Linux kernel up to 4.16.
 
 2) FOR DRIVER INSTALL
 
 	a) Copy firmware image sd8787_uapsta.bin | sd8797_uapsta.bin | ... to
-	   /system/etc/firmware/mrvl/ directory, create the directory if it doesn't exist.
+	   /lib/firmware/mrvl/ directory, create the directory if it doesn't exist.
 	b) Install WLAN driver,
 	   There are drv_mode, max_sta_bss, max_uap_bss etc. module parameters.
 		The bit settings of drv_mode are,
@@ -72,8 +72,7 @@
 	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
 	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
 	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
-	  SD8887: antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
-	  SD8897/SD8997: antcfg=0x11|0x13|0x33 <Bit0:Rx Path A, Bit1:Rx Path B, Bit 4:Tx Path A, Bit 5:Tx Path B>
+	  antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
 	  init_cfg=<init config (MAC addresses, registers etc.) file name>
 		e.g. copy init_cfg.conf to firmware directory, init_cfg=mrvl/init_cfg.conf
 	  cal_data_cfg=<CAL data config file name>
@@ -83,6 +82,7 @@
 		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=mrvl/txpwrlimit_cfg_set.conf
 	  init_hostcmd_cfg=<init hostcmd config file name>
 		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=mrvl/init_hostcmd_cfg.conf
+	  sdio_rx_aggr=1|0 <Enable SDIO rx aggr (default) | Disable SDIO rx aggr>
 	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
 		Bit 0: STA WEXT
 		Bit 1: uAP WEXT
@@ -103,6 +103,7 @@
 	  indication_gpio=0xXY <GPIO to indicate wakeup source and its level; high four bits X:
                   level(0/1) for normal wakeup; low four bits Y: GPIO pin number. This parameter
                   only works with specific board and firmware.>
+	  gtk_rekey_offload=0|1|2 <disable gtk_rekey_offload|enable gtk_rekey_offload (default) | enable gtk_rekey_offload in suspend mode only>
       napi=0|1 <disable napi | enable napi>
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -249,6 +250,12 @@
 		echo "debug_dump" > /proc/mwlan/config      # dump driver internal debug status.
 
 	Use dmesg or cat /var/log/debug to check driver debug messages.
+	To log driver debug messages to file,
+	a) Edit /etc/syslog.conf, add one line "*.debug		/var/log/debug"
+	   on kernel 2.6.24 or later, edit /etc/rsyslog.conf instead
+	b) touch /var/log/debug (if the file doesn't exist)
+	c) service syslog restart
+	   on kernel 2.6.24 or later, service rsyslog restart
 
 	Update /proc/sys/kernel/printk to change message log levels.
 	For example,
@@ -290,11 +297,10 @@ SYNOPSIS
 	mlanutl mlanX addbareject [<m0> <m1> ... <m7>]
 	mlanutl uapX addbareject [<m0> <m1> ... <m7>]
 	mlanutl mlanX addts <filename.conf> <section# of tspec> <timeout in ms>
-	mlanutl mlanX adhocaes
 	mlanutl mlanX aggrpriotbl [<m0> <n0> <m1> <n1> ... <m7> <n7>]
 	mlanutl uapX aggrpriotbl [<m0> <n0> <m1> <n1> ... <m7> <n7>]
 	mlanutl mlanX amsduaggrctrl <n>
-	mlanutl mlanX antcfg [m] [n]
+	mlanutl mlanX antcfg [m]
 	mlanutl mlanX arpfilter <arpfilter.conf>
 	mlanutl mlanX assocessid <"[essid]">
 	mlanutl mlanX assocessid_bssid <"[bssid] [essid]">
@@ -303,7 +309,7 @@ SYNOPSIS
 	mlanutl mlanX autotdls [n]
         mlanutl mlanX tdls_idle_time [n]
         mlanutl uapX dfs_offload [n]
-	mlanutl mlanX bandcfg [l] [m] [n] [o]
+	mlanutl mlanX bandcfg [l] [m] [n]
 	mlanutl mlanX bcninterval [n]
 	mlanutl wfdX bssrole [l]
 	mlanutl mlanX cfgdata <register type> [<conf file>]
@@ -314,6 +320,9 @@ SYNOPSIS
 
 	mlanutl	mlanX cfpinfo
 	mlanutl uapX cfpinfo
+
+	mlanutl	mlanX acs [<chX> <chY> ... <chZ>]
+	mlanutl	uapX acs [<chX> <chY> ... <chZ>]
 
 	mlanutl mlanX customie [[[<index>] <mask>] <IEBuffer>]
 	mlanutl mlanX deauth [l]
@@ -329,16 +338,12 @@ SYNOPSIS
 	mlanutl mlanX fwmacaddr [mac_addr]
 	mlanutl mlanX getdatarate
 	mlanutl uapX getdatarate
-	mlanutl mlanX getkey
 	mlanutl mlanX getlog
 	mlanutl mlanX getscantable [ARGS]
 	mlanutl mlanX getsignal [m] [n]
-	mlanutl mlanX signalextcfg [m]
-	mlanutl mlanX getsignalextv2 [m]
-	mlanutl mlanX getsignalext [m]
         mlanutl mlanX dyn_bw [n]
 	mlanutl uapX getstalist
-	mlanutl uapX channel_switch <switch mode> <oper class> <new channel> <switch count>
+	mlanutl uapX channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth>
 	mlanutl mlanX hostcmd <11n_2040coex.conf> 2040coex
 	mlanutl mlanX hostcmd <auto_tx.conf> auto_tx_get
 	mlanutl mlanX hostcmd <auto_tx.conf> auto_tx_unreg
@@ -376,13 +381,11 @@ SYNOPSIS
 	mlanutl mlanX hostcmd <conf> generate_raw <raw_data_file>
 	mlanutl mlanX hostcmd <fwdump.conf> fwdump
 
-	mlanutl mlanX hotspotcfg [<bitmap>]
 	mlanutl mlanX hscfg [condition [[GPIO# [gap]]]] [ind_GPIO# [level]]
 	mlanutl mlanX hssetpara condition [GPIO# [gap]] [ind_GPIO# [level]]
 	mlanutl mlanX mgmtfilter <mgmtfilter.conf>
 	mlanutl mlanX auto_arp [n]
 	mlanutl mlanX htcapinfo [<m>] [<n>]
-	mlanutl mlanX htstreamcfg [n]
 	mlanutl mlanX httxbfcap [cap]
 	mlanutl mlanX httxbfcfg "<action>[;GlobalData/tsData/interval/txPeerData/snrData]"
 	mlanutl mlanX httxcfg [<m>] [<n>]
@@ -400,7 +403,6 @@ SYNOPSIS
 	mlanutl mlanX mgmtframetx <mgmt_frame.conf>
 	mlanutl mlanX mpactrl [tx_ena] [rx_ena] [tx_size] [rx_size] [tx_ports] [rx_ports]
 	mlanutl mlanX netmon [<act> [<filter> <band> <chan> [offset]]]
-	mlanutl mlanX monitormode [l]
 	mlanutl mlanX offchannel [<l> <m> <n>]
 	mlanutl mlanX otpuserdata <l>
 	mlanutl mlanX passphrase [l]
@@ -424,7 +426,7 @@ SYNOPSIS
 	mlanutl mlanX regrdwr <type> <offset> [value]
 	mlanutl mlanX rejectaddbareq [conditions]
 	mlanutl uapX rejectaddbareq [conditions]
-	mlanutl mlanX scancfg [t] [m] [p] [s] [a] [b] [ext]
+	mlanutl mlanX scancfg [t] [m] [p] [s] [a] [b] [c] [ext]
 	mlanutl mlanX sdcmd52rw <FN no.> <address> [data]
 	mlanutl mlanX sdcmd53rw <FN no.> <address> <mode> <blksize> <blknum> [data1] ... [dataN]
 	mlanutl mlanX sdioclock <n>
@@ -459,6 +461,7 @@ SYNOPSIS
 	mlanutl mlanX tsf
 	mlanutl mlanX txaggrctrl [m]
 	mlanutl mlanX txbufcfg
+	mlanutl mlanX txpowercfg [<bw> [<RateIndex> [<pwr> ]]]
 	mlanutl mlanX txratecfg [l] [m] [n]
 	mlanutl uapX txratecfg [l] [m] [n]
     mlanutl mlanX verext
@@ -478,10 +481,6 @@ SYNOPSIS
 	mlanutl mlanX mc_cfg [n]
 	mlanutl mlanX mc_policy [n]
 	mlanutl mlanX mc_cfg_ext [c] [s] [u] [m] <a> <b> <d> <e>
-	mlanutl p2pX cfg_noa [h] [i] [j] [k] [l]
-	mlanutl p2pX cfg_opp_ps [m] [n]
-        mlanutl mlanX get_sensor_temp
-        mlanutl <inteface> indrstcfg <ir_mode> [gpio_pin]
 
         mlanutl <interface> fwwakeupmethod <method> <GPIO_pin>
 
@@ -593,18 +592,6 @@ addts
 	Usage:
 		mlanutl mlanX addts <filename.conf> <section# of tspec> <timeout(ms)>
 
-adhocaes
-	This command is used to set/get the AES key, when the station is in ad-hoc mode.
-	Note: This command is only available in disconnected state.
-
-	where value can be any 16 byte value.
-
-	Examples:
-		mlanutl mlan0 adhocaes           : Get ad-hoc aes key
-		mlanutl mlan0 adhocaes "1;12345678901234567890123456789012"
-		                                : Set ad-hoc aes key
-		mlanutl mlan0 adhocaes 2         : Clear ad-hoc aes key
-
 aggrpriotbl
 	This command is used set/get the priority table for AMPDU/AMSDU traffic per tid.
 	This command can also be used to disable AMPDU/AMSDU for a given tid.
@@ -711,33 +698,18 @@ amsduaggrctrl
 			initialization.
 
 antcfg
-	This command is used to set/get the mode of Tx/Rx path.
+	This command is used to set/get the mode of Tx/Rx antenna.If SAD is enabled,
+this command can also used to set SAD antenna evaluate time interval(antenna mode must
+ be antenna diversity when set SAD evaluate time interval).
 
-    For chip which support STREAM_2X2
 	where value of m is:
-		Bit 0   -- Tx Path A or Tx/Rx Path A if [n] is not provided
-		Bit 1   -- Tx Path B or Tx/Rx Path B if [n] is not provided
-		Bit 0-1 -- Tx Path A+B or Tx/Rx Path A+B if [n] is not provided
-	where value of n is:
-		Bit 0   -- Rx Path A
-		Bit 1   -- Rx Path B
-		Bit 0-1 -- Rx Path A+B
-	The Tx path setting (m) is used for both Tx and Rx if Rx path (n) is not provided.
-
-	Examples:
-		mlanutl mlan0 antcfg             : Get Tx and Rx path
-		mlanutl mlan0 antcfg 3           : Set Tx and Rx path to A+B
-		mlanutl mlan0 antcfg 1 3         : Set Tx path to A and Rx path to A+B
-
-    For chip which support SAD
-    	where value of m is:
 		Bit 0   -- Tx/Rx antenna 1
 		Bit 1   -- Tx/Rx antenna 2
 		...
 		0xFFFF  -- Tx/Rx antenna diversity
 
         where value of n is:
-                SAD evaluate time interval, only be provided when m = 0xFFFF, default value is 6s(0x1770)
+                if m = 0xFFFF, SAD evaluate time interval,default value is 6s(0x1770)
 
 	Examples:
 		mlanutl mlan0 antcfg               : Get Tx/Rx antenna mode
@@ -883,7 +855,7 @@ bandcfg
 	Note: This command is only available in disconnected state.
 
 	Usage:
-		mlanutl mlanX bandcfg [l] [m] [n] [o]
+		mlanutl mlanX bandcfg [l] [m] [n]
 
 	where the parameters:
 		[l]: Infrastructure band
@@ -899,24 +871,13 @@ bandcfg
 		     bit 0: B
 		     bit 1: G
 		     bit 2: A
-		     bit 3: GN
-		     bit 4: AN
-		     bit 5: AC 2.4G
-		     bit 6: AC 5G
 		[n]: Ad-hoc start channel
-		[o]: 0 - Bandwidth 20Mhz
-		     1 - HT Bandwidth 40Mhz above
-		     3 - HT Bandwidth 40Mhz below
-			 4 - VHT Bandwidth 80Mhz
 	Examples:
 		mlanutl mlan0 bandcfg            : Get infra/ad-hoc band and ad-hoc
 		                                  start channel configurations
 		mlanutl mlan0 bandcfg 1          : Set infra band to B only
 		mlanutl mlan0 bandcfg 3 2 6      : Set infra band to B/G, ad-hoc start band
 		                                  to G and ad-hoc start channel to 6
-		mlanutl mlan0 bandcfg 7 11 6 1   : Set infra band to B/G/A, ad-hoc start band
-		                                  to B/G/GN, ad-hoc start channel to 6 and
-		                                  secondary channel to above
 
 bcninterval
 	This command is used to set/get the beacon interval in ad-hoc mode.
@@ -1017,6 +978,18 @@ cfpinfo
 	Examples:
 		mlanutl mlan0 cfpinfo		     : Display cfp tables
 		mlanutl uap0 cfpinfo
+
+acs
+	This command is used to issue acs scan, then FW will
+	report the best channel and channel statistics.
+	User could specify channels or not. If channel is not
+	specified, acs scan will be on all supported channels.
+
+	Examples:
+		mlanutl mlan0 acs		     : ACS scan on all supported channels
+		mlanutl uap0 acs		     : ACS scan on all supported channels
+		mlanutl mlan0 acs 5 6 7 8	     : ACS scan on 5 6 7 8 channels
+		mlanutl uap0 acs 1 2 3		     : ACS scan on 1 2 3 channels
 
 customie
 	This command is used to set or get custom IEs for management frames.
@@ -1446,60 +1419,6 @@ getsignal
 		SNR info: beacon last 67, beacon average 59, data last 63, data average 56
 		NF info: beacon last -99, beacon average -92, data last -98, data average -92
 
-getsignalext
-	This command gets the last and average value of RSSI, SNR and NF of
-	Beacon and Data of spectific antenna path.
-	Note: This command is available only when STA is connected.
-
-	where value of m is:
-		1   -- PATH A
-		2   -- PATH B
-		3   -- PATH A+B
-
-	Examples:
-        	mlanutl mlan0 getsignalext          :Get All path's signal.
-        	mlanutl maln0 getsignalext 3        :Get path A+B signal
-        	mlanutl maln0 getsignalext 1        :Get path A signal
-		mlanutl mlan0 getsignalext 2        :Get path B signal
-
-        PATH A: -46 -46 -49 -49 65 45 39 42 -111 -91 -88 -91
-
-	PATH A: RSSI info: beacon last -46, beacon average -46, data last -49, data average -49
-		SNR info: beacon last 65, beacon average 45, data last 39, data average 42
-		NF info: beacon last -111, beacon average -91, data last -88, data average -91
-
-signalextcfg
-	This command is used to enable/disable signalext
-	Usage:
-    		mlanutl mlanX signalextcfg [m]
-	where the value of [m] is:
-		1 -- enable signalext in firmware
-		0 -- disable signalext in firmware
-	Examples:
-		mlanutl mlan0 signalextcfg 1 : Enable signalext in firmware
-		mlanutl mlan0 signalextcfg 0 : Disable signalext in firmware
-
-getsignalextv2
-	This command gets the last and average value of RSSI, SNR and NF of
-	Beacon and Data of spectific antenna path.
-	Note: This command is available only when STA is connected.
-
-	where value of m is:
-		1   -- PATH A
-		2   -- PATH B
-		3   -- PATH A+B
-
-	Examples:
-        	mlanutl mlan0 getsignalext          :Get All path's signal.
-        	mlanutl maln0 getsignalext 3        :Get path A+B signal
-        	mlanutl maln0 getsignalext 1        :Get path A signal
-		mlanutl mlan0 getsignalext 2        :Get path B signal
-
-        PATH A: -46 -46 -49 -49 65 45 39 42 -111 -91 -88 -91
-
-	PATH A: RSSI info: beacon last -46, beacon average -46, data last -49, data average -49
-		SNR info: beacon last 65, beacon average 45, data last 39, data average 42
-		NF info: beacon last -111, beacon average -91, data last -88, data average -91
 
 getstalist
     This command is used to get list of associated stations to the AP.
@@ -1507,18 +1426,22 @@ getstalist
     Example:
         mlanutl uap0 getstalist
 
-channel_switch <switch mode> <oper class> <new channel> <switch count>
-    This command is used to do extended channel switch according to spec.
+channel_switch <switch mode> <oper class> <new channel> <switch count> <bandwidth>
+    This command is used to do channel switch according to spec.
 
     Where the paramters are:
         switch mode : 0 -- no need to block traffic, 1 -- need block traffic
-        oper class  : operating class according to IEEE std802.11 spec
+        oper class  : operating class according to IEEE std802.11 spec, when 0 is used, only CSA IE will be used
         new channel : the channel will switch to
         switch count: channel switch time to send ECSA ie
+        bandwidth   : channel width switch to(optional),only for 5G channels.
+                      Support value 1 -- 40M above, 3 -- 40M below, 4 -- 80M, 5 -- 160M
 
     Example:
         mlanutl uap0 channel_switch 1 115 36 10      :switch to channel 36, oper class 115
         mlanutl uap0 channel_switch 1 81 6 10        :switch to channel 6, oper class 81
+        mlanutl uap0 channel_switch 1 0 6 10         :switch to channel 6
+        mlanutl uap0 channel_switch 1 0 36 10 1      :switch to channel 36, bandwidth 40MHz above
 
 hostcmd 2040coex
 	This command is used to send the 11n 20/40 Coex command to firmware.
@@ -1591,9 +1514,9 @@ hostcmd mode_spatial
 hostcmd mode_none
 	This command is used to get/set Robust BT Coex.
 	mode_get:       get the current mode
-	mode_timeshare: set Robust BT Coex to timeshare mode  (default on 1x1 chips)
-	mode_spatial:   set Robust BT Coex to spatial mode    (only for, and default on 2x2 chips)
-	mode_none:      set Robust BT Coex to mode none       (only for, and default on 2x2_3Antenna chips)
+	mode_timeshare: set Robust BT Coex to timeshare mode  (default on 1x1_1Antenna chips)
+	mode_spatial:   set Robust BT Coex to spatial mode    (default on 2x2 chips)
+	mode_none:      set Robust BT Coex to mode none       (default on chips with dedicated BT Antenna. Example: 2x2_3Antenna, 1x1_2Antenna chips)
 
 	Usage:
 		mlanutl mlanX hostcmd config/robust_btc.conf mode_get
@@ -1685,25 +1608,6 @@ hostcmd fwdump
 
 	Usage:
 		mlanutl mlanX hostcmd <fwdump.conf> fwdump
-
-hotspotcfg
-	This command is used to get/set the HotSpot configuration.
-
-	Usage:
-		mlanutl mlanX hotspotcfg [<bitmap>]
-
-	Where the parameter is:
-		<bitmap> : configuration bitset
-			 : Bit 31-10 - Reserved set to 0
-			 : Bit 9 - TDLS support indication enable/disable
-			 : Bit 8 - Interworking indication enable/disable
-			 : Bit 7-1 - Reserved set to 0
-			 : Bit 0 - HotSpot feature enable/disable
-
-	Examples:
-		mlanutl mlan0 hotspotcfg        : Get present remote address mode
-		mlanutl mlan0 hotspotcfg 0x301  : Turn on HotSpot2.0 and enable TDLS support and interworking indication
-		mlanutl mlan0 hotspotcfg 0      : Turn off HotSpot2.0 and disable TDLS support and interworking indication
 
 hscfg
 	This command is used to configure the host sleep parameters.
@@ -1911,22 +1815,6 @@ htcapinfo
 
 	Note:- This command can be issued any time but it will only come to effect from
 	next association. (as HTCapInfo is sent only during Association).
-
-htstreamcfg
-	This command is used to set/get HT stream configuration.
-	The setting only takes effect in next association.
-
-	Usage:
-		mlanutl mlanX htstreamcfg [n]
-
-	where <n>
-		0x11: HT stream 1x1 mode
-		0x22: HT stream 2x2 mode
-
-	Examples:
-		mlanutl mlan0 htstreamcfg        : Get current setting
-		mlanutl mlan0 htstreamcfg 0x11   : Set HT stream 1x1 mode
-		mlanutl mlan0 htstreamcfg 0x22   : Set HT stream 2x2 mode
 
 httxbfcap
 	This command is used to set/get the TX beamforming capabilities.
@@ -2300,69 +2188,6 @@ mpactrl
 		                           : Set Tx, Rx buffer size to 8192 bytes
 		                           : Set maximum Tx, Rx ports to 8
 
-netmon
-	This command is used to set/get network monitor configuration.
-	Note: For channel specified mode, the configuration should be issued when
-	STA/AP is disconnected. For in-channel sniffer mode, the configuration
-        can be issued irrespective of the STA/AP connected state, and requires
-	specification of only action and filter parameters. If any of the STA/AP
-	connection is active, the in-channel sniffer mode will inherently work
-	on the active band and channel configuration.
-
-	Usage:
-		mlanutl mlanX netmon [<act> [<filter> <band> <chan> [offset]]]
-
-	Where the parameters are:
-		<act>    : (0) disable any network monitor activity
-			 : (1) enable channel specified sniffer mode activity
-		<filter> : network monitor fitler flag
-		    bit 0: (1/0) enable/disable management frame
-		    bit 1: (1/0) enable/disable control frame
-		    bit 2: (1/0) enable/disable data frame
-		<band>   : 802.11 band
-		    bit 0: B
-		    bit 1: G
-		    bit 2: A
-		    bit 3: GN
-		    bit 4: AN
-			 bit 5: AC 2.4G
-             bit 6: AC 5G
-		<chan>   : channel to monitor
-		[offset] : secondary channel bandwidth
-			0 - Bandwidth 20Mhz
-			1 - HT Bandwidth 40Mhz sec channel above
-			3 - HT Bandwidth 40Mhz sec channel below
-			4 - VHT Bandwidth 80Mhz
-
-	Examples:
-		mlanutl mlan0 netmon             : Get the current network monitor configuration
-		mlanutl mlan0 netmon 0           : Disable network monitor activity
-		mlanutl mlan0 netmon 1 4 11 6    : Enable channel specified sniffer activity, set filter
-		                                  data frame, band B/G/GN and channel 6
-		mlanutl mlan0 netmon 1 7 20 64 1 : Enable channel specified sniffer activity, set filter
-		                                  management, control and data frame, band A/AN,
-		                                  channel 64 and secondary channel above
-
-monitormode
-	This command is used to set/get monitor mode.
-	Note: The enable monitor mode setting should be issued when no active interface exist.
-              Before we want to use sniffer mode, need enable monitor mode.
-              After this can only use sniffer mode, don't make STA/P2P/UAP work.
-              When sniffer mode using done, should disable monitor mode.
-
-	Usage:
-		mlanutl mlanX monitormode [l]
-
-	where the parameter:
-		[l]
-			0 : Disable monitor mode
-			1 : Enable monitor mode
-			<none>: Get monitor mode
-
-	Examples:
-		mlanutl mlan0 monitormode   : Get monitor mode.
-		mlanutl mlan0 monitormode 1 : Enable monitor mode.
-
 offchannel
 	This command is used to set/cancel the offchannel configuration.
 	Note: This command only can be used when cfg80211 is enabled during load time.
@@ -2500,8 +2325,6 @@ pscfg
 		                                -1: Disable,
 		                              1-49: Value in beacon intervals,
 		                             >= 50: Value in TUs )
-		[a]: Ad-hoc awake period (0: Unchanged, 1-31: Beacon interval, 255: Firmware
-		                          will go to sleep after beacon send out)
 		[b]: Beacon miss timeout (0: Unchanged, 1-50: Value in milliseconds, 65535: Disable)
 		[p]: Delay to PS (0-65535: Value in milliseconds, default 1000ms)
 		[m]: PS mode (0: Unchanged, 1: Auto mode, 2: PS-Poll mode, 3: PS Null mode)
@@ -2512,11 +2335,8 @@ pscfg
 		mlanutl mlan0 pscfg 3 4          : Set PS keep alive null packet interval to 3 seconds
 		                                   and DTIM interval to 4, all the other configurations
 		                                   are unchanged
-		mlanutl mlan0 pscfg 0 0xfffe 10 0 20
-		                                : Disable DTIM interval, set local listen interval to
-		                                  10 beacon intervals and beacon miss interval to 20,
-		                                  all the other configurations are unchanged
-		mlanutl mlan0 pscfg 0 0 0 0 0 50 : Set delay to PS to 50 ms, keep the others unchanged
+		mlanutl mlan0 pscfg 0 0 0 0 50 2 : Set delay to PS to 50 ms and PS mode to PS-Poll mode,
+		                                   keep the others unchanged
 
 bcntimeoutcfg
 	This command is used to set Beacon timeout parameters.
@@ -2651,9 +2471,10 @@ regrdwr
 		X: 0=BBUD, 8=BBUA.
 		ZZZ: offset (0-0xFFF).
 		RF reg (type 3) 0xXYZZ:
-                 X   = Path ID (0-1)
-           	 Y   = Page Number (0-6) in selected Path
-           	 ZZ  = Register offset in selected path/page
+		1. If Y == 0, access RFU BASE Register.
+		   X = Path ID (0=Path_A, 1=Path_B), ZZ = offset (0-0xFF).
+		2. If Y != 0, access RFU XCVR Register on Path Y (1=Path_A, 2=Path_B).
+		   X = Page # (0=Page_1, 1=Page_2, 2=Page_3 if chip support), ZZ: offset (0-0xFF).
 
 	Examples:
 		mlanutl mlan0 regrdwr 1 0xa060   : Read the MAC register
@@ -2682,7 +2503,7 @@ scancfg
 	This command is used to set/get scan configuration parameters.
 
 	Usage:
-		mlanutl mlanX scancfg [t] [m] [p] [s] [a] [b] [ext]
+		mlanutl mlanX scancfg [t] [m] [p] [s] [a] [b] [c] [ext]
 
 	where the parameters:
 		[t]: Scan Type (0: Unchanged, 1: Active, 2: Passive, default Active)
@@ -2691,7 +2512,8 @@ scancfg
 		[s]: Specific Scan Time (0: Unchanged, n: Value in ms, default 110 ms, max 500 ms)
 		[a]: Active Scan Time (0: Unchanged, n: Value in ms, default 200 ms, max 500 ms)
 		[b]: Passive Scan Time (0: Unchanged, n: Value in ms, default 200 ms, max 2000 ms)
-		[ext]: Extended scan (0: Legacy scan, 1: Extended scan)
+		[c]: Passive to Active Scan (0: Unchanged, 1: Enable, 2: Disable, default Enable)
+		[ext]: Extended scan (0: Legacy scan, 1: Extended scan, 2: Extended scan enhance)
 	No change if the parameter is 0 or the parameter is not provided.
 
 	Examples:
@@ -2701,6 +2523,11 @@ scancfg
 		mlanutl mlan0 scancfg 0 1 2 200  : Set scan mode to BSS, number of probes to 2 and
 		                                   specific scan time to 200 ms, all the other scan
 		                                   configurations are unchanged
+		mlanutl mlan0 scancfg 0 0 0 0 0 0 1  : Set Passive to Active Scan to enable, all the
+ 		                                       other scan configurations are unchanged
+		mlanutl mlan0 scancfg 2 0 0 0 0 0 2  : Set scan type to passive, Passive to Active
+  		                                       Scan to disable, all the other scan configurations
+  		                                       are unchanged
 
 sdcmd52rw
 	This command is used to read/write a controller register in
@@ -2770,6 +2597,7 @@ setuserscan
 	  bss_type=[1,2,3]         BSS type: 1 (Infra), 2(Adhoc), 3(Any)
           sort_by_ch               Sort by channel number in ascending order.
                                    Default mode: Sort by Signal Strength in descending order.
+	  scan_type=[0,1]          ext scan type (0-1) 0: legacy, 1: enhance scan
 
 	Any combination of the above arguments can be supplied on the command line.
 	If the chan token is absent, a full channel scan will be completed by driver.
@@ -2814,6 +2642,9 @@ setuserscan
 	9) Scan channel 1 and 6, send 3 probe requests, scan each channel for 40 ms
 	   with time gap of 50ms between 2 scans
 		setuserscan chan=1g,6g probes=3 dur=40 gap=50
+
+        10) Perform an enhance scan
+                setuserscan scan_type=1
 
 	All entries in the scan table (not just the new scan data when keep=1)
 	will be displayed upon completion by use of the getscantable ioctl.
@@ -3079,6 +2910,60 @@ txbufcfg
 
 	Note:- The actual tx buf size will depends on AP's capability and max transmit buffer size.
 
+txpowercfg
+	This command is used to get/set the Tx power configuration.
+
+	Where
+		<bw> - bandwidth
+			0	LG 20 MHz
+			1	HT 20 MHz
+			2	HT 40 MHz
+			3	VHT 20 MHz (1 stream)
+			4	VHT 20 MHz (2 streams)
+			5	VHT 40 MHz (1 stream)
+			6	VHT 40 MHz (2 streams)
+			7	VHT 80 MHz (1 stream)
+			8	VHT 80 MHz (2 streams)
+			0xff	Default (no auto power control)
+		<RateIndex> - Data rate index. It is defined based on the bandwidth <bw> as follows:
+		if <bw> is 0 (LG),
+			0	1 Mbps
+			1	2 Mbps
+			2	5.5 Mbps
+			3	11 Mbps
+			4	6 Mbps
+			5	9 Mbps
+			6	12 Mbps
+			7	18 Mbps
+			8	24 Mbps
+			9	36 Mbps
+			10	48 Mbps
+			11	54 Mbps
+		if <bw> is 1/2 (HT 20/40MHz, 1/2 NSS),
+			0	MCS0
+			1	MCS1
+			2	MCS2
+			3	MCS3
+			4	MCS4
+			5	MCS5
+			6	MCS6
+			7	MCS7
+		if <bw> is 3/4/5/6/7/8 (VHT 20/40/80MHz, 1/2 NSS),
+			0	MCS0 (BW80)
+			1	MCS1 (BW80)
+			2	MCS2 (BW80)
+			3	MCS3 (BW80)
+			4	MCS4 (BW80)
+			5	MCS5 (BW80)
+			6	MCS6 (BW80)
+			7	MCS7 (BW80)
+			8	MCS8 (BW80)
+			9	MCS9 (BW80)
+		<Pwr> -power level in dBm
+	Examples:
+		mlanutl mlan0 txpowercfg 3 9 10
+		    Set power level 10 dBm to MCS9 for the rate of 20 MHz VHT with 1 stream
+
 txratecfg
 	This command is used to set/get the transmit data rate.
 
@@ -3123,14 +3008,6 @@ txratecfg
 		5	MCS5
 		6	MCS6
 		7	MCS7
-		8	MCS8
-		9	MCS9
-		10	MCS10
-		11	MCS11
-		12	MCS12
-		13	MCS13
-		14	MCS14
-		15	MCS15
 	If <format> is 2 (VHT),
 		0	MCS0
 		1	MCS1
@@ -3482,43 +3359,6 @@ mc_cfg_ext
         mlanutl mlanX mc_cfg_ext 15 10 5 0 25 15 9 0    : Set channel index0: channeltime 17TU, switchtime 10TU, undozetime 5TU, mode PM1;
                                                         set channel index1: channeltime 25TU, switchtime 15TU, undozetime 9TU, mode PM1.
 
-cfg_noa
-	This is used to get/set P2P NoA (Notice of Absence) parameters only for P2P GO.
-
-	Usage:
-		mlanutl p2pX cfg_noa [h] [i] [j] [k] [l]
-
-	where:
-		[h] : noa_enable : 1/0 Set to 1 to enable NoA, 0 to disable NoA.
-		[i] : index      : 0 - 255 Identifies an instance of NoA timing.
-		[j] : count      : 1 - 255 Indicates the number of absence intervals.
-				   255 means a continuous schedule.
-		[k] : duration   : Indicates the maximum duration in units of microseconds
-				   that P2P GO can remain absent following the start of
-				   a NoA interval.
-		[l] : interval   : Indicates the length of the NoA interval in units of
-				   microseconds.
-
-        Examples:
-                mlanutl p2pX cfg_noa						: Get noa configuration.
-                mlanutl p2pX cfg_noa 1 1 255 50 100			: Set noa configuration.
-
-cfg_opp_ps
-	This is used to get/set P2P OPP-PS parameters only for P2P GO.
-
-	Usage:
-		mlanutl p2pX cfg_opp_ps [m] [n]
-
-	where:
-		[m] : ps_enable  : 1/0 Set to 1 to indicate P2P GO is using opportunistic
-				   power save. Set to 0 if opportunistic power save is disabled.
-		[n] : ct_window  : A period of time in TU after a TBTT during which P2P GO
-				   is present. 0 indicates that there shall be no
-				   CTWindow (Client Traffic Window).
-
-        Examples:
-                mlanutl p2pX cfg_opp_ps					: Get noa configuration.
-                mlanutl p2pX cfg_opp_ps 1 7				: Set noa configuration.
 
 rxpktcoal_cfg
 	This is used to get/set RX packet coalescing paramters
@@ -3532,30 +3372,6 @@ rxpktcoal_cfg
 
         RX packet coalescing parameters can be changed only when device is in
         idle state i.e. all interfaces are disconnected.
-
-get_sensor_temp
-        This command is used to get SOC temperature
-        Usage:
-                mlanutl mlanX get_sensor_temp
-
-indrstcfg
-    This command is used to set/ get independent reset mode configuration
-
-    Usage :
-            mlanutl <interface> indrstcfg <ir_mode> [gpio_pin]
-
-            interface : mlanX, uapX
-            ir_mode   : 0 -- Disable
-                        1 -- Enable out band reset, disable in band
-                        2 -- Enable in band, disable out band
-            gpio_pin  : 255 -- Default pin for reset
-                        any other number for changing the gpio for reset.
-
-   Example :
-            mlanutl mlan0 indrstcfg 1 255   : Set default pin on interface mlan0 as reset pin
-            mlanutl mlan0 indrstcfg 0       : Disable the gpio 17 as reset pin on interface mlan0
-            mlanutl mlan0 indrstcfg         : Get the status and the pin used for reset pin
-            mlanutl mlan0 indrstcfg 2       : Enable in band reset mode
 
     This command is used to set FW wakeup method and GPIO pin
     Usage :
@@ -3597,6 +3413,19 @@ ctrldeauth
             mlanutl uap0 ctrldeauth   : Get current setting
             mlanutl uap0 ctrldeauth   : Firmware will not send deauth packet when uap move to different channel.
 
+cwmode
+    This command is used to set Cont. Tx/Wave mode.
+
+    Usage:
+            mlanutl <interface> cwmode config/cwmode.conf
+            interface: mlanX
+            cwmode.conf: This config file specifies whether to enable/disable Cont Tx/Wave mode.
+                         User can specify parameters like Channel, datarate, BW, Channel Offset, Band.
+                         Detailed information about parameters is mentioned in the conf file.
+    Example:
+            mlanutl mlan0 cwmode config/cwmode.conf                       : Enable/Disable Cont Tx/Wave mode.
+            mlanutl mlan0 cwmode                                          : Get current Tx mode
+
 bootsleep
     This command is used to set and get boot sleep configure.
 
@@ -3609,5 +3438,6 @@ bootsleep
     Example :
             mlanutl mlan0/uap0 bootsleep 1       : Enable boot sleep
             mlanutl mlan0/uap0 bootsleep         : Get boot sleep configure
+
 
 ===============================================================================

@@ -540,10 +540,12 @@ chardev_open(struct inode *inode, struct file *filp)
 	filp->private_data = dev;	/* for other methods */
 	m_dev = dev->m_dev;
 	mdev_req_lock(m_dev);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 7, 0)
 	if (test_bit(HCI_UP, &m_dev->flags)) {
 		atomic_inc(&m_dev->extra_cnt);
 		goto done;
 	}
+#endif
 	if (m_dev->open(m_dev)) {
 		ret = -EIO;
 		goto done;
@@ -577,10 +579,12 @@ chardev_release(struct inode *inode, struct file *filp)
 		return -ENXIO;
 	}
 	m_dev = dev->m_dev;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 7, 0)
 	if (m_dev && (atomic_dec_if_positive(&m_dev->extra_cnt) >= 0)) {
 		LEAVE();
 		return ret;
 	}
+#endif
 	if (m_dev)
 		ret = dev->m_dev->close(dev->m_dev);
 	filp->private_data = NULL;
@@ -688,24 +692,8 @@ register_char_dev(struct char_dev *dev, struct class *char_class,
 		device_create(char_class, NULL,
 			      MKDEV(mbtchar_major, dev->minor), NULL, dev_name);
 	}
-	if (dev->dev_type == FM_TYPE) {
-		device_create(char_class, NULL,
-			      MKDEV(mbtchar_major, dev->minor), NULL, dev_name);
-	}
-	if (dev->dev_type == NFC_TYPE) {
-		device_create(char_class, NULL,
-			      MKDEV(mbtchar_major, dev->minor), NULL, dev_name);
-	}
 #else
 	if ((dev->dev_type == BT_TYPE) || (dev->dev_type == BT_AMP_TYPE)) {
-		device_create(char_class, NULL,
-			      MKDEV(mbtchar_major, dev->minor), dev_name);
-	}
-	if (dev->dev_type == FM_TYPE) {
-		device_create(char_class, NULL,
-			      MKDEV(mbtchar_major, dev->minor), dev_name);
-	}
-	if (dev->dev_type == NFC_TYPE) {
 		device_create(char_class, NULL,
 			      MKDEV(mbtchar_major, dev->minor), dev_name);
 	}

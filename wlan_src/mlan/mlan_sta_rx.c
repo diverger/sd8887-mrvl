@@ -3,26 +3,20 @@
  *  @brief This file contains the handling of RX in MLAN
  *  module.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -53,58 +47,6 @@ typedef struct {
 
 } EthII_Hdr_t;
 
-/** IPv4 ARP request header */
-typedef MLAN_PACK_START struct {
-    /** Hardware type */
-	t_u16 Htype;
-    /** Protocol type */
-	t_u16 Ptype;
-    /** Hardware address length */
-	t_u8 addr_len;
-    /** Protocol address length */
-	t_u8 proto_len;
-    /** Operation code */
-	t_u16 op_code;
-    /** Source mac address */
-	t_u8 src_mac[MLAN_MAC_ADDR_LENGTH];
-    /** Sender IP address */
-	t_u8 src_ip[4];
-    /** Destination mac address */
-	t_u8 dst_mac[MLAN_MAC_ADDR_LENGTH];
-    /** Destination IP address */
-	t_u8 dst_ip[4];
-} MLAN_PACK_END IPv4_ARP_t;
-
-/** IPv6 Nadv packet header */
-typedef MLAN_PACK_START struct {
-    /** IP protocol version */
-	t_u8 version;
-    /** flow label */
-	t_u8 flow_lab[3];
-    /** Payload length */
-	t_u16 payload_len;
-    /** Next header type */
-	t_u8 next_hdr;
-    /** Hot limit */
-	t_u8 hop_limit;
-    /** Source address */
-	t_u8 src_addr[16];
-    /** Destination address */
-	t_u8 dst_addr[16];
-    /** ICMP type */
-	t_u8 icmp_type;
-    /** IPv6 Code */
-	t_u8 ipv6_code;
-    /** IPv6 Checksum */
-	t_u16 ipv6_checksum;
-    /** Flags */
-	t_u32 flags;
-    /** Target address */
-	t_u8 taget_addr[16];
-    /** Reserved */
-	t_u8 rev[8];
-} MLAN_PACK_END IPv6_Nadv_t;
-
 /********************************************************
 		Global Variables
 ********************************************************/
@@ -116,57 +58,6 @@ typedef MLAN_PACK_START struct {
 /********************************************************
 		Global functions
 ********************************************************/
-/**
- *  @brief This function check and discard IPv4 and IPv6 gratuitous broadcast packets
- *
- *  @param prx_pkt     A pointer to RxPacketHdr_t structure of received packet
- *  @param pmadapter   A pointer to pmlan_adapter structure
- *  @return            TRUE if found such type of packets, FALSE not found
- */
-static t_u8
-discard_gratuitous_ARP_msg(RxPacketHdr_t *prx_pkt, pmlan_adapter pmadapter)
-{
-	t_u8 proto_ARP_type[] = { 0x08, 0x06 };
-	t_u8 proto_ARP_type_v6[] = { 0x86, 0xDD };
-	IPv4_ARP_t *parp_hdr;
-	IPv6_Nadv_t *pNadv_hdr;
-	t_u8 ret = MFALSE;
-
-	/* IPV4 pkt check
-	 * A gratuitous ARP is an ARP packet
-	 * where the source and destination IP are both set to
-	 * the IP of the machine issuing the packet.
-	 */
-	if (memcmp
-	    (pmadapter, proto_ARP_type, &prx_pkt->eth803_hdr.h803_len,
-	     sizeof(proto_ARP_type)) == 0) {
-		parp_hdr = (IPv4_ARP_t *)(&prx_pkt->rfc1042_hdr);
-		/* Graguitous ARP can be ARP request or ARP reply */
-		if ((parp_hdr->op_code == mlan_htons(0x01)) ||
-		    (parp_hdr->op_code == mlan_htons(0x02)))
-			if (memcmp
-			    (pmadapter, parp_hdr->src_ip, parp_hdr->dst_ip,
-			     4) == 0)
-				ret = MTRUE;
-	}
-
-	/* IPV6 pkt check
-	 * An unsolicited Neighbor Advertisement pkt is
-	 * marked by a cleared Solicited Flag
-	 */
-	if (memcmp
-	    (pmadapter, proto_ARP_type_v6, &prx_pkt->eth803_hdr.h803_len,
-	     sizeof(proto_ARP_type_v6)) == 0) {
-		pNadv_hdr = (IPv6_Nadv_t *)(&prx_pkt->rfc1042_hdr);
-		/* Check Nadv type: next header is ICMPv6 and
-		 * icmp type is Nadv */
-		if (pNadv_hdr->next_hdr == 0x3A && pNadv_hdr->icmp_type == 0x88)
-			if ((pNadv_hdr->flags & mlan_htonl(0x40000000)) == 0)
-				ret = MTRUE;
-	}
-
-	return ret;
-}
 
 /**
  *  @brief This function process tdls action frame
@@ -349,80 +240,6 @@ wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 }
 
 /**
- *  @brief This function get pxpd info for radiotap info
- *
- *  @param priv A pointer to pmlan_private
- *  @param prx_pd   A pointer to RxPD
- *  @param prt_info   A pointer to radiotap_info
- *
- *  @return        N/A
- */
-void
-wlan_rxpdinfo_to_radiotapinfo(pmlan_private priv, RxPD *prx_pd,
-			      radiotap_info * prt_info)
-{
-	radiotap_info rt_info_tmp;
-	t_u8 rx_rate_info = 0;
-	t_u8 mcs_index = 0;
-	t_u8 format = 0;
-	t_u8 bw = 0;
-	t_u8 gi = 0;
-	t_u8 ldpc = 0;
-
-	memset(priv->adapter, &rt_info_tmp, 0x00, sizeof(rt_info_tmp));
-	rt_info_tmp.snr = prx_pd->snr;
-	rt_info_tmp.nf = prx_pd->nf;
-	rt_info_tmp.band_config = (prx_pd->rx_info & 0xf);
-	rt_info_tmp.chan_num = (prx_pd->rx_info & RXPD_CHAN_MASK) >> 5;
-
-	rt_info_tmp.antenna = prx_pd->antenna;
-	if (!priv->adapter->psdio_device->v15_fw_api)
-		rx_rate_info = wlan_convert_v14_rate_ht_info(prx_pd->rate_info);
-	else
-		rx_rate_info = prx_pd->rate_info;
-	if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
-		/* VHT rate */
-		format = MLAN_RATE_FORMAT_VHT;
-		mcs_index = MIN(prx_pd->rx_rate & 0xF, 9);
-		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
-		bw = (rx_rate_info & 0xC) >> 2;
-		/* LGI: gi =0, SGI: gi = 1 */
-		gi = (rx_rate_info & 0x10) >> 4;
-	} else if ((rx_rate_info & 0x3) == MLAN_RATE_FORMAT_HT) {
-		/* HT rate */
-		format = MLAN_RATE_FORMAT_HT;
-		mcs_index = prx_pd->rx_rate;
-		/* 20M: bw=0, 40M: bw=1 */
-		bw = (rx_rate_info & 0xC) >> 2;
-		/* LGI: gi =0, SGI: gi = 1 */
-		gi = (rx_rate_info & 0x10) >> 4;
-	} else {
-		/* LG rate */
-		format = MLAN_RATE_FORMAT_LG;
-		mcs_index = (prx_pd->rx_rate > MLAN_RATE_INDEX_OFDM0) ?
-			prx_pd->rx_rate - 1 : prx_pd->rx_rate;
-	}
-	ldpc = rx_rate_info & 0x40;
-
-	rt_info_tmp.rate_info.mcs_index = mcs_index;
-	rt_info_tmp.rate_info.rate_info =
-		(ldpc << 5) | (format << 3) | (bw << 1) | gi;
-	rt_info_tmp.rate_info.bitrate =
-		wlan_index_to_data_rate(priv->adapter, prx_pd->rx_rate,
-					prx_pd->rate_info);
-
-	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER)
-		memcpy(priv->adapter, &rt_info_tmp.extra_info,
-		       (t_u8 *)prx_pd + sizeof(*prx_pd),
-		       sizeof(rt_info_tmp.extra_info));
-
-	memset(priv->adapter, prt_info, 0x00, sizeof(*prt_info));
-	memcpy(priv->adapter, prt_info, &rt_info_tmp, sizeof(*prt_info));
-
-	return;
-}
-
-/**
  *  @brief This function processes received packet and forwards it
  *          to kernel/upper layer
  *
@@ -522,15 +339,9 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		HEXDUMP("RX Data: LLC/SNAP",
 			(t_u8 *)&prx_pkt->rfc1042_hdr,
 			sizeof(prx_pkt->rfc1042_hdr));
-		if ((priv->hotspot_cfg & HOTSPOT_ENABLED) &&
-		    discard_gratuitous_ARP_msg(prx_pkt, pmadapter)) {
-			ret = MLAN_STATUS_SUCCESS;
-			PRINTM(MDATA,
-			       "Bypass sending Gratuitous ARP frame to Kernel.\n");
-			goto done;
-		}
-		if (!memcmp(pmadapter, &prx_pkt->eth803_hdr.h803_len,
-			    tdls_action_type, sizeof(tdls_action_type))) {
+		if (!memcmp
+		    (pmadapter, &prx_pkt->eth803_hdr.h803_len, tdls_action_type,
+		     sizeof(tdls_action_type))) {
 			wlan_process_tdls_action_frame(priv,
 						       ((t_u8 *)prx_pd +
 							prx_pd->rx_pkt_offset),
@@ -562,22 +373,6 @@ wlan_process_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 	       pmbuf->out_ts_sec, pmbuf->out_ts_usec, prx_pd->seq_num,
 	       prx_pd->priority);
 
-	if (pmadapter->enable_net_mon) {
-		pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
-		goto mon_process;
-	}
-
-mon_process:
-	if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
-		//Use some rxpd space to save rxpd info for radiotap header
-		//We should insure radiotap_info is not bigger than RxPD
-		wlan_rxpdinfo_to_radiotapinfo(priv, prx_pd,
-					      (radiotap_info *) (pmbuf->pbuf +
-								 pmbuf->
-								 data_offset -
-								 sizeof
-								 (radiotap_info)));
-	}
 	ret = pmadapter->callbacks.moal_recv_packet(pmadapter->pmoal_handle,
 						    pmbuf);
 	if (ret == MLAN_STATUS_FAILURE) {
@@ -617,25 +412,16 @@ wlan_ops_sta_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 	sta_node *sta_ptr = MNULL;
 	t_u8 adj_rx_rate = 0;
 	t_u8 antenna = 0;
-	rxpd_extra_info *pextra_info = MNULL;
 	ENTER();
 
 	prx_pd = (RxPD *)(pmbuf->pbuf + pmbuf->data_offset);
 	/* Endian conversion */
 	endian_convert_RxPD(prx_pd);
 
-	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
-		pextra_info =
-			(rxpd_extra_info *) ((t_u8 *)prx_pd + sizeof(*prx_pd));
-		endian_convert_RxPD_extra_header(pextra_info);
-	}
 	rx_pkt_type = prx_pd->rx_pkt_type;
 	prx_pkt = (RxPacketHdr_t *)((t_u8 *)prx_pd + prx_pd->rx_pkt_offset);
 
 	priv->rxpd_rate_info = prx_pd->rate_info;
-	if (!priv->adapter->psdio_device->v15_fw_api)
-		priv->rxpd_rate_info =
-			wlan_convert_v14_rate_ht_info(priv->rxpd_rate_info);
 	if (priv->bss_type == MLAN_BSS_TYPE_STA) {
 		antenna = wlan_adjust_antenna(priv, prx_pd);
 		adj_rx_rate =
@@ -692,7 +478,6 @@ wlan_ops_sta_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 	 * directly to os. Don't pass thru rx reordering
 	 */
 	if ((!IS_11N_ENABLED(priv)
-	     && !IS_11N_ADHOC_ENABLED(priv)
 	     && !(prx_pd->flags & RXPD_FLAG_PKT_DIRECT_LINK)
 	    ) ||
 	    memcmp(priv->adapter, priv->curr_addr,

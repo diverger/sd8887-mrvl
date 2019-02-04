@@ -32,7 +32,6 @@
   * Copyright (C) 2007-2018, Marvell International Ltd.
   *
   */
-
 #include <linux/module.h>
 
 #ifdef CONFIG_OF
@@ -46,31 +45,14 @@
 #include "bt_sdio.h"
 
 /** Version */
-#define VERSION "C3X14113"
+#define VERSION "C4X14113"
 
 /** Driver version */
-static char mbt_driver_version[] = "SD8XXX-%s-" VERSION "-(" "FP" FPNUM ")"
+static char mbt_driver_version[] = "SD8887-%s-" VERSION "-(" "FP" FPNUM ")"
 #ifdef DEBUG_LEVEL2
 	"-dbg"
 #endif
 	" ";
-
-/** SD8787 Card */
-#define CARD_SD8787     "SD8787"
-/** SD8777 Card */
-#define CARD_SD8777     "SD8777"
-/** SD8887 Card */
-#define CARD_SD8887     "SD8887"
-/** SD8897 Card */
-#define CARD_SD8897     "SD8897"
-/** SD8797 Card */
-#define CARD_SD8797     "SD8797"
-/** SD8977 Card */
-#define CARD_SD8977     "SD8977"
-/** SD8997 Card */
-#define CARD_SD8997     "SD8997"
-/** SD8987 Card */
-#define CARD_SD8987     "SD8987"
 
 /** Declare and initialize fw_version */
 static char fw_version[32] = "0.0.0.p0";
@@ -90,8 +72,6 @@ static struct class *chardev_class;
 
 /** Interface specific variables */
 static int mbtchar_minor;
-static int fmchar_minor;
-static int nfcchar_minor;
 static int debugchar_minor;
 
 /**
@@ -101,19 +81,13 @@ static int debugchar_minor;
 bt_private *m_priv[MAX_BT_ADAPTER];
 
 /** Default Driver mode */
-static int drv_mode = (DRV_MODE_BT | DRV_MODE_FM | DRV_MODE_NFC);
+static int drv_mode = (DRV_MODE_BT);
 
 /** BT interface name */
 static char *bt_name;
-/** FM interface name */
-static char *fm_name;
-/** NFC interface name */
-static char *nfc_name;
 /** BT debug interface name */
 static char *debug_name;
 
-/** fw reload flag */
-int bt_fw_reload;
 /** fw serial download flag */
 int bt_fw_serial = 1;
 
@@ -123,8 +97,6 @@ static int fw = 1;
 static int psmode = 1;
 /** default BLE deep sleep */
 static int deep_sleep = 1;
-/** Default CRC check control */
-static int fw_crc_check = 1;
 /** Init config file (MAC address, register etc.) */
 static char *init_cfg;
 /** Calibration config file (MAC address, init powe etc.) */
@@ -133,8 +105,6 @@ static char *cal_cfg;
 static char *cal_cfg_ext;
 /** Init MAC address */
 static char *bt_mac;
-static int mbt_gpio_pin;
-static int btindrst = -1;
 
 /** Setting mbt_drvdbg value based on DEBUG level */
 #ifdef DEBUG_LEVEL1
@@ -156,8 +126,6 @@ int mbt_pm_keep_power = 1;
 #endif
 
 static int debug_intf = 1;
-
-static int btpmic = 0;
 
 /** Offset of sequence number in event */
 #define OFFSET_SEQNUM 4
@@ -205,48 +173,6 @@ alloc_mbt_dev(void)
 
 	LEAVE();
 	return mbt_dev;
-}
-
-/**
- *  @brief Alloc fm device
- *
- *  @return    pointer to structure fm_dev or NULL
- */
-struct fm_dev *
-alloc_fm_dev(void)
-{
-	struct fm_dev *fm_dev;
-	ENTER();
-
-	fm_dev = kzalloc(sizeof(struct fm_dev), GFP_KERNEL);
-	if (!fm_dev) {
-		LEAVE();
-		return NULL;
-	}
-
-	LEAVE();
-	return fm_dev;
-}
-
-/**
- *  @brief Alloc nfc device
- *
- *  @return    pointer to structure nfc_dev or NULL
- */
-struct nfc_dev *
-alloc_nfc_dev(void)
-{
-	struct nfc_dev *nfc_dev;
-	ENTER();
-
-	nfc_dev = kzalloc(sizeof(struct nfc_dev), GFP_KERNEL);
-	if (!nfc_dev) {
-		LEAVE();
-		return NULL;
-	}
-
-	LEAVE();
-	return nfc_dev;
 }
 
 /**
@@ -313,30 +239,6 @@ clean_up_m_devs(bt_private *priv)
 			free_m_dev(m_dev);
 		}
 		priv->bt_dev.m_dev[BT_SEQ].dev_pointer = NULL;
-	}
-	if (priv->bt_dev.m_dev[FM_SEQ].dev_pointer) {
-		m_dev = &(priv->bt_dev.m_dev[FM_SEQ]);
-		PRINTM(MSG, "BT: Delete %s\n", m_dev->name);
-		if ((drv_mode & DRV_MODE_FM) && (fmchar_minor > 0))
-			fmchar_minor--;
-		m_dev->close(m_dev);
-		/** unregister m_dev to char_dev */
-		if (chardev_class)
-			chardev_cleanup_one(m_dev, chardev_class);
-		free_m_dev(m_dev);
-		priv->bt_dev.m_dev[FM_SEQ].dev_pointer = NULL;
-	}
-	if (priv->bt_dev.m_dev[NFC_SEQ].dev_pointer) {
-		m_dev = &(priv->bt_dev.m_dev[NFC_SEQ]);
-		PRINTM(MSG, "BT: Delete %s\n", m_dev->name);
-		if ((drv_mode & DRV_MODE_NFC) && (nfcchar_minor > 0))
-			nfcchar_minor--;
-		m_dev->close(m_dev);
-		/** unregister m_dev to char_dev */
-		if (chardev_class)
-			chardev_cleanup_one(m_dev, chardev_class);
-		free_m_dev(m_dev);
-		priv->bt_dev.m_dev[NFC_SEQ].dev_pointer = NULL;
 	}
 	if (priv->bt_dev.m_dev[DEBUG_SEQ].dev_pointer) {
 		m_dev = &(priv->bt_dev.m_dev[DEBUG_SEQ]);
@@ -405,9 +307,6 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 		case BT_CMD_ENABLE_WRITE_SCAN:
 			// case BT_CMD_ENABLE_DEVICE_TESTMODE:
 		case BT_CMD_RESET:
-		case BT_CMD_PMIC_CONFIGURE:
-		case BT_CMD_SET_GPIO_PIN:
-		case BT_CMD_INDEPENDENT_RESET:
 			priv->bt_dev.sendcmdflag = FALSE;
 			priv->adapter->cmd_complete = TRUE;
 			wake_up_interruptible(&priv->adapter->cmd_wait_q);
@@ -455,22 +354,6 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 						      cmd_wait_q);
 				break;
 			}
-#ifdef SDIO_SUSPEND_RESUME
-		case FM_CMD:
-			{
-				u8 *pos =
-					(skb->data + HCI_EVENT_HDR_SIZE +
-					 sizeof(struct hci_ev_cmd_complete) +
-					 1);
-				if (*pos == FM_SET_INTR_MASK) {
-					priv->bt_dev.sendcmdflag = FALSE;
-					priv->adapter->cmd_complete = TRUE;
-					wake_up_interruptible(&priv->adapter->
-							      cmd_wait_q);
-				}
-			}
-			break;
-#endif
 		case BT_CMD_HOST_SLEEP_ENABLE:
 			priv->bt_dev.sendcmdflag = FALSE;
 			break;
@@ -495,7 +378,7 @@ exit:
 }
 
 /**
-*  @brief This function stores the FW dumps received from events in a file
+*  @brief This function stores the FW dumps received from events
 *
 *  @param priv    A pointer to bt_private structure
 *  @param skb     A pointer to rx skb
@@ -665,8 +548,6 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 				       "BR/EDR controller");
 				priv->bt_dev.devFeature = pevent->data[4];
 				PRINTM(CMD, "devFeature:  %s,    %s,    %s"
-				       ",    %s"
-				       ",    %s"
 				       "\n",
 				       ((pevent->
 					 data[4] & DEV_FEATURE_BT) ?
@@ -677,14 +558,6 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 				       ((pevent->
 					 data[4] & DEV_FEATURE_BLE) ?
 					"BLE Feature" : "No BLE Feature")
-				       ,
-				       ((pevent->
-					 data[4] & DEV_FEATURE_FM) ?
-					"FM Feature" : "No FM Feature")
-				       ,
-				       ((pevent->
-					 data[4] & DEV_FEATURE_NFC) ?
-					"NFC Feature" : "No NFC Feature")
 					);
 			}
 			if (pevent->data[1] == MODULE_SHUTDOWN_REQ) {
@@ -707,9 +580,7 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 	case BT_EVENT_POWER_STATE:
 		if (pevent->data[1] == BT_PS_SLEEP)
 			priv->adapter->ps_state = PS_SLEEP;
-		if (priv->adapter->ps_state == PS_SLEEP
-		    && (priv->card_type == CARD_TYPE_SD8887)
-			)
+		if (priv->adapter->ps_state == PS_SLEEP)
 			os_sched_timeout(5);
 		PRINTM(CMD, "BT: EVENT %s:%s\n", m_dev->name,
 		       (priv->adapter->ps_state) ? "PS_SLEEP" : "PS_AWAKE");
@@ -769,14 +640,15 @@ bt_save_dump_info_to_file(char *dir_name, char *file_name, u8 *buf, u32 buf_len)
 	}
 
 	memset(name, 0, sizeof(name));
-	sprintf((char *)name, "%s/%s", dir_name, file_name);
+	snprintf((char *)name, sizeof(name), "%s/%s", dir_name, file_name);
 	pfile = filp_open((const char *)name, O_CREAT | O_RDWR, 0644);
 	if (IS_ERR(pfile)) {
 		PRINTM(MSG,
 		       "Create file %s error, try to save dump file in /var\n",
 		       name);
 		memset(name, 0, sizeof(name));
-		sprintf((char *)name, "%s/%s", "/var", file_name);
+		snprintf((char *)name, sizeof(name), "%s/%s", "/var",
+			 file_name);
 		pfile = filp_open((const char *)name, O_CREAT | O_RDWR, 0644);
 	}
 	if (IS_ERR(pfile)) {
@@ -809,21 +681,9 @@ done:
 #define DEBUG_FW_DONE			0xFF
 #define DUMP_MAX_POLL_TRIES			200
 
-#define DEBUG_DUMP_CTRL_REG_8897               0xE2
-#define DEBUG_DUMP_START_REG_8897              0xE3
-#define DEBUG_DUMP_END_REG_8897                0xEA
-#define DEBUG_DUMP_CTRL_REG_8887               0xA2
-#define DEBUG_DUMP_START_REG_8887              0xA3
-#define DEBUG_DUMP_END_REG_8887                0xAA
-#define DEBUG_DUMP_CTRL_REG_8977               0xF0
-#define DEBUG_DUMP_START_REG_8977              0xF1
-#define DEBUG_DUMP_END_REG_8977                0xF8
-#define DEBUG_DUMP_CTRL_REG_8997               0xF0
-#define DEBUG_DUMP_START_REG_8997              0xF1
-#define DEBUG_DUMP_END_REG_8997                0xF8
-#define DEBUG_DUMP_CTRL_REG_8987               0xF0
-#define DEBUG_DUMP_START_REG_8987              0xF1
-#define DEBUG_DUMP_END_REG_8987                0xF8
+#define DEBUG_DUMP_CTRL_REG               0xA2
+#define DEBUG_DUMP_START_REG              0xA3
+#define DEBUG_DUMP_END_REG                0xAA
 
 typedef enum {
 	DUMP_TYPE_ITCM = 0,
@@ -856,16 +716,18 @@ typedef struct {
 	struct file *pfile_mem;
 	/** donbe flag */
 	u8 done_flag;
+	/** dump type */
+	u8 type;
 } memory_type_mapping;
 
 memory_type_mapping bt_mem_type_mapping_tbl[] = {
-	{"ITCM", NULL, NULL, 0xF0},
-	{"DTCM", NULL, NULL, 0xF1},
-	{"SQRAM", NULL, NULL, 0xF2},
-	{"APU", NULL, NULL, 0xF3},
-	{"CIU", NULL, NULL, 0xF4},
-	{"ICU", NULL, NULL, 0xF5},
-	{"MAC", NULL, NULL, 0xF6},
+	{"ITCM", NULL, NULL, 0xF0, FW_DUMP_TYPE_MEM_ITCM},
+	{"DTCM", NULL, NULL, 0xF1, FW_DUMP_TYPE_MEM_DTCM},
+	{"SQRAM", NULL, NULL, 0xF2, FW_DUMP_TYPE_MEM_SQRAM},
+	{"APU", NULL, NULL, 0xF3, FW_DUMP_TYPE_REG_APU},
+	{"CIU", NULL, NULL, 0xF4, FW_DUMP_TYPE_REG_CIU},
+	{"ICU", NULL, NULL, 0xF5, FW_DUMP_TYPE_REG_ICU},
+	{"MAC", NULL, NULL, 0xF6, FW_DUMP_TYPE_REG_MAC},
 	{"EXT7", NULL, NULL, 0xF7},
 	{"EXT8", NULL, NULL, 0xF8},
 	{"EXT9", NULL, NULL, 0xF9},
@@ -897,16 +759,7 @@ bt_cmd52_rdwr_firmware(bt_private *priv, u8 doneflag)
 	u8 ctrl_data = 0;
 	u8 dbg_dump_ctrl_reg = 0;
 
-	if (priv->card_type == CARD_TYPE_SD8887)
-		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8887;
-	else if (priv->card_type == CARD_TYPE_SD8897)
-		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8897;
-	else if (priv->card_type == CARD_TYPE_SD8977)
-		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8977;
-	else if (priv->card_type == CARD_TYPE_SD8997)
-		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8997;
-	else if (priv->card_type == CARD_TYPE_SD8987)
-		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8987;
+	dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG;
 
 	sdio_writeb(((struct sdio_mmc_card *)priv->bt_dev.card)->func,
 		    DEBUG_HOST_READY, dbg_dump_ctrl_reg, &ret);
@@ -977,39 +830,16 @@ bt_dump_firmware_info_v2(bt_private *priv)
 		return;
 	}
 
-	if ((priv->card_type != CARD_TYPE_SD8887) &&
-	    (priv->card_type != CARD_TYPE_SD8897)
-	    && (priv->card_type != CARD_TYPE_SD8977) &&
-	    (priv->card_type != CARD_TYPE_SD8997)
-	    && (priv->card_type != CARD_TYPE_SD8987)) {
-		PRINTM(MSG, "card_type %d don't support FW dump\n",
-		       priv->card_type);
-		return;
-	}
-
 	memset(path_name, 0, sizeof(path_name));
 	strcpy((char *)path_name, "/data");
 	PRINTM(MSG, "Create DUMP directory success:dir_name=%s\n", path_name);
 
-	if (priv->card_type == CARD_TYPE_SD8887) {
-		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8887;
-		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8887;
-	} else if (priv->card_type == CARD_TYPE_SD8897) {
-		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8897;
-		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8897;
-	} else if (priv->card_type == CARD_TYPE_SD8977) {
-		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8977;
-		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8977;
-	} else if (priv->card_type == CARD_TYPE_SD8997) {
-		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8997;
-		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8997;
-	} else if (priv->card_type == CARD_TYPE_SD8987) {
-		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8987;
-		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8987;
-	}
+	dbg_dump_start_reg = DEBUG_DUMP_START_REG;
+	dbg_dump_end_reg = DEBUG_DUMP_END_REG;
 
 	sbi_wakeup_firmware(priv);
 	sdio_claim_host(((struct sdio_mmc_card *)priv->bt_dev.card)->func);
+	priv->fw_dump = TRUE;
 	/* start dump fw memory */
 	PRINTM(MSG, "==== DEBUG MODE OUTPUT START ====\n");
 	/* read the number of the memories which will dump */
@@ -1094,8 +924,9 @@ bt_dump_firmware_info_v2(bt_private *priv)
 						      bt_mem_type_mapping_tbl
 						      [idx].mem_Ptr));
 				memset(file_name, 0, sizeof(file_name));
-				sprintf((char *)file_name, "%s%s", "file_bt_",
-					bt_mem_type_mapping_tbl[idx].mem_name);
+				snprintf((char *)file_name, sizeof(file_name),
+					 "%s%s", "file_bt_",
+					 bt_mem_type_mapping_tbl[idx].mem_name);
 				if (BT_STATUS_SUCCESS !=
 				    bt_save_dump_info_to_file((char *)path_name,
 							      (char *)file_name,
@@ -1114,6 +945,7 @@ bt_dump_firmware_info_v2(bt_private *priv)
 	PRINTM(MSG, "==== DEBUG MODE OUTPUT END ====\n");
 	/* end dump fw memory */
 done:
+	priv->fw_dump = FALSE;
 	sdio_release_host(((struct sdio_mmc_card *)priv->bt_dev.card)->func);
 	for (idx = 0; idx < dump_num; idx++) {
 		if (bt_mem_type_mapping_tbl[idx].mem_Ptr) {
@@ -1160,6 +992,20 @@ bt_cmd_timeout_func(bt_private *priv, u16 cmd)
 	PRINTM(ERROR, "sdio int status = %d\n", adapter->sd_ireg);
 	bt_dump_sdio_regs(priv);
 	LEAVE();
+}
+
+/**
+ *  @brief This function queue frame
+ *
+ *  @param priv    A pointer to bt_private structure
+ *  @param skb     A pointer to sk_buff structure
+ *
+ *  @return    N/A
+ */
+static void
+bt_queue_frame(bt_private *priv, struct sk_buff *skb)
+{
+	skb_queue_tail(&priv->adapter->tx_queue, skb);
 }
 
 /**
@@ -1472,104 +1318,6 @@ exit:
 	return ret;
 }
 
-#if defined(SDIO_SUSPEND_RESUME)
-/**
- *  @brief This function set FM interrupt mask
- *
- *  @param priv    A pointer to bt_private structure
- *
- *  @param priv    FM interrupt mask value
- *
- *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
- */
-int
-fm_set_intr_mask(bt_private *priv, u32 mask)
-{
-	struct sk_buff *skb = NULL;
-	int ret = BT_STATUS_SUCCESS;
-	BT_CMD *pcmd;
-
-	ENTER();
-	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
-	if (skb == NULL) {
-		PRINTM(WARN, "No free skb\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
-	}
-	pcmd = (BT_CMD *)skb->data;
-	pcmd->ocf_ogf = __cpu_to_le16((VENDOR_OGF << 10) | FM_CMD);
-	pcmd->length = 0x05;
-	pcmd->data[0] = FM_SET_INTR_MASK;
-	PRINTM(CMD, "FM set intr mask=0x%x\n", mask);
-	mask = __cpu_to_le32(mask);
-	memcpy(&pcmd->data[1], &mask, sizeof(mask));
-	bt_cb(skb)->pkt_type = HCI_COMMAND_PKT;
-	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
-	skb->dev = (void *)(&(priv->bt_dev.m_dev[FM_SEQ]));
-	skb_queue_head(&priv->adapter->tx_queue, skb);
-	priv->bt_dev.sendcmdflag = TRUE;
-	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
-	priv->adapter->cmd_complete = FALSE;
-	wake_up_interruptible(&priv->MainThread.waitQ);
-	if (!os_wait_interruptible_timeout(priv->adapter->cmd_wait_q,
-					   priv->adapter->cmd_complete,
-					   WAIT_UNTIL_CMD_RESP)) {
-		ret = BT_STATUS_FAILURE;
-		PRINTM(MSG, "FM: set intr mask=%d timeout\n",
-		       (int)__cpu_to_le32(mask));
-		bt_cmd_timeout_func(priv, FM_CMD);
-	}
-exit:
-	LEAVE();
-	return ret;
-}
-#endif
-
-/**
- *  @brief This function sends command to configure PMIC
- *
- *  @param priv    A pointer to bt_private structure
- *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
- */
-int
-bt_pmic_configure(bt_private *priv)
-{
-	struct sk_buff *skb = NULL;
-	int ret = BT_STATUS_SUCCESS;
-	BT_CMD *pcmd;
-	ENTER();
-	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
-	if (skb == NULL) {
-		PRINTM(WARN, "No free skb\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
-	}
-	pcmd = (BT_CMD *)skb->data;
-	pcmd->ocf_ogf =
-		__cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_PMIC_CONFIGURE);
-	pcmd->length = 0;
-	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
-	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
-	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
-	skb_queue_head(&priv->adapter->tx_queue, skb);
-	PRINTM(CMD, "Queue PMIC Configure Command(0x%x)\n",
-	       __le16_to_cpu(pcmd->ocf_ogf));
-	priv->bt_dev.sendcmdflag = TRUE;
-	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
-	priv->adapter->cmd_complete = FALSE;
-	wake_up_interruptible(&priv->MainThread.waitQ);
-	if (!os_wait_interruptible_timeout
-	    (priv->adapter->cmd_wait_q, priv->adapter->cmd_complete,
-	     WAIT_UNTIL_CMD_RESP)) {
-		ret = BT_STATUS_FAILURE;
-		PRINTM(MSG, "BT: PMIC Configure timeout:\n");
-		bt_cmd_timeout_func(priv, BT_CMD_PMIC_CONFIGURE);
-	}
-exit:
-	LEAVE();
-	return ret;
-}
-
 /**
  *  @brief This function enables host sleep
  *
@@ -1810,125 +1558,6 @@ exit:
 }
 
 /**
- *  @brief This function set GPIO pin
- *
- *  @param priv    A pointer to bt_private structure
- *
- *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
- */
-int
-bt_set_gpio_pin(bt_private *priv)
-{
-	struct sk_buff *skb = NULL;
-	int ret = BT_STATUS_SUCCESS;
-	/**Interrupt falling edge **/
-	u8 gpio_int_edge = INT_FALLING_EDGE;
-	/**Delay 50 usec **/
-	u8 gpio_pulse_width = DELAY_50_US;
-	BT_CMD *pcmd;
-	ENTER();
-	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
-	if (skb == NULL) {
-		PRINTM(WARN, "No free skb\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
-	}
-	pcmd = (BT_CMD *)skb->data;
-	pcmd->ocf_ogf = __cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_SET_GPIO_PIN);
-	pcmd->data[0] = mbt_gpio_pin;
-	pcmd->data[1] = gpio_int_edge;
-	pcmd->data[2] = gpio_pulse_width;
-	pcmd->length = 3;
-	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
-	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
-	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
-	skb_queue_head(&priv->adapter->tx_queue, skb);
-	priv->bt_dev.sendcmdflag = TRUE;
-	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
-	priv->adapter->cmd_complete = FALSE;
-	wake_up_interruptible(&priv->MainThread.waitQ);
-	if (!os_wait_interruptible_timeout(priv->adapter->cmd_wait_q,
-					   priv->adapter->cmd_complete,
-					   WAIT_UNTIL_CMD_RESP)) {
-		ret = BT_STATUS_FAILURE;
-		PRINTM(MSG, "BT: Set GPIO pin: timeout!\n");
-		bt_cmd_timeout_func(priv, BT_CMD_SET_GPIO_PIN);
-	}
-exit:
-	LEAVE();
-	return ret;
-}
-
-#define DISABLE_RESET  0x0
-#define ENABLE_OUTBAND_RESET 0x1
-#define ENABLE_INBAND_RESET  0x02
-#define DEFAULT_GPIO 0xff
-/**
- *  @brief This function set GPIO pin
- *
- *  @param priv    A pointer to bt_private structure
- *
- *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
- */
-int
-bt_set_independent_reset(bt_private *priv)
-{
-	struct sk_buff *skb = NULL;
-	int ret = BT_STATUS_SUCCESS;
-	u8 mode, gpio;
-	BT_CMD *pcmd;
-	ENTER();
-	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
-	if (skb == NULL) {
-		PRINTM(WARN, "No free skb\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
-	}
-	pcmd = (BT_CMD *)skb->data;
-	pcmd->ocf_ogf =
-		__cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_INDEPENDENT_RESET);
-	mode = btindrst & 0xff;
-	gpio = (btindrst & 0xff00) >> 8;
-	if (mode == ENABLE_OUTBAND_RESET) {
-		pcmd->data[0] = ENABLE_OUTBAND_RESET;
-		if (!gpio)
-			pcmd->data[1] = DEFAULT_GPIO;
-		else
-			pcmd->data[1] = gpio;
-	} else if (mode == ENABLE_INBAND_RESET) {
-		pcmd->data[0] = ENABLE_INBAND_RESET;
-		pcmd->data[1] = DEFAULT_GPIO;
-	} else if (mode == DISABLE_RESET) {
-		pcmd->data[0] = DISABLE_RESET;
-		pcmd->data[1] = DEFAULT_GPIO;
-	} else {
-		PRINTM(WARN, "Unsupport mode\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
-	}
-	PRINTM(CMD, "BT: independant reset mode=%d gpio=%d\n", mode, gpio);
-	pcmd->length = 2;
-	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
-	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
-	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
-	skb_queue_head(&priv->adapter->tx_queue, skb);
-	priv->bt_dev.sendcmdflag = TRUE;
-	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
-	priv->adapter->cmd_complete = FALSE;
-	wake_up_interruptible(&priv->MainThread.waitQ);
-	if (!os_wait_interruptible_timeout(priv->adapter->cmd_wait_q,
-					   priv->adapter->cmd_complete,
-					   WAIT_UNTIL_CMD_RESP)) {
-		ret = BT_STATUS_FAILURE;
-		PRINTM(MSG, "BT: Independent reset : timeout!\n");
-		bt_cmd_timeout_func(priv, BT_CMD_INDEPENDENT_RESET);
-	}
-exit:
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief This function sets ble deepsleep mode
  *
  *  @param priv    A pointer to bt_private structure
@@ -2155,6 +1784,14 @@ bt_load_cal_data_ext(bt_private *priv, u8 *config_data, u32 cfg_data_len)
 	BT_CMD *pcmd;
 
 	ENTER();
+
+	if (cfg_data_len > BT_CMD_DATA_LEN) {
+		PRINTM(WARN, "cfg_data_len is too long exceed %d.\n",
+		       BT_CMD_DATA_LEN);
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+
 	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
 	if (skb == NULL) {
 		PRINTM(WARN, "No free skb\n");
@@ -2257,7 +1894,7 @@ bt_restore_tx_queue(bt_private *priv)
 	while (!skb_queue_empty(&priv->adapter->pending_queue)) {
 		skb = skb_dequeue(&priv->adapter->pending_queue);
 		if (skb)
-			skb_queue_tail(&priv->adapter->tx_queue, skb);
+			bt_queue_frame(priv, skb);
 	}
 	wake_up_interruptible(&priv->MainThread.waitQ);
 }
@@ -2346,8 +1983,9 @@ send_single_packet(bt_private *priv, struct sk_buff *skb)
 			skb = new_skb;
 		}
 	}
-	/* This is SDIO specific header length: byte[3][2][1], * type: byte[0]
-	   (HCI_COMMAND = 1, ACL_DATA = 2, SCO_DATA = 3, 0xFE = Vendor) */
+	/* This is SDIO/PCIE specific header length: byte[3][2][1], * type:
+	   byte[0] (HCI_COMMAND = 1, ACL_DATA = 2, SCO_DATA = 3, 0xFE = Vendor)
+	 */
 	skb_push(skb, BT_HEADER_LEN);
 	skb->data[0] = (skb->len & 0x0000ff);
 	skb->data[1] = (skb->len & 0x00ff00) >> 8;
@@ -2357,11 +1995,12 @@ send_single_packet(bt_private *priv, struct sk_buff *skb)
 		PRINTM(CMD, "DNLD_CMD: ocf_ogf=0x%x len=%d\n",
 		       __le16_to_cpu(*((u16 *) & skb->data[4])), skb->len);
 	ret = sbi_host_to_card(priv, skb->data, skb->len);
-	if (ret)
+	if (ret == BT_STATUS_FAILURE)
 		((struct m_dev *)skb->dev)->stat.err_tx++;
 	else
 		((struct m_dev *)skb->dev)->stat.byte_tx += skb->len;
-	kfree_skb(skb);
+	if (ret != BT_STATUS_PENDING)
+		kfree_skb(skb);
 	LEAVE();
 	return ret;
 }
@@ -2427,23 +2066,6 @@ bt_init_from_dev_tree(void)
 				bt_mac = (char *)string_data;
 				PRINTM(CMD, "bt_mac=%s\n", bt_mac);
 			}
-		} else if (!strncmp
-			   (prop->name, "mbt_gpio_pin",
-			    strlen("mbt_gpio_pin"))) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				mbt_gpio_pin = data;
-				PRINTM(CMD, "mbt_gpio_pin=%d\n", mbt_gpio_pin);
-			}
-		} else if (!strncmp(prop->name, "btindrst", strlen("btindrst"))) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				btindrst = data;
-				PRINTM(CMD, "btindrst=%d\n", btindrst);
-			}
-		} else if (!strncmp(prop->name, "btpmic", strlen("btpmic"))) {
-			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				btpmic = data;
-				PRINTM(CMD, "btpmic=%d\n", btpmic);
-			}
 		}
 	}
 	LEAVE();
@@ -2466,7 +2088,6 @@ bt_init_adapter(bt_private *priv)
 	bt_init_from_dev_tree();
 #endif
 	skb_queue_head_init(&priv->adapter->tx_queue);
-	skb_queue_head_init(&priv->adapter->fwdump_queue);
 	skb_queue_head_init(&priv->adapter->pending_queue);
 	priv->adapter->tx_lock = FALSE;
 	priv->adapter->ps_state = PS_AWAKE;
@@ -2495,9 +2116,6 @@ bt_init_fw(bt_private *priv)
 		goto done;
 	}
 	sbi_disable_host_int(priv);
-	if ((priv->card_type == CARD_TYPE_SD8787) ||
-	    (priv->card_type == CARD_TYPE_SD8777))
-		priv->fw_crc_check = fw_crc_check;
 	if (sbi_download_fw(priv)) {
 		PRINTM(ERROR, " FW failed to be download!\n");
 		ret = BT_STATUS_FAILURE;
@@ -2506,141 +2124,6 @@ bt_init_fw(bt_private *priv)
 done:
 	LEAVE();
 	return ret;
-}
-
-#define FW_POLL_TRIES 100
-#define SD8897_FW_RESET_REG  0x0E8
-#define SD8887_FW_RESET_REG  0x0B6
-#define SD8977_SD8997_FW_RESET_REG  0x0EE
-#define SD8887_SD8897_FW_RESET_VAL  1
-#define SD8977_SD8997_FW_RESET_VAL  0x99
-
-/**
- *  @brief This function reload firmware
- *
- *  @param priv   A pointer to bt_private
- *  @param mode   FW reload mode
- *
- *  @return       0--success, otherwise failure
- */
-static int
-bt_reload_fw(bt_private *priv, int mode)
-{
-	int ret = 0, tries = 0;
-	u8 value = 1;
-	u32 reset_reg = 0;
-	u8 reset_val = 0;
-
-	ENTER();
-	if ((mode != FW_RELOAD_SDIO_INBAND_RESET) &&
-	    (mode != FW_RELOAD_NO_EMULATION)) {
-		PRINTM(ERROR, "Invalid fw reload mode=%d\n", mode);
-		return -EFAULT;
-	}
-
-    /** flush pending tx_queue */
-	skb_queue_purge(&priv->adapter->tx_queue);
-	if (mode == FW_RELOAD_SDIO_INBAND_RESET) {
-		if (priv->card_type == CARD_TYPE_SD8887) {
-			reset_reg = SD8887_FW_RESET_REG;
-			reset_val = SD8887_SD8897_FW_RESET_VAL;
-		} else if (priv->card_type == CARD_TYPE_SD8897) {
-			reset_reg = SD8897_FW_RESET_REG;
-			reset_val = SD8887_SD8897_FW_RESET_VAL;
-		} else if ((priv->card_type == CARD_TYPE_SD8977) ||
-			   (priv->card_type == CARD_TYPE_SD8997) ||
-			   (priv->card_type == CARD_TYPE_SD8987)) {
-			reset_reg = SD8977_SD8997_FW_RESET_REG;
-			reset_val = SD8977_SD8997_FW_RESET_VAL;
-		}
-		sbi_disable_host_int(priv);
-	    /** Wake up firmware firstly */
-		sbi_wakeup_firmware(priv);
-
-	/** wait SOC fully wake up */
-		for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
-			ret = sd_write_reg(priv, reset_reg, 0xba);
-			if (!ret) {
-				ret = sd_read_reg(priv, reset_reg, &value);
-				if (!ret && (value == 0xba)) {
-					PRINTM(MSG, "Fw wake up\n");
-					break;
-				}
-			}
-			udelay(1000);
-		}
-
-		ret = sd_write_reg(priv, reset_reg, reset_val);
-		if (ret) {
-			PRINTM(ERROR, "Failed to write register.\n");
-			goto done;
-		}
-
-	    /** Poll register around 1 ms */
-		for (; tries < FW_POLL_TRIES; ++tries) {
-			ret = sd_read_reg(priv, reset_reg, &value);
-			if (ret) {
-				PRINTM(ERROR, "Failed to read register.\n");
-				goto done;
-			}
-			if (value == 0)
-			    /** FW is ready */
-				break;
-			udelay(1000);
-		}
-		if (value) {
-			PRINTM(ERROR,
-			       "Failed to poll FW reset register %X=0x%x\n",
-			       reset_reg, value);
-			ret = -EFAULT;
-			goto done;
-		}
-	}
-
-	sbi_enable_host_int(priv);
-	/** reload FW */
-	ret = bt_init_fw(priv);
-	if (ret) {
-		PRINTM(ERROR, "Re download firmware failed.\n");
-		ret = -EFAULT;
-	}
-	LEAVE();
-	return ret;
-done:
-	sbi_enable_host_int(priv);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief This function request to reload firmware
- *
- *  @param priv   A pointer to bt_private
- *  @param mode   fw reload mode.
- *
- *  @return         N/A
- */
-void
-bt_request_fw_reload(bt_private *priv, int mode)
-{
-	ENTER();
-	if (mode == FW_RELOAD_WITH_EMULATION) {
-		bt_fw_reload = FW_RELOAD_WITH_EMULATION;
-		PRINTM(MSG, "BT: FW reload with re-emulation...\n");
-		LEAVE();
-		return;
-	}
-	/** Reload FW */
-	priv->fw_reload = TRUE;
-	if (bt_reload_fw(priv, mode)) {
-		PRINTM(ERROR, "FW reload fail\n");
-		goto done;
-	}
-	priv->fw_reload = FALSE;
-	/** Other operation here? */
-done:
-	LEAVE();
-	return;
 }
 
 /**
@@ -2655,7 +2138,6 @@ bt_free_adapter(bt_private *priv)
 	bt_adapter *adapter = priv->adapter;
 	ENTER();
 	skb_queue_purge(&priv->adapter->tx_queue);
-	skb_queue_purge(&priv->adapter->fwdump_queue);
 	kfree(adapter->tx_buffer);
 	kfree(adapter->hw_regs_buf);
 	/* Free allocated memory for fwdump filename */
@@ -2829,7 +2311,7 @@ mdev_send_frame(struct m_dev *m_dev, struct sk_buff *skb)
 	if (priv->adapter->tx_lock == TRUE)
 		skb_queue_tail(&priv->adapter->pending_queue, skb);
 	else
-		skb_queue_tail(&priv->adapter->tx_queue, skb);
+		bt_queue_frame(priv, skb);
 	wake_up_interruptible(&priv->MainThread.waitQ);
 
 	LEAVE();
@@ -2999,7 +2481,6 @@ bt_service_main_thread(void *data)
 		    ((!priv->adapter->IntCounter) &&
 		     (!priv->bt_dev.tx_dnld_rdy ||
 		      skb_queue_empty(&priv->adapter->tx_queue))
-		     && skb_queue_empty(&priv->adapter->fwdump_queue)
 		    )) {
 			PRINTM(INFO, "Main: Thread sleeping...\n");
 			schedule();
@@ -3021,7 +2502,8 @@ bt_service_main_thread(void *data)
 			OS_INT_RESTORE;
 			sbi_get_int_status(priv);
 		} else if ((priv->adapter->ps_state == PS_SLEEP) &&
-			   !skb_queue_empty(&priv->adapter->tx_queue)) {
+			   (!skb_queue_empty(&priv->adapter->tx_queue)
+			   )) {
 			priv->adapter->WakeupTries++;
 			sbi_wakeup_firmware(priv);
 			continue;
@@ -3033,14 +2515,6 @@ bt_service_main_thread(void *data)
 				skb = skb_dequeue(&priv->adapter->tx_queue);
 				if (skb)
 					send_single_packet(priv, skb);
-			}
-		}
-		if (!skb_queue_empty(&priv->adapter->fwdump_queue)) {
-			skb = skb_dequeue(&priv->adapter->fwdump_queue);
-			if (skb) {
-				bt_store_firmware_dump(priv, skb->data,
-						       skb->len);
-				dev_kfree_skb_any(skb);
 			}
 		}
 	}
@@ -3202,34 +2676,10 @@ bt_init_cmd(bt_private *priv)
 
 	ENTER();
 
-	if (mbt_gpio_pin) {
-		ret = bt_set_gpio_pin(priv);
-		if (ret < 0) {
-			PRINTM(FATAL, "GPIO pin set failed!\n");
-			goto done;
-		}
-	}
 	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
 	if (ret < 0) {
 		PRINTM(FATAL, "Module cfg command send failed!\n");
 		goto done;
-	}
-	if (btindrst != -1) {
-		ret = bt_set_independent_reset(priv);
-		if (ret < 0) {
-			PRINTM(FATAL, "Independent reset failed!\n");
-			goto done;
-		}
-	}
-	if (btpmic
-	    && ((priv->card_type == CARD_TYPE_SD8997) ||
-		(priv->card_type == CARD_TYPE_SD8977))
-		) {
-		if (BT_STATUS_SUCCESS != bt_pmic_configure(priv)) {
-			PRINTM(FATAL, "BT: PMIC Configure failed \n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
 	}
 	ret = bt_set_ble_deepsleep(priv, deep_sleep ? TRUE : FALSE);
 	if (ret < 0) {
@@ -3264,78 +2714,6 @@ done:
 }
 
 /**
- *  @brief This function reinit firmware after redownload firmware
- *
- *  @param priv   A pointer to bt_private structure
- *  @return       BT_STATUS_SUCESS/BT_STATUS_FAILURE
- */
-int
-bt_reinit_fw(bt_private *priv)
-{
-	int ret = BT_STATUS_SUCCESS;
-	priv->adapter->tx_lock = FALSE;
-	priv->adapter->ps_state = PS_AWAKE;
-	priv->adapter->suspend_fail = FALSE;
-	priv->adapter->is_suspended = FALSE;
-	priv->adapter->hs_skip = 0;
-	priv->adapter->num_cmd_timeout = 0;
-
-	ret = bt_init_cmd(priv);
-	if (ret < 0) {
-		PRINTM(FATAL, "BT init command failed!\n");
-		goto done;
-	}
-	/* block all the packet from bluez */
-	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext)
-		priv->adapter->tx_lock = TRUE;
-
-	if (init_cfg)
-		if (BT_STATUS_SUCCESS != bt_init_config(priv, init_cfg)) {
-			PRINTM(FATAL,
-			       "BT: Set user init data and param failed\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-
-	if (cal_cfg) {
-		if (BT_STATUS_SUCCESS != bt_cal_config(priv, cal_cfg, bt_mac)) {
-			PRINTM(FATAL, "BT: Set cal data failed\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-	}
-
-	if (bt_mac) {
-		PRINTM(INFO,
-		       "Set BT mac_addr from insmod parametre bt_mac = %s\n",
-		       bt_mac);
-		if (BT_STATUS_SUCCESS != bt_init_mac_address(priv, bt_mac)) {
-			PRINTM(FATAL,
-			       "BT: Fail to set mac address from insmod parametre\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-	}
-
-	if (cal_cfg_ext) {
-		if (BT_STATUS_SUCCESS != bt_cal_config_ext(priv, cal_cfg_ext)) {
-			PRINTM(FATAL, "BT: Set cal ext data failed\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-	}
-	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext) {
-		priv->adapter->tx_lock = FALSE;
-		bt_restore_tx_queue(priv);
-	}
-	bt_get_fw_version(priv);
-	snprintf((char *)priv->adapter->drv_ver, MAX_VER_STR_LEN,
-		 mbt_driver_version, fw_version);
-done:
-	return ret;
-}
-
-/**
  *  @brief Module configuration and register device
  *
  *  @param priv      A Pointer to bt_private structure
@@ -3346,8 +2724,6 @@ sbi_register_conf_dpc(bt_private *priv)
 {
 	int ret = BT_STATUS_SUCCESS;
 	struct mbt_dev *mbt_dev = NULL;
-	struct fm_dev *fm_dev = NULL;
-	struct nfc_dev *nfc_dev = NULL;
 	struct debug_dev *debug_dev = NULL;
 	int i = 0;
 	struct char_dev *char_dev = NULL;
@@ -3357,12 +2733,6 @@ sbi_register_conf_dpc(bt_private *priv)
 	ENTER();
 
 	priv->bt_dev.tx_dnld_rdy = TRUE;
-
-	if (priv->fw_reload) {
-		bt_reinit_fw(priv);
-		LEAVE();
-		return ret;
-	}
 
 	if (drv_mode & DRV_MODE_BT) {
 		mbt_dev = alloc_mbt_dev();
@@ -3490,123 +2860,7 @@ sbi_register_conf_dpc(bt_private *priv)
 		bt_proc_init(priv, &(priv->bt_dev.m_dev[BT_SEQ]), BT_SEQ);
 	}
 
-	if ((drv_mode & DRV_MODE_FM) &&
-	    (!(priv->bt_dev.devType == DEV_TYPE_AMP)) &&
-	    (priv->bt_dev.devFeature & DEV_FEATURE_FM)) {
-
-		/** alloc fm_dev */
-		fm_dev = alloc_fm_dev();
-		if (!fm_dev) {
-			PRINTM(FATAL, "Can not allocate fm dev\n");
-			ret = -ENOMEM;
-			goto err_kmalloc;
-		}
-
-		/** init m_dev */
-		init_m_dev(&(priv->bt_dev.m_dev[FM_SEQ]));
-		priv->bt_dev.m_dev[FM_SEQ].dev_type = FM_TYPE;
-		priv->bt_dev.m_dev[FM_SEQ].spec_type = GENERIC_SPEC;
-		priv->bt_dev.m_dev[FM_SEQ].dev_pointer = (void *)fm_dev;
-		priv->bt_dev.m_dev[FM_SEQ].driver_data = priv;
-		priv->bt_dev.m_dev[FM_SEQ].read_continue_flag = 0;
-
-		/** create char device for FM */
-		char_dev = alloc_char_dev();
-		if (!char_dev) {
-			class_destroy(chardev_class);
-			ret = -ENOMEM;
-			goto err_kmalloc;
-		}
-		char_dev->minor = FMCHAR_MINOR_BASE + fmchar_minor;
-		char_dev->dev_type = FM_TYPE;
-
-		if (fm_name)
-			snprintf(fm_dev->name, sizeof(fm_dev->name), "%s%d",
-				 fm_name, fmchar_minor);
-		else
-			snprintf(fm_dev->name, sizeof(fm_dev->name),
-				 "mfmchar%d", fmchar_minor);
-		snprintf(dev_file, sizeof(dev_file), "/dev/%s", fm_dev->name);
-		PRINTM(MSG, "BT: Create %s\n", dev_file);
-		fmchar_minor++;
-
-		/** register m_dev to FM char device */
-		priv->bt_dev.m_dev[FM_SEQ].index = char_dev->minor;
-		char_dev->m_dev = &(priv->bt_dev.m_dev[FM_SEQ]);
-
-		/** register char dev */
-		register_char_dev(char_dev, chardev_class,
-				  MODULE_NAME, fm_dev->name);
-
-		/** chmod for FM char device */
-		mbtchar_chmod(dev_file, 0660);
-
-		/** create proc device */
-		snprintf(priv->bt_dev.m_dev[FM_SEQ].name,
-			 sizeof(priv->bt_dev.m_dev[FM_SEQ].name), fm_dev->name);
-		bt_proc_init(priv, &(priv->bt_dev.m_dev[FM_SEQ]), FM_SEQ);
-	}
-
-	if ((drv_mode & DRV_MODE_NFC) &&
-	    (!(priv->bt_dev.devType == DEV_TYPE_AMP)) &&
-	    (priv->bt_dev.devFeature & DEV_FEATURE_NFC)) {
-
-		/** alloc nfc_dev */
-		nfc_dev = alloc_nfc_dev();
-		if (!nfc_dev) {
-			PRINTM(FATAL, "Can not allocate nfc dev\n");
-			ret = -ENOMEM;
-			goto err_kmalloc;
-		}
-
-		/** init m_dev */
-		init_m_dev(&(priv->bt_dev.m_dev[NFC_SEQ]));
-		priv->bt_dev.m_dev[NFC_SEQ].dev_type = NFC_TYPE;
-		priv->bt_dev.m_dev[NFC_SEQ].spec_type = GENERIC_SPEC;
-		priv->bt_dev.m_dev[NFC_SEQ].dev_pointer = (void *)nfc_dev;
-		priv->bt_dev.m_dev[NFC_SEQ].driver_data = priv;
-		priv->bt_dev.m_dev[NFC_SEQ].read_continue_flag = 0;
-
-		/** create char device for NFC */
-		char_dev = alloc_char_dev();
-		if (!char_dev) {
-			class_destroy(chardev_class);
-			ret = -ENOMEM;
-			goto err_kmalloc;
-		}
-		char_dev->minor = NFCCHAR_MINOR_BASE + nfcchar_minor;
-		char_dev->dev_type = NFC_TYPE;
-		if (nfc_name)
-			snprintf(nfc_dev->name, sizeof(nfc_dev->name), "%s%d",
-				 nfc_name, nfcchar_minor);
-		else
-			snprintf(nfc_dev->name, sizeof(nfc_dev->name),
-				 "mnfcchar%d", nfcchar_minor);
-		snprintf(dev_file, sizeof(dev_file), "/dev/%s", nfc_dev->name);
-		PRINTM(MSG, "BT: Create %s\n", dev_file);
-		nfcchar_minor++;
-
-		/** register m_dev to NFC char device */
-		priv->bt_dev.m_dev[NFC_SEQ].index = char_dev->minor;
-		char_dev->m_dev = &(priv->bt_dev.m_dev[NFC_SEQ]);
-
-		/** register char dev */
-		register_char_dev(char_dev, chardev_class, MODULE_NAME,
-				  nfc_dev->name);
-
-		/** chmod for NFC char device */
-		mbtchar_chmod(dev_file, 0666);
-
-		/** create proc device */
-		snprintf(priv->bt_dev.m_dev[NFC_SEQ].name,
-			 sizeof(priv->bt_dev.m_dev[NFC_SEQ].name),
-			 nfc_dev->name);
-		bt_proc_init(priv, &(priv->bt_dev.m_dev[NFC_SEQ]), NFC_SEQ);
-	}
-
 	if ((debug_intf) && ((drv_mode & DRV_MODE_BT)
-			     || (drv_mode & DRV_MODE_FM)
-			     || (drv_mode & DRV_MODE_NFC)
 	    )) {
 		/** alloc debug_dev */
 		debug_dev = alloc_debug_dev();
@@ -3734,28 +2988,6 @@ bt_add_card(void *card)
 	/* wait for mainthread to up */
 	while (!priv->MainThread.pid)
 		os_sched_timeout(1);
-
-	sdio_update_card_type(priv, card);
-	/* Update driver version */
-	if (priv->card_type == CARD_TYPE_SD8787)
-		memcpy(mbt_driver_version, CARD_SD8787, strlen(CARD_SD8787));
-	else if (priv->card_type == CARD_TYPE_SD8777)
-		memcpy(mbt_driver_version, CARD_SD8777, strlen(CARD_SD8777));
-	else if (priv->card_type == CARD_TYPE_SD8887)
-		memcpy(mbt_driver_version, CARD_SD8887, strlen(CARD_SD8887));
-	else if (priv->card_type == CARD_TYPE_SD8897)
-		memcpy(mbt_driver_version, CARD_SD8897, strlen(CARD_SD8897));
-	else if (priv->card_type == CARD_TYPE_SD8797)
-		memcpy(mbt_driver_version, CARD_SD8797, strlen(CARD_SD8797));
-	else if (priv->card_type == CARD_TYPE_SD8977)
-		memcpy(mbt_driver_version, CARD_SD8977, strlen(CARD_SD8977));
-	else if (priv->card_type == CARD_TYPE_SD8997)
-		memcpy(mbt_driver_version, CARD_SD8997, strlen(CARD_SD8997));
-	else if (priv->card_type == CARD_TYPE_SD8987)
-		memcpy(mbt_driver_version, CARD_SD8987, strlen(CARD_SD8987));
-
-	if (BT_STATUS_SUCCESS != sdio_get_sdio_device(priv))
-		goto err_kmalloc;
 
 	/** user config file */
 	init_waitqueue_head(&priv->init_user_conf_wait_q);
@@ -4134,9 +3366,6 @@ MODULE_VERSION(VERSION);
 MODULE_LICENSE("GPL");
 module_param(fw, int, 0);
 MODULE_PARM_DESC(fw, "0: Skip firmware download; otherwise: Download firmware");
-module_param(fw_crc_check, int, 0);
-MODULE_PARM_DESC(fw_crc_check,
-		 "1: Enable FW download CRC check (default); 0: Disable FW download CRC check");
 module_param(psmode, int, 0);
 MODULE_PARM_DESC(psmode, "1: Enable powermode; 0: Disable powermode");
 module_param(deep_sleep, int, 0);
@@ -4162,30 +3391,14 @@ MODULE_PARM_DESC(cal_cfg_ext, "BT calibrate ext file name");
 module_param(bt_mac, charp, 0660);
 MODULE_PARM_DESC(bt_mac, "BT init mac address");
 module_param(drv_mode, int, 0);
-MODULE_PARM_DESC(drv_mode, "Bit 0: BT/AMP/BLE;" "Bit 1: FM;" "Bit 2: NFC");
+MODULE_PARM_DESC(drv_mode, "Bit 0: BT/AMP/BLE;");
 module_param(bt_name, charp, 0);
 MODULE_PARM_DESC(bt_name, "BT interface name");
-module_param(fm_name, charp, 0);
-MODULE_PARM_DESC(fm_name, "FM interface name");
-module_param(nfc_name, charp, 0);
-MODULE_PARM_DESC(nfc_name, "NFC interface name");
 module_param(debug_intf, int, 0);
 MODULE_PARM_DESC(debug_intf,
 		 "1: Enable debug interface; 0: Disable debug interface ");
 module_param(debug_name, charp, 0);
 MODULE_PARM_DESC(debug_name, "Debug interface name");
-module_param(bt_fw_reload, int, 0);
-MODULE_PARM_DESC(bt_fw_reload,
-		 "0: disable fw_reload; 1: enable fw reload feature");
-module_param(mbt_gpio_pin, int, 0);
-MODULE_PARM_DESC(mbt_gpio_pin,
-		 "GPIO pin to interrupt host. 0xFF: disable GPIO interrupt mode; Others: GPIO pin assigned to generate pulse to host.");
-module_param(btindrst, int, 0);
-MODULE_PARM_DESC(btindrst,
-		 "Independent reset configuration; high byte:GPIO pin number;low byte:0x0:disable, 0x1:out-band reset, 0x2:in-band reset.");
-module_param(btpmic, int, 0);
-MODULE_PARM_DESC(btpmic,
-		 "1: Send pmic configure cmd to firmware; 0: No pmic configure cmd sent to firmware (default)");
 module_param(bt_fw_serial, int, 0);
 MODULE_PARM_DESC(bt_fw_serial,
 		 "0: Support parallel download FW; 1: Support serial download FW");

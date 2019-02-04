@@ -27,14 +27,10 @@
 
 /**  Define Seq num */
 #define BT_SEQ      0
-#define FM_SEQ      1
-#define NFC_SEQ     2
 
 /** Define dev type */
 #define BT_TYPE     1
 #define BT_AMP_TYPE 2
-#define FM_TYPE     3
-#define NFC_TYPE    4
 
 /** Define spec type */
 #define BLUEZ_SPEC     1
@@ -104,20 +100,6 @@ struct mbt_dev {
 	struct sk_buff *reassembly[3];
 
 	atomic_t promisc;
-};
-
-/** Define 'fm' interface specific struct fm_dev */
-struct fm_dev {
-	/** maybe could add some private member later */
-	char name[DEV_NAME_LEN];
-	unsigned long flags;
-};
-
-/** Define 'nfc' interface specific struct fm_dev */
-struct nfc_dev {
-	/** maybe could add some private member later */
-	char name[DEV_NAME_LEN];
-	unsigned long flags;
 };
 
 /** This function frees m_dev allocation */

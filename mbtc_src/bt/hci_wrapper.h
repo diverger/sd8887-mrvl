@@ -27,15 +27,11 @@
 
 /**  Define Seq num */
 #define BT_SEQ      0
-#define FM_SEQ      1
-#define NFC_SEQ     2
 #define DEBUG_SEQ   3
 
 /** Define dev type */
 #define BT_TYPE     1
 #define BT_AMP_TYPE 2
-#define FM_TYPE     3
-#define NFC_TYPE    4
 #define DEBUG_TYPE  5
 
 /** Define spec type */
@@ -106,20 +102,6 @@ struct mbt_dev {
 	struct sk_buff *reassembly[3];
 
 	atomic_t promisc;
-};
-
-/** Define 'fm' interface specific struct fm_dev */
-struct fm_dev {
-	/** maybe could add some private member later */
-	char name[DEV_NAME_LEN];
-	unsigned long flags;
-};
-
-/** Define 'nfc' interface specific struct fm_dev */
-struct nfc_dev {
-	/** maybe could add some private member later */
-	char name[DEV_NAME_LEN];
-	unsigned long flags;
 };
 
 struct debug_dev {

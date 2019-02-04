@@ -36,14 +36,10 @@
 	There are some other parameters for debugging purpose etc. Use modinfo to check details.
 	  The bit settings of drv_mode are,
 		Bit 0: BT/AMP/BLE
-		Bit 1: FM
-		Bit 2: NFC
 	  mbt_drvdbg=<bit mask of driver debug message control>
 	  psmode=1|0 <enable PS mode (default) | disable PS mode>
 	  dts_enable=1|0 <Disable DTS | Enable DTS (default)>
 	  bt_name=<BT interface name>
-	  fm_name=<FM interface name>
-	  nfc_name=<NFC interface name>
 	  debug_intf=1|0 <Enable debug interface (default) | Disable debug interface>
 	  debug_name=<Debug interface name>
 	  mbt_pm_keep_power=1|0 <PM keep power in suspend (default) | PM no power in suspend>
@@ -56,21 +52,7 @@
 		e.g. copy bt_cal_data.conf to firmware directory, cal_cfg=mrvl/bt_cal_data.conf
       cal_cfg_ext=<CAL data config file name>
 		e.g. copy cal_data.conf to firmware directory, cal_cfg_ext=mrvl/cal_data.conf
-	  mbt_gpio_pin=<GPIO pin to interrupt host. 0xFFFF: disable GPIO interrupt mode; Others: GPIO pin assigned to generate pulse to host.>
-
-	btindrst = Independent reset configuration; high byte:GPIOpin;low byte:MODE
-
-	<MODE> :
-		0x00 : disable independent reset
-		0x01 : enable out-band gpio independent reset.
-		0x02 : enable in-band independent reset
-	<GPIOpin> :
-		0xFF : default GPIO pins will be used. Currently for BT it is GPIO[15].
-		0xXX : specified GPIO pin number will be used for out-band reset.
-
-	Example:
-		btindrst=0x0e01        : outband-reset, gpio pin 14
-		btindrst=0xff01        : outband-reset, use firmware default GPIO pin
+	  bt_fw_serial=0|1 <Support parallel download FW | Support serial download FW (default)>
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -183,19 +165,6 @@ proc command to enable BT test mode
     Usage:
         echo "test_mode=1" > /proc/mbt/mbtcharx/config   #enable BT test mode
 
-FOR FW RELOAD
-    a) Enable parallel firmware download in driver parameter
-       insmod bt8xxx.ko fw_serail=0
-
-    b) default fw name for parallel firmware download
-       sd8887_bt_a2.bin
-
-    c) Trigger FW reload
-	echo "fw_reload=1" > /proc/mbt/hcix/debug    		    # start inband reset and fw reload.
-	echo "fw_reload=2" > proc/mbt/hcix/debug       		    # start fw reload
-
-    (Note: This feature should works on SD8977/SD8997 board,
-           For CAC-A2 board, only works on the board which supports parallel fw download)
 
 
 ==============================================================================

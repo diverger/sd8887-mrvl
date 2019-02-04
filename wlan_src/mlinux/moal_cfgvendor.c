@@ -113,7 +113,7 @@ woal_cfg80211_vendor_event(IN moal_private *priv,
 
 	/**allocate skb*/
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len, event_id,
+	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, len, event_id,
 					  GFP_ATOMIC);
 #else
 	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_ATOMIC);
@@ -167,7 +167,7 @@ woal_cfg80211_alloc_vendor_event(IN moal_private *priv,
 
 	/**allocate skb*/
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len, event_id,
+	skb = cfg80211_vendor_event_alloc(wiphy, priv->wdev, len, event_id,
 					  GFP_ATOMIC);
 #else
 	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_ATOMIC);
@@ -457,18 +457,22 @@ woal_cfg80211_subcmd_get_drv_version(struct wiphy *wiphy,
 	struct sk_buff *skb = NULL;
 	t_u32 reply_len = 0;
 	int ret = 0;
+	t_u32 drv_len = 0;
 	char drv_version[MLAN_MAX_VER_STR_LEN] = { 0 };
 	char *pos;
 
 	ENTER();
 	memcpy(drv_version, &priv->phandle->driver_version,
 	       MLAN_MAX_VER_STR_LEN);
+	drv_len = strlen(drv_version);
 	pos = strstr(drv_version, "%s");
 	/* remove 3 char "-%s" in driver_version string */
-	if (pos >= 0)
-		memcpy(pos, pos + 3, strlen(pos) + 1);
+	if (pos != NULL)
+		memcpy(pos, pos + 3, strlen(pos) - 3);
 
 	reply_len = strlen(drv_version) + 1;
+	drv_len -= 3;
+	drv_version[drv_len] = '\0';
 
 	/** Allocate skb for cmd reply*/
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, reply_len);
@@ -478,7 +482,7 @@ woal_cfg80211_subcmd_get_drv_version(struct wiphy *wiphy,
 		goto done;
 	}
 
-	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_NAME, reply_len - 1,
+	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_NAME, reply_len,
 		(t_u8 *)drv_version);
 	ret = cfg80211_vendor_cmd_reply(skb);
 	if (ret)
@@ -507,6 +511,7 @@ woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	struct sk_buff *skb = NULL;
 	t_u32 reply_len = 0;
+	char end_c = '\0';
 	int ret = 0;
 	char fw_ver[32] = { 0 };
 	union {
@@ -517,8 +522,8 @@ woal_cfg80211_subcmd_get_fw_version(struct wiphy *wiphy,
 	ENTER();
 
 	ver.l = priv->phandle->fw_release_number;
-	snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u",
-		 ver.c[2], ver.c[1], ver.c[0], ver.c[3]);
+	snprintf(fw_ver, sizeof(fw_ver), "%u.%u.%u.p%u%c",
+		 ver.c[2], ver.c[1], ver.c[0], ver.c[3], end_c);
 	reply_len = strlen(fw_ver) + 1;
 
 	/** Allocate skb for cmd reply*/
@@ -554,9 +559,12 @@ woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 					  const void *data, int data_len)
 {
 	struct sk_buff *skb = NULL;
+	struct net_device *dev = wdev->netdev;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	t_u32 reply_len = 0;
 	int ret = 0;
 	t_u32 supp_feature_set = 0;
+	mlan_fw_info fw_info;
 	ENTER();
 
 	supp_feature_set = WIFI_FEATURE_INFRA
@@ -564,6 +572,10 @@ woal_cfg80211_subcmd_get_supp_feature_set(struct wiphy *wiphy,
 		| WIFI_FEATURE_AP_STA
 #endif
 		| WIFI_FEATURE_RSSI_MONITOR;
+
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (fw_info.fw_bands & BAND_A)
+		supp_feature_set |= WIFI_FEATURE_INFRA_5G;
 
 	reply_len = sizeof(supp_feature_set);
 	/** Allocate skb for cmd reply*/
@@ -774,6 +786,57 @@ done:
 #endif
 
 /**
+ * @brief vendor command to enable/disable 11k
+ *
+ * @param wiphy         A pointer to wiphy struct
+ * @param wdev          A pointer to wireless_dev struct
+ * @param data           a pointer to data
+ * @param data_len     data length
+ *
+ * @return      0: success  <0: fail
+ */
+static int
+woal_cfg80211_subcmd_11k_cfg(struct wiphy *wiphy,
+			     struct wireless_dev *wdev,
+			     const void *data, int data_len)
+{
+	struct net_device *dev = NULL;
+	moal_private *priv = NULL;
+	mlan_ioctl_req *req = NULL;
+	struct nlattr *tb_vendor[ATTR_ND_OFFLOAD_MAX + 1];
+	int ret = 0;
+	int status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	if (!wdev || !wdev->netdev) {
+		LEAVE();
+		return -EFAULT;
+	}
+
+	dev = wdev->netdev;
+	priv = (moal_private *)woal_get_netdev_priv(dev);
+
+	nla_parse(tb_vendor, ATTR_ND_OFFLOAD_MAX,
+		  (struct nlattr *)data, data_len, NULL
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+		  , NULL
+#endif
+		);
+	if (!tb_vendor[ATTR_ND_OFFLOAD_CONTROL]) {
+		PRINTM(MINFO, "%s: ATTR_ND_OFFLOAD not found\n", __FUNCTION__);
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+
+	LEAVE();
+	return ret;
+
+}
+
+/**
  * @brief vendor command to set enable/disable dfs offload
  *
  * @param wiphy       A pointer to wiphy struct
@@ -835,6 +898,11 @@ const struct wiphy_vendor_command vendor_commands[] = {
 	 .doit = woal_cfg80211_subcmd_set_dfs_offload,
 	 },
 
+	{
+	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_nd_offload},
+	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+	 .doit = woal_cfg80211_subcmd_11k_cfg,
+	 },
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
 		  sub_cmd_get_drv_version,},

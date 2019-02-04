@@ -413,37 +413,32 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
 			woal_mlan_debug_info(priv);
 			woal_moal_debug_info(priv, NULL, MFALSE);
 
-			woal_dump_firmware_info(handle);
+			woal_dump_firmware_info_v2(handle);
 		}
 	}
 
-	if (handle->card_info->v15_update) {
-		if (!strncmp(databuf, "fwdump_file=", strlen("fwdump_file="))) {
-			int len = copy_len - strlen("fwdump_file=");
-			gfp_t flag;
-			if (len) {
-				kfree(handle->fwdump_fname);
-				flag = (in_atomic() ||
-					irqs_disabled())? GFP_ATOMIC :
-					GFP_KERNEL;
-				handle->fwdump_fname = kzalloc(len, flag);
-				if (handle->fwdump_fname)
-					memcpy(handle->fwdump_fname,
-					       databuf + strlen("fwdump_file="),
-					       len - 1);
-			}
+	if (!strncmp(databuf, "fwdump_file=", strlen("fwdump_file="))) {
+		int len = copy_len - strlen("fwdump_file=");
+		gfp_t flag;
+		if (len) {
+			kfree(handle->fwdump_fname);
+			flag = (in_atomic() ||
+				irqs_disabled())? GFP_ATOMIC : GFP_KERNEL;
+			handle->fwdump_fname = kzalloc(len, flag);
+			if (handle->fwdump_fname)
+				memcpy(handle->fwdump_fname,
+				       databuf + strlen("fwdump_file="),
+				       len - 1);
 		}
-		if (!strncmp(databuf, "fw_reload", strlen("fw_reload"))) {
-			if (!strncmp
-			    (databuf, "fw_reload=", strlen("fw_reload="))) {
-				line += strlen("fw_reload") + 1;
-				config_data =
-					(t_u32)woal_string_to_number(line);
-			} else
-				config_data = FW_RELOAD_SDIO_INBAND_RESET;
-			PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
-			woal_request_fw_reload(handle, config_data);
-		}
+	}
+	if (!strncmp(databuf, "fw_reload", strlen("fw_reload"))) {
+		if (!strncmp(databuf, "fw_reload=", strlen("fw_reload="))) {
+			line += strlen("fw_reload") + 1;
+			config_data = (t_u32)woal_string_to_number(line);
+		} else
+			config_data = FW_RELOAD_SDIO_INBAND_RESET;
+		PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
+		woal_request_fw_reload(handle, config_data);
 	}
 	MODULE_PUT;
 	LEAVE();
@@ -645,7 +640,6 @@ woal_proc_exit(moal_handle *handle)
 		else
 			strcpy(config_proc_dir, "config");
 		remove_proc_entry(config_proc_dir, handle->proc_mwlan);
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 		/* Remove only if we are the only instance using this */
 		if (atomic_read(&(handle->proc_mwlan->count)) > 1) {
@@ -667,7 +661,6 @@ woal_proc_exit(moal_handle *handle)
 		}
 #endif
 	}
-
 	LEAVE();
 }
 

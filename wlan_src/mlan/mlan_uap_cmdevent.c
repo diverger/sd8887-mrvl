@@ -2,26 +2,20 @@
  *
  *  @brief This file contains the handling of AP mode command and event
  *
- *  (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -62,7 +56,8 @@ uap_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	mlan_status ret = MLAN_STATUS_FAILURE;
 
 	ENTER();
-	if (resp->command != HostCmd_CMD_WMM_PARAM_CONFIG)
+	if (resp->command != HostCmd_CMD_WMM_PARAM_CONFIG
+	    || resp->command != HostCmd_CMD_CHAN_REGION_CFG)
 		PRINTM(MERROR, "CMD_RESP: cmd %#x error, result=%#x\n",
 		       resp->command, resp->result);
 	if (pioctl_buf)
@@ -71,6 +66,10 @@ uap_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 	 * Handling errors here
 	 */
 	switch (resp->command) {
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		pmadapter->sdio_rx_aggr_enable = MFALSE;
+		PRINTM(MMSG, "FW don't support SDIO single port rx aggr\n");
+		break;
 
 	case HOST_CMD_APCMD_SYS_CONFIGURE:
 		{
@@ -155,7 +154,10 @@ uap_process_cmdresp_error(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp,
 			}
 		}
 		break;
-
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		ret = MLAN_STATUS_SUCCESS;
+		PRINTM(MCMND, "FW don't support chan region cfg command!\n");
+		break;
 	default:
 		break;
 	}
@@ -433,9 +435,14 @@ wlan_process_tx_pause_event(pmlan_private priv, pmlan_buffer pevent)
 	MrvlIEtypes_tx_pause_t *tx_pause_tlv;
 	sta_node *sta_ptr = MNULL;
 	t_u8 bc_mac[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+	t_u32 total_pkts_queued;
+	t_u16 tx_pkts_queued = 0;;
 
 	ENTER();
 
+	total_pkts_queued =
+		util_scalar_read(priv->adapter->pmoal_handle,
+				 &priv->wmm.tx_pkts_queued, MNULL, MNULL);
 	while (tlv_buf_left >= (int)sizeof(MrvlIEtypesHeader_t)) {
 		tlv_type = wlan_le16_to_cpu(tlv->type);
 		tlv_len = wlan_le16_to_cpu(tlv->len);
@@ -447,17 +454,16 @@ wlan_process_tx_pause_event(pmlan_private priv, pmlan_buffer pevent)
 		}
 		if (tlv_type == TLV_TYPE_TX_PAUSE) {
 			tx_pause_tlv = (MrvlIEtypes_tx_pause_t *)tlv;
-			PRINTM(MCMND, "TxPause: " MACSTR " pause=%d, pkts=%d\n",
-			       MAC2STR(tx_pause_tlv->peermac),
-			       tx_pause_tlv->tx_pause, tx_pause_tlv->pkt_cnt);
+
 			if (!memcmp
 			    (priv->adapter, bc_mac, tx_pause_tlv->peermac,
 			     MLAN_MAC_ADDR_LENGTH))
-				wlan_update_ralist_tx_pause(priv,
-							    tx_pause_tlv->
-							    peermac,
-							    tx_pause_tlv->
-							    tx_pause);
+				tx_pkts_queued =
+					wlan_update_ralist_tx_pause(priv,
+								    tx_pause_tlv->
+								    peermac,
+								    tx_pause_tlv->
+								    tx_pause);
 			else if (!memcmp
 				 (priv->adapter, priv->curr_addr,
 				  tx_pause_tlv->peermac,
@@ -476,7 +482,8 @@ wlan_process_tx_pause_event(pmlan_private priv, pmlan_buffer pevent)
 					    tx_pause_tlv->tx_pause) {
 						sta_ptr->tx_pause =
 							tx_pause_tlv->tx_pause;
-						wlan_update_ralist_tx_pause
+						tx_pkts_queued =
+							wlan_update_ralist_tx_pause
 							(priv,
 							 tx_pause_tlv->peermac,
 							 tx_pause_tlv->
@@ -484,6 +491,14 @@ wlan_process_tx_pause_event(pmlan_private priv, pmlan_buffer pevent)
 					}
 				}
 			}
+			if (!tx_pause_tlv->tx_pause)
+				total_pkts_queued += tx_pkts_queued;
+			PRINTM(MCMND,
+			       "TxPause: " MACSTR
+			       " pause=%d, pkts=%d  pending=%d total=%d\n",
+			       MAC2STR(tx_pause_tlv->peermac),
+			       tx_pause_tlv->tx_pause, tx_pause_tlv->pkt_cnt,
+			       tx_pkts_queued, total_pkts_queued);
 		}
 		tlv_buf_left -= (sizeof(MrvlIEtypesHeader_t) + tlv_len);
 		tlv = (MrvlIEtypesHeader_t *)((t_u8 *)tlv + tlv_len +
@@ -2355,6 +2370,10 @@ wlan_uap_ret_sys_config(IN pmlan_private pmpriv,
 						chan_band_tlv->channel;
 					bss->param.ap_channel.is_11n_enabled =
 						pmpriv->is_11n_enabled;
+					bss->param.ap_channel.is_dfs_chan =
+						wlan_11h_radar_detect_required
+						(pmpriv,
+						 bss->param.ap_channel.channel);
 					if (chan_band_tlv->bandcfg.chanWidth ==
 					    CHAN_BW_80MHZ)
 						bss->param.ap_channel.
@@ -2655,6 +2674,26 @@ wlan_uap_cmd_802_11_get_log(IN pmlan_private pmpriv, IN HostCmd_DS_COMMAND *cmd)
 	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_802_11_GET_LOG);
 	cmd->size =
 		wlan_cpu_to_le16(sizeof(HostCmd_DS_802_11_GET_LOG) + S_DS_GEN);
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of bss_start.
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status
+wlan_uap_cmd_bss_start(IN pmlan_private pmpriv, IN HostCmd_DS_COMMAND *cmd)
+{
+
+	ENTER();
+	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_BSS_START);
+	cmd->size = S_DS_GEN;
+	cmd->size = wlan_cpu_to_le16(cmd->size);
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -3009,30 +3048,6 @@ wlan_uap_cmd_sta_deauth(pmlan_private pmpriv,
 }
 
 /**
- *  @brief This function prepares command of report mic_err
- *
- *  @param pmpriv       A pointer to mlan_private structure
- *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
- *  @param pdata_buf    A pointer to data buffer
- *  @return         MLAN_STATUS_SUCCESS
- */
-static mlan_status
-wlan_uap_cmd_report_mic(pmlan_private pmpriv,
-			IN HostCmd_DS_COMMAND *cmd, IN t_void *pdata_buf)
-{
-	HostCmd_DS_REPORT_MIC *pcmd_report_mic =
-		(HostCmd_DS_REPORT_MIC *)&cmd->params.report_mic;
-
-	ENTER();
-	cmd->command = wlan_cpu_to_le16(HOST_CMD_APCMD_REPORT_MIC);
-	cmd->size = wlan_cpu_to_le16(S_DS_GEN + sizeof(HostCmd_DS_REPORT_MIC));
-	memcpy(pmpriv->adapter, pcmd_report_mic->mac, pdata_buf,
-	       MLAN_MAC_ADDR_LENGTH);
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
  *  @brief This function prepares command of key material
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -3293,10 +3308,13 @@ wlan_uap_ret_sta_list(IN pmlan_private pmpriv,
 			sta_ptr =
 				wlan_get_station_entry(pmpriv,
 						       tlv->mac_address);
-			if (sta_ptr)
+			if (sta_ptr) {
 				info->param.sta_list.info[i].bandmode =
 					sta_ptr->bandmode;
-			else
+				memcpy(pmpriv->adapter,
+				       &(info->param.sta_list.info[i].stats),
+				       &(sta_ptr->stats), sizeof(sta_stats));
+			} else
 				info->param.sta_list.info[i].bandmode = 0xFF;
 			tlv++;
 		}
@@ -3726,12 +3744,14 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 	switch (cmd_no) {
 	case HostCmd_CMD_SOFT_RESET:
 	case HOST_CMD_APCMD_BSS_STOP:
-	case HOST_CMD_APCMD_BSS_START:
 	case HOST_CMD_APCMD_SYS_INFO:
 	case HOST_CMD_APCMD_SYS_RESET:
 	case HOST_CMD_APCMD_STA_LIST:
 		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
 		cmd_ptr->size = wlan_cpu_to_le16(S_DS_GEN);
+		break;
+	case HOST_CMD_APCMD_BSS_START:
+		ret = wlan_uap_cmd_bss_start(pmpriv, cmd_ptr);
 		break;
 	case HOST_CMD_APCMD_SYS_CONFIGURE:
 		ret = wlan_uap_cmd_sys_configure(pmpriv, cmd_ptr, cmd_action,
@@ -3784,15 +3804,15 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 	case HOST_CMD_APCMD_STA_DEAUTH:
 		ret = wlan_uap_cmd_sta_deauth(pmpriv, cmd_ptr, pdata_buf);
 		break;
-	case HOST_CMD_APCMD_REPORT_MIC:
-		ret = wlan_uap_cmd_report_mic(pmpriv, cmd_ptr, pdata_buf);
-		break;
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		ret = wlan_uap_cmd_key_material(pmpriv, cmd_ptr, cmd_action,
 						cmd_oid, pdata_buf);
 		break;
 	case HostCmd_CMD_GET_HW_SPEC:
 		ret = wlan_cmd_get_hw_spec(pmpriv, cmd_ptr);
+		break;
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		ret = wlan_cmd_sdio_rx_aggr_cfg(cmd_ptr, cmd_action, pdata_buf);
 		break;
 	case HostCmd_CMD_802_11_HS_CFG_ENH:
 		ret = wlan_uap_cmd_802_11_hs_cfg(pmpriv, cmd_ptr, cmd_action,
@@ -3907,10 +3927,6 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 						 pdata_buf);
 		break;
 #endif
-	case HostCmd_CMD_802_11_RF_ANTENNA:
-		ret = wlan_cmd_802_11_rf_antenna(pmpriv, cmd_ptr, cmd_action,
-						 pdata_buf);
-		break;
 	case HostCmd_CMD_11AC_CFG:
 		ret = wlan_cmd_11ac_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
@@ -3949,9 +3965,6 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 					     pdata_buf);
 		break;
 
-	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
-		ret = wlan_cmd_ind_rst_cfg(cmd_ptr, cmd_action, pdata_buf);
-		break;
 	case HostCmd_CMD_GET_TSF:
 		ret = wlan_cmd_get_tsf(pmpriv, cmd_ptr, cmd_action);
 		break;
@@ -3961,14 +3974,18 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 						     cmd_action, pdata_buf);
 		break;
 
-	case HostCmd_CMD_802_11_NET_MONITOR:
-		ret = wlan_cmd_net_monitor(cmd_ptr, cmd_action, pdata_buf);
-		break;
-#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
-	case HostCmd_CMD_SDIO_PULL_CTRL:
-		ret = wlan_cmd_sdio_pull_ctl(pmpriv, cmd_ptr, cmd_action);
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_ACS:
+		ret = wlan_cmd_acs(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
 #endif
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
+		cmd_ptr->size =
+			wlan_cpu_to_le16(sizeof(HostCmd_DS_CHAN_REGION_CFG) +
+					 S_DS_GEN);
+		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
+		break;
 	case HostCmd_CMD_FW_DUMP_EVENT:
 		ret = wlan_cmd_fw_dump_event(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
@@ -4009,7 +4026,6 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	mlan_ioctl_req *pioctl_buf = (mlan_ioctl_req *)pioctl;
 	mlan_adapter *pmadapter = pmpriv->adapter;
 	int ctr;
-	const mlan_sdio_device *psdio_device = pmadapter->psdio_device;
 	ENTER();
 
 	/* If the command is not successful, cleanup and return failure */
@@ -4025,13 +4041,17 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		pmpriv->uap_bss_started = MFALSE;
 		if (pmpriv->intf_state_11h.is_11h_host)
 			pmpriv->intf_state_11h.tx_disabled = MFALSE;
-		else
+		else {
+			if (pmpriv->adapter->ecsa_enable)
+				wlan_11h_remove_custom_ie(pmpriv->adapter,
+							  pmpriv);
 			wlan_11h_check_update_radar_det_state(pmpriv);
+		}
 
 		if (pmpriv->adapter->state_rdh.stage == RDH_STOP_INTFS)
 			wlan_11h_radar_detected_callback((t_void *)pmpriv);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
-		pmpriv->uap_host_based = MFALSE;
+		pmpriv->uap_host_based = 0;
 		break;
 	case HOST_CMD_APCMD_BSS_START:
 		if (!pmpriv->intf_state_11h.is_11h_host &&
@@ -4049,7 +4069,7 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		break;
 	case HOST_CMD_APCMD_SYS_RESET:
 		pmpriv->uap_bss_started = MFALSE;
-		pmpriv->uap_host_based = MFALSE;
+		pmpriv->uap_host_based = 0;
 		ret = wlan_uap_ret_sys_reset(pmpriv, resp, pioctl_buf);
 		wlan_11h_check_update_radar_det_state(pmpriv);
 		wlan_coex_ampdu_rxwinsize(pmadapter);
@@ -4081,8 +4101,6 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		break;
 	case HOST_CMD_APCMD_STA_DEAUTH:
 		break;
-	case HOST_CMD_APCMD_REPORT_MIC:
-		break;
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		break;
 	case HOST_CMD_APCMD_STA_LIST:
@@ -4090,6 +4108,9 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		break;
 	case HostCmd_CMD_GET_HW_SPEC:
 		ret = wlan_ret_get_hw_spec(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		ret = wlan_ret_sdio_rx_aggr_cfg(pmpriv, resp);
 		break;
 	case HostCmd_CMD_CFG_DATA:
 		ret = wlan_ret_cfg_data(pmpriv, resp, pioctl_buf);
@@ -4119,9 +4140,6 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		break;
 	case HostCmd_CMD_SET_BSS_MODE:
 		break;
-	case HostCmd_CMD_802_11_NET_MONITOR:
-		ret = wlan_ret_net_monitor(pmpriv, resp, pioctl_buf);
-		break;
 	case HostCmd_CMD_RECONFIGURE_TX_BUFF:
 		wlan_set_tx_pause_flag(pmpriv, MFALSE);
 
@@ -4133,24 +4151,18 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		pmadapter->curr_tx_buf_size = pmadapter->tx_buf_size;
 		pmadapter->mp_end_port =
 			wlan_le16_to_cpu(resp->params.tx_buf.mp_end_port);
-		pmadapter->mp_data_port_mask =
-			psdio_device->reg->data_port_mask;
+		pmadapter->mp_data_port_mask = DATA_PORT_MASK;
 
-		for (ctr = 1;
-		     ctr <= psdio_device->max_ports - pmadapter->mp_end_port;
-		     ctr++) {
+		for (ctr = 1; ctr <= MAX_PORT - pmadapter->mp_end_port; ctr++) {
 			pmadapter->mp_data_port_mask &=
-				~(1 << (psdio_device->max_ports - ctr));
+				~(1 << (MAX_PORT - ctr));
 		}
-
-		if (psdio_device->supports_sdio_new_mode) {
-			pmadapter->curr_wr_port = 0;
-			pmadapter->mpa_tx.pkt_aggr_limit =
-				MIN(psdio_device->mp_aggr_pkt_limit,
-				    (pmadapter->mp_end_port >> 1));
-		} else {
-			pmadapter->curr_wr_port = 1;
-		}
+		pmadapter->curr_wr_port = 0;
+#ifdef SDIO_MULTI_PORT_TX_AGGR
+		pmadapter->mpa_tx.pkt_aggr_limit =
+			MIN(SDIO_MP_AGGR_DEF_PKT_LIMIT,
+			    (pmadapter->mp_end_port >> 1));
+#endif
 		PRINTM(MCMND, "end port %d, data port mask %x\n",
 		       wlan_le16_to_cpu(resp->params.tx_buf.mp_end_port),
 		       pmadapter->mp_data_port_mask);
@@ -4198,9 +4210,6 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		ret = wlan_ret_p2p_params_config(pmpriv, resp, pioctl_buf);
 		break;
 #endif
-	case HostCmd_CMD_802_11_RF_ANTENNA:
-		ret = wlan_ret_802_11_rf_antenna(pmpriv, resp, pioctl_buf);
-		break;
 	case HostCmd_CMD_11AC_CFG:
 		ret = wlan_ret_11ac_cfg(pmpriv, resp, pioctl_buf);
 		break;
@@ -4235,19 +4244,20 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	case HOST_CMD_APCMD_OPER_CTRL:
 		ret = wlan_uap_ret_oper_ctrl(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
-		ret = wlan_ret_ind_rst_cfg(pmpriv, resp, pioctl_buf);
-		break;
 	case HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT:
 		break;
 	case HostCmd_CMD_GET_TSF:
 		ret = wlan_ret_get_tsf(pmpriv, resp, pioctl_buf);
 		break;
 
-#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
-	case HostCmd_CMD_SDIO_PULL_CTRL:
+#ifdef STA_SUPPORT
+	case HostCmd_CMD_ACS:
+		ret = wlan_ret_acs(pmpriv, resp, pioctl_buf);
 		break;
 #endif
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		ret = wlan_ret_chan_region_cfg(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCmd_CMD_BOOT_SLEEP:
 		ret = wlan_ret_boot_sleep(pmpriv, resp, pioctl_buf);
 		break;
@@ -4290,6 +4300,10 @@ wlan_ops_uap_process_event(IN t_void *priv)
 
 	ENTER();
 
+	if (!pmbuf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 	/* Event length check */
 	if (pmbuf && (pmbuf->data_len - sizeof(eventcause)) > MAX_EVENT_SIZE) {
 		pmbuf->status_code = MLAN_ERROR_PKT_SIZE_INVALID;
@@ -4339,10 +4353,6 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		wlan_delete_station_list(pmpriv);
 		pmpriv->port_open = MFALSE;
 		pmpriv->tx_pause = MFALSE;
-		break;
-	case EVENT_MICRO_AP_MIC_COUNTERMEASURES:
-		PRINTM(MEVENT, "EVENT: MICRO_AP_MIC_COUNTERMEASURES\n");
-		pevent->event_id = MLAN_EVENT_ID_UAP_FW_MIC_COUNTERMEASURES;
 		break;
 	case EVENT_PS_AWAKE:
 		PRINTM(MINFO, "EVENT: AWAKE\n");
@@ -4642,6 +4652,20 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		PRINTM(MEVENT, "REQUEST P2P MAC: " MACSTR "\n",
 		       MAC2STR(event_excd_p2p->peer_mac_addr));
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
+		break;
+	case EVENT_FW_HANG_REPORT:
+		if (pmbuf->data_len < (sizeof(eventcause) + sizeof(t_u16))) {
+			PRINTM(MEVENT,
+			       "EVENT: EVENT_FW_HANG_REPORT skip for len too short: %d\n",
+			       pmbuf->data_len);
+			break;
+		}
+		PRINTM(MEVENT, "EVENT: EVENT_FW_HANG_REPORT reasoncode=%d\n",
+		       wlan_le16_to_cpu(*(t_u16 *)
+					(pmbuf->pbuf + pmbuf->data_offset +
+					 sizeof(eventcause))));
+		pmadapter->fw_hang_report = MTRUE;
+		wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_DBG_DUMP, MNULL);
 		break;
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;

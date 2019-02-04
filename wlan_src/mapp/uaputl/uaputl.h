@@ -2,24 +2,20 @@
  *
  *  @brief Header file for uaputl application
  *
- * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
- * MARVELL CONFIDENTIAL
- * The source code contained or described herein and all documents related to
- * the source code ("Material") are owned by Marvell International Ltd or its
- * suppliers or licensors. Title to the Material remains with Marvell International Ltd
- * or its suppliers and licensors. The Material contains trade secrets and
- * proprietary and confidential information of Marvell or its suppliers and
- * licensors. The Material is protected by worldwide copyright and trade secret
- * laws and treaty provisions. No part of the Material may be used, copied,
- * reproduced, modified, published, uploaded, posted, transmitted, distributed,
- * or disclosed in any way without Marvell's prior express written permission.
+ * This software file (the "File") is distributed by Marvell International
+ * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ * (the "License").  You may use, redistribute and/or modify this File in
+ * accordance with the terms and conditions of the License, a copy of which
+ * is available along with the File in the gpl.txt file or by writing to
+ * the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ * 02111-1307 or on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
  *
- * No license under any patent, copyright, trade secret or other intellectual
- * property right is granted to or conferred upon you by disclosure or delivery
- * of the Materials, either expressly, by implication, inducement, estoppel or
- * otherwise. Any license under such intellectual property rights must be
- * express and approved by Marvell in writing.
+ * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ * this warranty disclaimer.
  *
  */
 /************************************************************************
@@ -187,16 +183,12 @@ typedef unsigned long long t_u64;
 #define UAP_MGMT_FRAME_CONTROL  13
 /** Tx rate configuration */
 #define UAP_TX_RATE_CFG      14
-/** Antenna configuration */
-#define UAP_ANTENNA_CFG          15
 
 #define UAP_CAC_TIMER_STATUS	17
 
 #define UAP_HT_TX_CFG           19
 
 #define UAP_VHT_CFG             20
-
-#define UAP_HT_STREAM_CFG       21
 
 #define UAP_OPERATION_CTRL       22
 
@@ -224,11 +216,6 @@ typedef unsigned long long t_u64;
 /** deauth station */
 #define	UAP_STA_DEAUTH	    (SIOCDEVPRIVATE + 7)
 
-/** enable UAP report mic error */
-#define UAP_REPORT_MIC_ERR  (SIOCDEVPRIVATE + 8)
-/** uap set key */
-#define UAP_SET_KEY         (SIOCDEVPRIVATE + 9)
-/** Packet inject command ioctl number */
 #define UAPHOSTPKTINJECT    (SIOCDEVPRIVATE + 12)
 
 /** uap get station list */
@@ -618,8 +605,6 @@ typedef struct _ht_tx_cfg {
 	t_u16 httxcap;
     /** HTTxInfo */
 	t_u16 httxinfo;
-    /** Band selection */
-	t_u32 misc_cfg;
 } ht_tx_cfg;
 
 /** Type definition of ht_tx_cfg_para */
@@ -659,8 +644,6 @@ typedef struct _ht_tx_cfg_para {
 #define MAX_CMD_LENGTH          100
 /** Size of command buffer */
 #define MRVDRV_SIZE_OF_CMD_BUFFER       (2 * 1024)
-/** Size of packet inject buffer */
-#define MRVDRV_SIZE_OF_PKT_BUFFER       (1500)
 
 /** Maximum number of clients supported by AP */
 #define MAX_NUM_CLIENTS         MAX_STA_COUNT
@@ -712,7 +695,7 @@ typedef struct _ht_tx_cfg_para {
 /** Maximum stage out time */
 #define MAX_STAGE_OUT_TIME  864000
 /** Minimum stage out time */
-#define MIN_STAGE_OUT_TIME  300
+#define MIN_STAGE_OUT_TIME  50
 
 /** Maximum DTIM period */
 #define MAX_DTIM_PERIOD 100
@@ -1083,27 +1066,15 @@ typedef PACK_START struct _tlvbuf_preamble_ctl {
 	t_u8 preamble_type;
 } PACK_END tlvbuf_preamble_ctl;
 
-/** ant_cfg structure */
-typedef PACK_START struct _ant_cfg_t {
-   /** Subcommand */
-	int subcmd;
-   /** Action */
-	int action;
-   /** TX mode configured */
-	int tx_mode;
-   /** RX mode configured */
-	int rx_mode;
-} PACK_END ant_cfg_t;
-
-/** htstream_cfg structure */
-typedef struct _htstream_cfg_t {
-   /** Subcommand */
-	int subcmd;
-   /** Action */
-	int action;
-   /** HT stream configuration */
-	t_u32 stream_cfg;
-} htstream_cfg_t;
+/** TLV buffer : Antenna control */
+typedef PACK_START struct _tlvbuf_antenna_ctl {
+    /** Header */
+	TLVHEADER;
+    /** Antenna type */
+	t_u8 which_antenna;
+    /** Antenna mode */
+	t_u8 antenna_mode;
+} PACK_END tlvbuf_antenna_ctl;
 
 /** TLV buffer : RTS threshold */
 typedef PACK_START struct _tlvbuf_rts_threshold {
@@ -1986,6 +1957,11 @@ enum _mlan_band_def {
 	BAND_AAC = 64,
 };
 
+/** station stats */
+typedef struct _sta_stats {
+	t_u64 last_rx_in_msec;
+} sta_stats;
+
 /** station info */
 typedef struct _sta_info {
     /** STA MAC address */
@@ -1996,6 +1972,8 @@ typedef struct _sta_info {
 	t_s8 rssi;
     /** station bandmode */
 	t_u8 bandmode;
+    /** station stats */
+	sta_stats stats;
 } sta_info;
 
 /** sta_list structure */
@@ -2014,29 +1992,6 @@ typedef struct _deauth_param {
 	t_u16 reason_code;
 } deauth_param;
 
-#define MAX_KEY_LENGTH           32
-/** encrypt key */
-typedef struct _encrypt_key {
-    /** Key index */
-	t_u32 key_index;
-    /** Key length */
-	t_u32 key_len;
-    /** Key */
-	t_u8 key_material[MAX_KEY_LENGTH];
-    /** mac address */
-	t_u8 mac_addr[ETH_ALEN];
-} encrypt_key;
-
-/** injected pkt_header */
-typedef struct _pkt_header {
-    /** pkt_len */
-	t_u32 pkt_len;
-    /** pkt_type */
-	t_u32 tx_pkt_type;
-    /** tx control */
-	t_u32 tx_control;
-} pkt_header;
-
 /** APCMD buffer : bss_configure */
 typedef PACK_START struct _apcmdbuf_bss_configure {
     /** Action : GET or SET */
@@ -2052,8 +2007,6 @@ typedef PACK_START struct _apcmdbuf_bss_configure {
 #define DEBUG_SUBCOMMAND_MAJOREVTMASK   2
 /** Subcmd id to trigger a scan */
 #define DEBUG_SUBCOMMAND_CHANNEL_SCAN   3
-/**subcmd id for data packet injection */
-#define DEBUG_DATA_PACKET_INJECT        4
 
 /** Channel scan entry for each channel */
 typedef PACK_START struct _channel_scan_entry_t {
@@ -2187,6 +2140,8 @@ typedef PACK_START struct _apcmdbuf_pmf_params {
 #define MRVL_BCAST_SSID_CTL_TLV_ID      (PROPRIETARY_TLV_BASE_ID + 0x30)	//0x0130
 /** TLV : Preamble control */
 #define MRVL_PREAMBLE_CTL_TLV_ID        (PROPRIETARY_TLV_BASE_ID + 0x31)	//0x0131
+/** TLV : Antenna control */
+#define MRVL_ANTENNA_CTL_TLV_ID         (PROPRIETARY_TLV_BASE_ID + 0x32)	//0x0132
 /** TLV : RTS threshold */
 #define MRVL_RTS_THRESHOLD_TLV_ID       (PROPRIETARY_TLV_BASE_ID + 0x33)	//0x0133
 /** TLV : Packet forwarding control */
@@ -2357,8 +2312,6 @@ typedef PACK_START struct _tx_rate_cfg_t {
 #define MCS_SET_1_MASK      0x0000ff00
 /** MCS0-7 supported */
 #define DEFAULT_MCS_SET_0   0xff
-/** MCS8-15 support */
-#define DEFAULT_MCS_SET_1   0xff
 /** MCS32 supported */
 #define DEFAULT_MCS_SET_4   0x01
 /** Rate bitmap for MCS 0 */

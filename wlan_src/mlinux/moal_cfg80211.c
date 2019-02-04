@@ -33,9 +33,8 @@
 static struct ieee80211_rate cfg80211_rates[] = {
 	{.bitrate = 10,.hw_value = 2,},
 	{.bitrate = 20,.hw_value = 4,},
-	{.bitrate = 55,.hw_value = 11},
+	{.bitrate = 55,.hw_value = 11,},
 	{.bitrate = 110,.hw_value = 22,},
-	{.bitrate = 220,.hw_value = 44,},
 	{.bitrate = 60,.hw_value = 12,},
 	{.bitrate = 90,.hw_value = 18,},
 	{.bitrate = 120,.hw_value = 24,},
@@ -44,7 +43,6 @@ static struct ieee80211_rate cfg80211_rates[] = {
 	{.bitrate = 360,.hw_value = 72,},
 	{.bitrate = 480,.hw_value = 96,},
 	{.bitrate = 540,.hw_value = 108,},
-	{.bitrate = 720,.hw_value = 144,},
 };
 
 /** Channel definitions for 2 GHz to be advertised to cfg80211 */
@@ -109,8 +107,8 @@ struct ieee80211_supported_band cfg80211_band_2ghz = {
 struct ieee80211_supported_band cfg80211_band_5ghz = {
 	.channels = cfg80211_channels_5ghz,
 	.n_channels = ARRAY_SIZE(cfg80211_channels_5ghz),
-	.bitrates = cfg80211_rates + 5,
-	.n_bitrates = ARRAY_SIZE(cfg80211_rates) - 5,
+	.bitrates = cfg80211_rates + 4,
+	.n_bitrates = ARRAY_SIZE(cfg80211_rates) - 4,
 };
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
@@ -123,6 +121,9 @@ extern const struct net_device_ops woal_uap_netdev_ops;
 extern const struct net_device_ops woal_netdev_ops;
 #endif
 #endif
+
+/** gtk rekey offload mode */
+extern int gtk_rekey_offload;
 
 /********************************************************
 				Local Functions
@@ -173,8 +174,7 @@ woal_get_active_intf_freq(moal_private *priv)
 	for (i = 0; i < handle->priv_num; i++) {
 #ifdef STA_SUPPORT
 		if (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_STA) {
-			if ((handle->priv[i]->media_connected == MTRUE) &&
-			    (handle->priv[i]->bss_type == priv->bss_type))
+			if (handle->priv[i]->media_connected == MTRUE)
 				return ieee80211_channel_to_frequency(handle->
 								      priv[i]->
 								      channel
@@ -195,8 +195,7 @@ woal_get_active_intf_freq(moal_private *priv)
 #endif
 #ifdef UAP_SUPPORT
 		if (GET_BSS_ROLE(handle->priv[i]) == MLAN_BSS_ROLE_UAP) {
-			if ((handle->priv[i]->bss_started == MTRUE) &&
-			    (handle->priv[i]->bss_type == priv->bss_type))
+			if (handle->priv[i]->bss_started == MTRUE)
 				return ieee80211_channel_to_frequency(handle->
 								      priv[i]->
 								      channel
@@ -372,6 +371,7 @@ woal_cfg80211_set_key(moal_private *priv, t_u8 is_enable_wep,
 		}
 
 		if (cipher == WLAN_CIPHER_SUITE_AES_CMAC) {
+
 			sec->param.encrypt_key.key_flags |=
 				KEY_FLAG_AES_MCAST_IGTK;
 		}
@@ -474,7 +474,7 @@ woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option)
 	if (priv->proberesp_p2p_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)
 		mask |= MGMT_MASK_PROBE_RESP;
 	if (priv->beacon_vendor_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)
-		mask |= MGMT_MASK_PROBE_RESP;
+		mask |= MGMT_MASK_BEACON;
 	if (mask) {
 		PRINTM(MCMND, "Clear IES: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
 		       priv->beacon_index, priv->probereq_index,
@@ -716,8 +716,6 @@ woal_cfg80211_init_p2p_go(moal_private *priv)
 	int ret = MLAN_STATUS_SUCCESS;
 	t_u16 wifi_direct_mode;
 	t_u8 bss_role;
-	mlan_ds_wifi_direct_config p2p_config;
-	mlan_ds_ps_mgmt ps_mgmt;
 
 	ENTER();
 
@@ -766,25 +764,6 @@ woal_cfg80211_init_p2p_go(moal_private *priv)
 			goto done;
 		}
 	}
-/* NoA:-- Interval = 100TUs and Duration= 50TUs, count=255*/
-#define DEF_NOA_COUNT       255
-	if (priv->phandle->noa_duration && priv->phandle->card_info->go_noa) {
-		memset(&p2p_config, 0, sizeof(p2p_config));
-		p2p_config.noa_enable = MTRUE;
-		p2p_config.index = 0;
-		p2p_config.noa_count = DEF_NOA_COUNT;
-		p2p_config.noa_duration = priv->phandle->noa_duration;
-		p2p_config.noa_interval = priv->phandle->noa_interval;
-		p2p_config.flags = WIFI_DIRECT_NOA;
-		woal_p2p_config(priv, MLAN_ACT_SET, &p2p_config);
-		memset(&ps_mgmt, 0, sizeof(ps_mgmt));
-		ps_mgmt.flags = PS_FLAG_PS_MODE;
-		ps_mgmt.ps_mode = PS_MODE_INACTIVITY;
-		woal_set_get_uap_power_mode(priv, MLAN_ACT_SET, &ps_mgmt);
-		PRINTM(MMSG, "Enable NOA: duration=%d, interval=%d\n",
-		       priv->phandle->noa_duration,
-		       priv->phandle->noa_interval);
-	}
 done:
 	LEAVE();
 	return ret;
@@ -805,7 +784,6 @@ woal_cfg80211_deinit_p2p(moal_private *priv)
 	t_u8 bss_role;
 	t_u8 channel_status;
 	moal_private *remain_priv = NULL;
-	mlan_ds_ps_mgmt ps_mgmt;
 
 	ENTER();
 
@@ -881,10 +859,6 @@ woal_cfg80211_deinit_p2p(moal_private *priv)
 
 	/* reset bss role */
 	if (bss_role != MLAN_BSS_ROLE_STA) {
-		memset(&ps_mgmt, 0, sizeof(ps_mgmt));
-		ps_mgmt.flags = PS_FLAG_PS_MODE;
-		ps_mgmt.ps_mode = PS_MODE_DISABLE;
-		woal_set_get_uap_power_mode(priv, MLAN_ACT_SET, &ps_mgmt);
 		bss_role = MLAN_BSS_ROLE_STA;
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_cfg80211_bss_role_cfg(priv, MLAN_ACT_SET, &bss_role)) {
@@ -936,11 +910,6 @@ woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
-
-	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
-		ret = -EFAULT;
-		goto done;
-	}
 
 	if (priv->wdev->iftype == type) {
 		PRINTM(MINFO, "Already set to required type\n");
@@ -1017,11 +986,6 @@ woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 	req->action = MLAN_ACT_SET;
 
 	switch (type) {
-	case NL80211_IFTYPE_ADHOC:
-		bss->param.bss_mode = MLAN_BSS_MODE_IBSS;
-		priv->wdev->iftype = NL80211_IFTYPE_ADHOC;
-		PRINTM(MINFO, "Setting interface type to adhoc\n");
-		break;
 	case NL80211_IFTYPE_STATION:
 #if defined(WIFI_DIRECT_SUPPORT)
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
@@ -1421,6 +1385,107 @@ woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 	PRINTM(MINFO, "set default mgmt key, key index=%d\n", key_index);
 
 	return 0;
+}
+#endif
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+/**
+ *  @brief  Set GTK rekey data to driver
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param gtk_rekey     A pointer to mlan_ds_misc_gtk_rekey_data structure
+ *  @param action           MLAN_ACT_SET or MLAN_ACT_GET
+ *
+ *  @return             0 --success, otherwise fail
+ */
+mlan_status
+woal_set_rekey_data(moal_private *priv, mlan_ds_misc_gtk_rekey_data * gtk_rekey,
+		    t_u8 action)
+{
+	mlan_ioctl_req *req;
+	mlan_ds_misc_cfg *misc_cfg;
+	int ret = 0;
+	mlan_status status;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+
+	if (NULL == req) {
+		ret = -ENOMEM;
+	} else {
+		misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+		misc_cfg->sub_command = MLAN_OID_MISC_GTK_REKEY_OFFLOAD;
+		req->req_id = MLAN_IOCTL_MISC_CFG;
+
+		req->action = action;
+		if (action == MLAN_ACT_SET)
+			memcpy(&misc_cfg->param.gtk_rekey, gtk_rekey,
+			       sizeof(mlan_ds_misc_gtk_rekey_data));
+
+		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+		if (MLAN_STATUS_SUCCESS != status)
+			ret = -EFAULT;
+		if (status != MLAN_STATUS_PENDING)
+			kfree(req);
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Give the data necessary for GTK rekeying to the driver
+ *
+ * @param wiphy         A pointer to wiphy structure
+ * @param dev           A pointer to net_device structure
+ * @param data        A pointer to cfg80211_gtk_rekey_data structure
+ *
+ * @return              0 -- success, otherwise fail
+ */
+int
+woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_gtk_rekey_data *data)
+{
+	int ret = 0;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_ds_misc_gtk_rekey_data rekey;
+	mlan_fw_info fw_info;
+
+	ENTER();
+
+	if (gtk_rekey_offload == GTK_REKEY_OFFLOAD_DISABLE) {
+		PRINTM(MMSG,
+		       "woal_cfg80211_set_rekey_data return: gtk_rekey_offload is DISABLE\n");
+		LEAVE();
+		return ret;
+	}
+
+	woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
+	if (!fw_info.fw_supplicant_support) {
+		LEAVE();
+		return -1;
+	}
+
+	memcpy(rekey.kek, data->kek, MLAN_KEK_LEN);
+	memcpy(rekey.kck, data->kck, MLAN_KCK_LEN);
+	memcpy(rekey.replay_ctr, data->replay_ctr, MLAN_REPLAY_CTR_LEN);
+
+	memcpy(&priv->gtk_rekey_data, &rekey,
+	       sizeof(mlan_ds_misc_gtk_rekey_data));
+	if (gtk_rekey_offload == GTK_REKEY_OFFLOAD_SUSPEND) {
+		priv->gtk_data_ready = MTRUE;
+		LEAVE();
+		return ret;
+	}
+
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_rekey_data(priv, &rekey, MLAN_ACT_SET)) {
+		ret = -EFAULT;
+	}
+
+	LEAVE();
+	return ret;
 }
 #endif
 
@@ -1981,18 +2046,6 @@ woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 #else
 	rate_cfg->bitmap_rates[2] = mask->control[band].mcs[0];
 #endif
-#if defined(SD_8XXX)
-	if (priv->phandle->card_type ==
-#if defined(SD_8XXX)
-	    CARD_TYPE_SD8797
-#endif
-		)
-#endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		rate_cfg->bitmap_rates[2] |= mask->control[band].ht_mcs[1] << 8;
-#else
-		rate_cfg->bitmap_rates[2] |= mask->control[band].mcs[1] << 8;
-#endif
 #endif
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -2058,13 +2111,8 @@ woal_cfg80211_get_antenna(struct wiphy *wiphy, u32 *tx_ant, u32 *rx_ant)
 		goto done;
 	}
 
-	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-		*tx_ant = radio->param.ant_cfg.tx_antenna;
-		*rx_ant = radio->param.ant_cfg.rx_antenna;
-	} else {
-		*tx_ant = radio->param.ant_cfg_1x1.antenna;
-		*rx_ant = radio->param.ant_cfg_1x1.antenna;
-	}
+	*tx_ant = radio->param.ant_cfg_1x1.antenna;
+	*rx_ant = radio->param.ant_cfg_1x1.antenna;
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -2118,12 +2166,7 @@ woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
 	radio->sub_command = MLAN_OID_ANT_CFG;
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	req->action = MLAN_ACT_SET;
-	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-		radio->param.ant_cfg.tx_antenna = tx_ant;
-		radio->param.ant_cfg.rx_antenna = rx_ant;
-	} else {
-		radio->param.ant_cfg_1x1.antenna = tx_ant;
-	}
+	radio->param.ant_cfg_1x1.antenna = tx_ant;
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (MLAN_STATUS_SUCCESS != status) {
@@ -3020,6 +3063,8 @@ woal_filter_beacon_ies(moal_private *priv, const t_u8 *ie, int len,
 		switch (id) {
 		case COUNTRY_INFO:
 			enable_11d = MTRUE;
+			memcpy(ie_out + out_len, pos, length + 2);
+			out_len += length + 2;
 			break;
 		case EXTENDED_SUPPORTED_RATES:
 		case WLAN_EID_ERP_INFO:
@@ -3392,19 +3437,25 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 			beacon_ies_data->ie_length = 0;
 			beacon_vendor_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
 		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_cfg80211_custom_ie(priv, beacon_ies_data,
-					    &beacon_vendor_index, NULL,
-					    &proberesp_index, NULL,
-					    &assocresp_index, NULL,
-					    &probereq_index, wait_option)) {
-			PRINTM(MERROR, "Fail to set beacon vendor IE\n");
-			ret = -EFAULT;
-			goto done;
+		if ((beacon_ies && beacon_ies_len) ||
+		    (!beacon_ies &&
+		     (beacon_vendor_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK))) {
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_cfg80211_custom_ie(priv, beacon_ies_data,
+						    &beacon_vendor_index, NULL,
+						    &proberesp_index, NULL,
+						    &assocresp_index, NULL,
+						    &probereq_index,
+						    wait_option)) {
+				PRINTM(MERROR,
+				       "Fail to set beacon vendor IE\n");
+				ret = -EFAULT;
+				goto done;
+			}
+			priv->beacon_vendor_index = beacon_vendor_index;
+			PRINTM(MCMND, "beacon_vendor=0x%x len=%d\n",
+			       beacon_vendor_index, beacon_ies_data->ie_length);
 		}
-		priv->beacon_vendor_index = beacon_vendor_index;
-		PRINTM(MCMND, "beacon_vendor=0x%x len=%d\n",
-		       beacon_vendor_index, beacon_ies_data->ie_length);
 		memset(beacon_ies_data, 0x00, sizeof(custom_ie));
 		if (beacon_ies && beacon_ies_len) {
 			/* set the beacon ies */
@@ -3468,19 +3519,26 @@ woal_cfg80211_mgmt_frame_ie(moal_private *priv,
 			proberesp_ies_data->ie_length = 0;
 			proberesp_p2p_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
 		}
-		if (MLAN_STATUS_SUCCESS !=
-		    woal_cfg80211_custom_ie(priv, NULL, &beacon_index,
-					    proberesp_ies_data,
-					    &proberesp_p2p_index, NULL,
-					    &assocresp_index, NULL,
-					    &probereq_index, wait_option)) {
-			PRINTM(MERROR, "Fail to set proberesp p2p IE\n");
-			ret = -EFAULT;
-			goto done;
+		if ((proberesp_ies && proberesp_ies_len) ||
+		    (!proberesp_ies &&
+		     (proberesp_p2p_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK))) {
+			if (MLAN_STATUS_SUCCESS !=
+			    woal_cfg80211_custom_ie(priv, NULL, &beacon_index,
+						    proberesp_ies_data,
+						    &proberesp_p2p_index, NULL,
+						    &assocresp_index, NULL,
+						    &probereq_index,
+						    wait_option)) {
+				PRINTM(MERROR,
+				       "Fail to set proberesp p2p IE\n");
+				ret = -EFAULT;
+				goto done;
+			}
+			priv->proberesp_p2p_index = proberesp_p2p_index;
+			PRINTM(MCMND, "proberesp_p2p=0x%x len=%d\n",
+			       proberesp_p2p_index,
+			       proberesp_ies_data->ie_length);
 		}
-		priv->proberesp_p2p_index = proberesp_p2p_index;
-		PRINTM(MCMND, "proberesp_p2p=0x%x len=%d\n",
-		       proberesp_p2p_index, proberesp_ies_data->ie_length);
 		memset(proberesp_ies_data, 0x00, sizeof(custom_ie));
 		if (proberesp_ies && proberesp_ies_len) {
 			/* set the probe response ies */
@@ -3746,6 +3804,73 @@ done:
 		kfree(req);
 	LEAVE();
 	return;
+}
+#endif
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+/**
+ * @brief Notify cfg80211 supplicant channel changed
+ *
+ * @param priv          A pointer moal_private structure
+ * @param pchan_info    A pointer to chan_band structure
+ *
+ * @return          N/A
+ */
+void
+woal_cfg80211_notify_channel(moal_private *priv, chan_band_info * pchan_info)
+{
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	struct cfg80211_chan_def chandef;
+#else
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+	enum nl80211_channel_type type;
+	enum ieee80211_band band;
+	int freq = 0;
+#endif
+#endif
+	ENTER();
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	if (MLAN_STATUS_SUCCESS ==
+	    woal_chandef_create(priv, &chandef, pchan_info)) {
+		cfg80211_ch_switch_notify(priv->netdev, &chandef);
+		priv->channel = pchan_info->channel;
+#ifdef UAP_CFG80211
+		memcpy(&priv->chan, &chandef, sizeof(struct cfg80211_chan_def));
+#endif
+	}
+#else
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+	if (pchan_info->bandcfg.chanBand == BAND_2GHZ)
+		band = IEEE80211_BAND_2GHZ;
+	else if (pchan_info->bandcfg.chanBand == BAND_5GHZ)
+		band = IEEE80211_BAND_5GHZ;
+	else {
+		LEAVE();
+		return;
+	}
+	priv->channel = pchan_info->channel;
+	freq = ieee80211_channel_to_frequency(pchan_info->channel, band);
+	switch (pchan_info->bandcfg.chanWidth) {
+	case CHAN_BW_20MHZ:
+		if (pchan_info->is_11n_enabled)
+			type = NL80211_CHAN_HT20;
+		else
+			type = NL80211_CHAN_NO_HT;
+		break;
+	default:
+		if (pchan_info->bandcfg.chan2Offset == SEC_CHAN_ABOVE)
+			type = NL80211_CHAN_HT40PLUS;
+		else if (pchan_info->bandcfg.chan2Offset == SEC_CHAN_BELOW)
+			type = NL80211_CHAN_HT40MINUS;
+		else
+			type = NL80211_CHAN_HT20;
+		break;
+	}
+	cfg80211_ch_switch_notify(priv->netdev, freq, type);
+#endif
+#endif
+	LEAVE();
 }
 #endif
 

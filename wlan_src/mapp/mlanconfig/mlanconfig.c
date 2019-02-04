@@ -2,26 +2,20 @@
   *
   * @brief Program to configure addition parameters into the mlandriver
   *
-  * Usage: mlanconfig mlanX cmd [...]
+  * Copyright (C) 2008-2018, Marvell International Ltd.
   *
-  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+  * This software file (the "File") is distributed by Marvell International
+  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+  * (the "License").  You may use, redistribute and/or modify this File in
+  * accordance with the terms and conditions of the License, a copy of which
+  * is available by writing to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+  * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
   *
-  * MARVELL CONFIDENTIAL
-  * The source code contained or described herein and all documents related to
-  * the source code ("Material") are owned by Marvell International Ltd or its
-  * suppliers or licensors. Title to the Material remains with Marvell International Ltd
-  * or its suppliers and licensors. The Material contains trade secrets and
-  * proprietary and confidential information of Marvell or its suppliers and
-  * licensors. The Material is protected by worldwide copyright and trade secret
-  * laws and treaty provisions. No part of the Material may be used, copied,
-  * reproduced, modified, published, uploaded, posted, transmitted, distributed,
-  * or disclosed in any way without Marvell's prior express written permission.
-  *
-  * No license under any patent, copyright, trade secret or other intellectual
-  * property right is granted to or conferred upon you by disclosure or delivery
-  * of the Materials, either expressly, by implication, inducement, estoppel or
-  * otherwise. Any license under such intellectual property rights must be
-  * express and approved by Marvell in writing.
+  * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+  * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+  * this warranty disclaimer.
   *
   */
 /************************************************************************
@@ -2695,7 +2689,7 @@ process_mef_cfg(int argc, char *argv[])
 	int i;
 	t_u8 *buf;
 	t_u16 buf_len = 0;
-	t_u16 len;
+	t_u16 len = 0;
 	struct iwreq iwr;
 	HostCmd_DS_MEF_CFG *mefcmd;
 	HostCmd_DS_GEN *hostcmd;
@@ -2851,7 +2845,7 @@ process_mgmt_frame_tx(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, arg_num = 0, ret = 0, i = 0;
-	char *args[100], *pos = NULL, mac_addr[20];
+	char *args[100] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 data_len = 0, subtype = 0;
 	wlan_mgmt_frame_tx *pmgmt_frame;
@@ -3058,7 +3052,7 @@ process_tdls_setinfo(int argc, char *argv[])
 	FILE *config_file = NULL;
 	int li = 0, arg_num = 0, ret = 0, i = 0, cmd_found = 0, pairwise_index =
 		0, akm_index = 0, pmkid_index = 0;
-	char *args[30], *pos = NULL;
+	char *args[30] = { NULL }, *pos = NULL;
 	t_u16 cmd_len = 0, tlv_len = 0, tlv_len_rsn = 0, tlv_len_supp_chan =
 		0, tlv_len_domain = 0;
 	t_u16 no_of_sub_band = 0, no_of_supp_chan_sub_band =
@@ -3508,7 +3502,7 @@ process_tdls_discovery(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0, rssi = 0;
-	char *args[30], *pos = NULL, mac_addr[20];
+	char *args[30] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 cmd_len = 0, buf_len = 0, resp_len = 0;
 	t_u8 *buffer = NULL, *raw = NULL;
@@ -3727,7 +3721,7 @@ process_tdls_setup(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0;
-	char *args[30], *pos = NULL, mac_addr[20];
+	char *args[30] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 cmd_len = 0;
 	t_u8 *buffer = NULL;
@@ -3825,7 +3819,7 @@ process_tdls_teardown(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0;
-	char *args[30], *pos = NULL, mac_addr[20];
+	char *args[30] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 cmd_len = 0;
 	t_u8 *buffer = NULL;
@@ -3921,7 +3915,7 @@ process_tdls_powermode(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0;
-	char *args[30], *pos = NULL, mac_addr[20];
+	char *args[30] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 cmd_len = 0;
 	t_u8 *buffer = NULL;
@@ -4180,7 +4174,7 @@ process_tdls_channel_switch(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0;
-	char *args[30], *pos = NULL, mac_addr[20];
+	char *args[30] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 cmd_len = 0;
 	t_u8 *buffer = NULL;
@@ -4389,7 +4383,7 @@ process_tdls_stop_channel_switch(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0;
-	char *args[30], *pos = NULL, mac_addr[20];
+	char *args[30] = { NULL }, *pos = NULL, mac_addr[20];
 	t_u8 peer_mac[ETH_ALEN];
 	t_u16 cmd_len = 0;
 	t_u8 *buffer = NULL;
@@ -4483,7 +4477,7 @@ process_tdls_cs_params(int argc, char *argv[])
 	char *line = NULL;
 	FILE *config_file = NULL;
 	int li = 0, ret = 0, cmd_found = 0;
-	char *args[30], *pos = NULL;
+	char *args[30] = { NULL }, *pos = NULL;
 	t_u16 cmd_len = 0;
 	t_u8 *buffer = NULL;
 

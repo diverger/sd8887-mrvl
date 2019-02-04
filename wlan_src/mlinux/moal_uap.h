@@ -67,16 +67,11 @@ Change log:
 
 #define UAP_TX_RATE_CFG         14
 
-/** Subcommand ID to set/get antenna configuration */
-#define UAP_ANTENNA_CFG         15
-
 #define UAP_CAC_TIMER_STATUS	17
 
 #define UAP_HT_TX_CFG           19
 
 #define UAP_VHT_CFG             20
-
-#define UAP_HT_STREAM_CFG       21
 
 #define UAP_OPERATION_CTRL       22
 
@@ -127,6 +122,7 @@ typedef struct _wapi_key_msg {
 /** wapi mode certificate */
 #define WAPI_MODE_CERT   0x08
 
+/** TX rate cfg structure */
 typedef struct _tx_rate_cfg_t {
     /** sub command */
 	int subcmd;
@@ -144,29 +140,7 @@ typedef struct _tx_rate_cfg_t {
 	t_u16 bitmap_rates[MAX_BITMAP_RATES_SIZE];
 } tx_rate_cfg_t;
 
-/** ant_cfg structure */
-typedef struct _ant_cfg_t {
-   /** Subcommand */
-	int subcmd;
-   /** Action */
-	int action;
-   /** TX mode configured */
-	int tx_mode;
-   /** RX mode configured */
-	int rx_mode;
-} ant_cfg_t;
-
-/** htstream_cfg structure */
-typedef struct _htstream_cfg_t {
-   /** Subcommand */
-	int subcmd;
-   /** Action */
-	int action;
-   /** HT stream configuration */
-	t_u32 stream_cfg;
-} htstream_cfg_t;
-
-/* */
+/** CAC timer status structure */
 typedef struct _cac_timer_status {
 	/** subcmd */
 	t_u32 subcmd;
@@ -185,32 +159,6 @@ typedef struct _cac_timer_status {
 /** deauth station */
 #define	UAP_STA_DEAUTH	            (SIOCDEVPRIVATE + 7)
 
-/** enable UAP report mic error */
-#define UAP_REPORT_MIC_ERR          (SIOCDEVPRIVATE + 8)
-/** uap set key */
-#define UAP_SET_KEY                 (SIOCDEVPRIVATE + 9)
-/** encrypt key */
-typedef struct _encrypt_key {
-    /** Key index */
-	t_u32 key_index;
-    /** Key length */
-	t_u32 key_len;
-    /** Key */
-	t_u8 key_material[MLAN_MAX_KEY_LENGTH];
-    /** mac address */
-	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH];
-} encrypt_key;
-
-/** Packet inject command ioctl number */
-/** pkt_header */
-typedef struct _pkt_header {
-    /** pkt_len */
-	u32 pkt_len;
-    /** pkt_type */
-	u32 TxPktType;
-    /** tx control */
-	u32 TxControl;
-} pkt_header;
 /** uap get station list */
 #define UAP_GET_STA_LIST            (SIOCDEVPRIVATE + 11)
 #define UAPHOSTPKTINJECT            WOAL_MGMT_FRAME_TX_IOCTL
@@ -324,6 +272,7 @@ typedef struct _fw_info {
 	t_u32 hw_dot_11n_dev_cap;
 } fw_info;
 
+/** HT TX cfg header parameter structure */
 typedef struct _ht_tx_cfg_para_hdr {
     /** Sub command */
 	t_u32 subcmd;
@@ -331,6 +280,7 @@ typedef struct _ht_tx_cfg_para_hdr {
 	t_u32 action;
 } ht_tx_cfg_para_hdr;
 
+/** TX beamformer parameter header structure */
 typedef struct _tx_bf_cfg_para_hdr {
     /** Sub command */
 	t_u32 subcmd;
@@ -338,6 +288,7 @@ typedef struct _tx_bf_cfg_para_hdr {
 	t_u32 action;
 } tx_bf_cfg_para_hdr;
 
+/** VHT cfg parameter header structure */
 typedef struct _vht_cfg_para_hdr {
     /** Sub command */
 	t_u32 subcmd;
@@ -345,6 +296,7 @@ typedef struct _vht_cfg_para_hdr {
 	t_u32 action;
 } vht_cfg_para_hdr;
 
+/** UAP operation parameter header structure */
 typedef struct _uap_oper_para_hdr {
     /** Sub command */
 	t_u32 subcmd;
@@ -396,6 +348,7 @@ typedef struct _mgmt_frame_ctrl {
 	t_u32 mask;
 } mgmt_frame_ctrl;
 
+/** SNMP mib parameter structure */
 typedef struct _snmp_mib_para {
     /** subcmd */
 	t_u32 subcmd;

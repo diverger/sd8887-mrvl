@@ -3,26 +3,20 @@
  *  @brief Program to receive events from the driver/firmware of the uAP
  *         driver.
  *
- *  Usage: mlanevent.exe [-option]
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available along with the File in the gpl.txt file or by writing to
+ *  the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ *  02111-1307 or on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell International Ltd
- *  or its suppliers and licensors. The Material contains trade secrets and
- *  proprietary and confidential information of Marvell or its suppliers and
- *  licensors. The Material is protected by worldwide copyright and trade secret
- *  laws and treaty provisions. No part of the Material may be used, copied,
- *  reproduced, modified, published, uploaded, posted, transmitted, distributed,
- *  or disclosed in any way without Marvell's prior express written permission.
- *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  *
  */
 /****************************************************************************
@@ -571,30 +565,6 @@ print_event_bss_start(t_u8 *buffer, t_u16 size)
 	return;
 }
 
-/**
- *  @brief Parse and print MIC Countermeasures state
- *
- *  @param buffer   Pointer to received buffer
- *  @param size     Length of the received event data
- *  @return         N/A
- */
-void
-print_event_mic_countermeasures(t_u8 *buffer, t_u16 size)
-{
-	eventbuf_mic_countermeasures *event_body = NULL;
-
-	if (size < sizeof(eventbuf_mic_countermeasures)) {
-		printf("ERR:Event buffer too small!\n");
-		return;
-	}
-	event_body = (eventbuf_mic_countermeasures *)buffer;
-	if (event_body->status)
-		printf("EVENT: Countermeasures active.\n");
-	else
-		printf("EVENT: Countermeasures inactive\n");
-	return;
-}
-
 #ifdef WIFI_DIRECT_SUPPORT
 /**
  *  @brief Print WIFI_WPS IE elements from event payload
@@ -1109,7 +1079,7 @@ print_wifidirect_ie_elements(t_u8 *buffer, t_u16 size)
 					temp = uap_le16_to_cpu(wifidirect_tlv->
 							       length) -
 						wifidirect_client_dev_length;
-					while (temp) {
+					while (temp_ptr) {
 
 						printf("\t Group WifiDirect Client Device address - ");
 						print_mac(temp_ptr->
@@ -1987,37 +1957,6 @@ print_event_debug(t_u8 *buffer, t_u16 size)
 }
 
 /**
- *  @brief Parse and print SAD Report event data
- *
- *  @param buffer   Pointer to received event buffer
- *  @param size     Length of the received event data
- *  @return         N/A
- */
-void
-print_event_sad_report(t_u8 *buffer, t_u16 size)
-{
-	sad_report_info *pRepInfo = (sad_report_info *)buffer;
-	sad_report_strings *pRepStr =
-		(sad_report_strings *)(buffer + pRepInfo->info_size);
-
-	printf("EVENT: SAD_REPORT\n");
-	printf("%s():%d - %s\n", pRepStr->func_name, pRepStr->line,
-	       pRepStr->message);
-	printf("  Antennas:  avail=%u, curr=%u\n", pRepInfo->avail_antenna,
-	       pRepInfo->curr_antenna);
-	printf("  States:  linkstat_fsm=%u, sad_fsm=%u, sad_URGENT=%u\n",
-	       pRepInfo->link_fsm_state, pRepInfo->sad_fsm_state,
-	       pRepInfo->sad_urgent);
-	printf("  Timer(msec):  eval_interval=%u, eval_period=%u, force_ant_swap=%u\n", pRepInfo->evalinterval_timer, pRepInfo->evalperiod_timer, pRepInfo->forceantswap_timer);
-	printf("  Last_info:  snr=%d, tx_attempts=%u, fer=%u, missed_bcns=%u\n",
-	       pRepInfo->last_info.snr, pRepInfo->last_info.txAttemptCnt,
-	       pRepInfo->last_info.fer, pRepInfo->last_info.missedBcns);
-	printf("  Curr_info:  snr=%d, tx_attempts=%u, fer=%u, missed_bcns=%u\n",
-	       pRepInfo->curr_info.snr, pRepInfo->curr_info.txAttemptCnt,
-	       pRepInfo->curr_info.fer, pRepInfo->curr_info.missedBcns);
-}
-
-/**
  *  @brief Parse and print received event information
  *
  *  @param event    Pointer to received event
@@ -2049,10 +1988,6 @@ print_event(event_header *event, t_u16 size)
 		break;
 	case MICRO_AP_EV_RSN_CONNECT:
 		print_event_rsn_connect(event->event_data, size - EVENT_ID_LEN);
-		break;
-	case MICRO_AP_EV_ID_MIC_COUNTERMEASURES:
-		print_event_mic_countermeasures(event->event_data,
-						size - EVENT_ID_LEN);
 		break;
 #ifdef WIFI_DIRECT_SUPPORT
 	case EVENT_WIFIDIRECT_GENERIC:
@@ -2097,9 +2032,6 @@ print_event(event_header *event, t_u16 size)
 	case EVENT_WEP_ICV_ERROR:
 		print_event_wep_icv_error(event->event_data,
 					  size - EVENT_ID_LEN);
-		break;
-	case EVENT_SAD_REPORT:
-		print_event_sad_report(event->event_data, size - EVENT_ID_LEN);
 		break;
 	case EVENT_ID_DRV_SCAN_REPORT:
 		printf("Scan request completed.\n");
@@ -2462,8 +2394,7 @@ get_netlink_num(int i)
 	/* Try to open /proc/mwlan/config$ */
 	fp = fopen(filename, "r");
 	if (fp) {
-		while (!feof(fp)) {
-			fgets(str, sizeof(str), fp);
+		while (fgets(str, sizeof(str), fp)) {
 			if (strncmp(str, srch, strlen(srch)) == 0) {
 				netlink_num = atoi(str + strlen(srch) + 1);
 				break;

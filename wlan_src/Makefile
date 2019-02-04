@@ -101,13 +101,11 @@ CONFIG_DFS_TESTING_SUPPORT=y
 CONFIG_MULTI_CHAN_SUPPORT=y
 
 
+CONFIG_ANDROID_KERNEL=n
 
-# Use static link for app build
-export CONFIG_STATIC_LINK=y
-CONFIG_ANDROID_KERNEL=y
 
 #32bit app over 64bit kernel support
-CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=y
+CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 
 
 #############################################################################
@@ -120,43 +118,12 @@ ccflags-y += -DLINUX
 
 
 
-# KERNELDIR point to the installed kernel directory.
-# KERNELDIR can be set on the command line,
-# make KERNELDIR=/usr/src/arm/<arch-bsp-path>
-# Alternatively KERNELDIR can be set in the environment.
-# Default value for KERNELDIR is set below.
-ccflags-y += -fno-pic
-ARCH ?= arm64
-KERNELDIR ?= /usr/src/arm/kk_linux-3.14-pxa1908
-CROSS_COMPILE ?= /usr/local/aarch64-linux-android-4.8/bin/aarch64-linux-android-
 
-# CROSS_COMPILE specify the prefix used for all executables used
-# during compilation. Only gcc and related bin-utils executables
-# CROSS_COMPILE can be set on the command line
-# make CROSS_COMPILE=</usr/local/arm/4.1.1/bin/>arm-linux-
-# Alternatively CROSS_COMPILE can be set in the environment.
-# Default value for CROSS_COMPILE is set below.
-CROSS_COMPILE ?= /usr/local/arm/4.1.1/bin/arm-linux-
-
-# INSTALLDIR specify the path to install the kernel module after
-# succesful compilation.
-# INSTALLDIR can be set on the command line
-# make INSTALLDIR=/tftpboot/<rootfs>
-# Alternatively INSTALLDIR can be set in the environment.
-# Default value for INSTALL is set below.
-INSTALLDIR ?= /tftpboot/pxa9xx/root
-
-# ARCH specifies the architecture of the target processor, this kernel
-# module will run.
-# ARCH can be set on the command line
-# make ARCH=<arm/i386>
-# Alternatively ARCH can be set in the environment
-# Default values of ARCH for specific platform are set below.
-ARCH ?= arm
-
+KERNELVERSION_X86 := 	$(shell uname -r)
+KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
 LD += -S
 
-BINDIR = ../bin_sd8xxx
+BINDIR = ../bin_sd8887
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -473,7 +440,7 @@ sd8xxx-objs := $(MOALOBJS)
 else
 
 default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 endif
 
@@ -526,12 +493,12 @@ ifeq ($(CONFIG_MULTI_INTERFACE),y)
 else
 	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
 endif
-	cp -f sd8xxx.$(MODEXT) $(BINDIR)/sd8xxx$(DBG).$(MODEXT)
+	cp -f sd8xxx.$(MODEXT) $(BINDIR)/sd8887$(DBG).$(MODEXT)
+	cp -rpf script/sdio_mmc/* $(BINDIR)/
 
 ifeq ($(CONFIG_STA_SUPPORT),y)
 	cp -f README $(BINDIR)
 	cp -f README_MLAN $(BINDIR)
-	cp -f README_RBC $(BINDIR)
 ifeq ($(CONFIG_OPENWRT_SUPPORT),y)
 	cp -f README_OPENWRT $(BINDIR)
 endif
@@ -590,6 +557,9 @@ endif
 install: default
 
 	cp -f mlan.$(MODEXT) $(INSTALLDIR)/mlan$(DBG).$(MODEXT)
+	cp -f ../io/sdio/$(PLATFORM)/sdio.$(MODEXT) $(INSTALLDIR)
+	cp -f sd8xxx.$(MODEXT) $(INSTALLDIR)/sd8887$(DBG).$(MODEXT)
+	echo "sd8887 Driver Installed"
 
 distclean:
 	-find . -name "*.o" -exec rm {} \;

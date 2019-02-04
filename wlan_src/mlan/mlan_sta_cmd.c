@@ -4,25 +4,20 @@
  *  it prepares command and sends it to firmware when
  *  it is ready.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  *
  */
 
@@ -957,9 +952,6 @@ wlan_cmd_802_11_key_material(IN pmlan_private pmpriv,
 			else
 				pkey_material->key_param_set.key_info |=
 					KEY_INFO_UCAST_KEY;
-			if (pkey->key_flags & KEY_FLAG_SET_TX_KEY)
-				pkey_material->key_param_set.key_info |=
-					KEY_INFO_DEFAULT_KEY;
 		}
 		pkey_material->key_param_set.key_info =
 			wlan_cpu_to_le16(pkey_material->key_param_set.key_info);
@@ -1108,6 +1100,48 @@ done:
 }
 
 /**
+ *  @brief This function prepares command of gtk rekey offload
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @param cmd_oid      OID: ENABLE or DISABLE
+ *  @param pdata_buf    A pointer to data buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+static mlan_status
+wlan_cmd_gtk_rekey_offload(IN pmlan_private pmpriv,
+			   IN HostCmd_DS_COMMAND *cmd,
+			   IN t_u16 cmd_action,
+			   IN t_u32 cmd_oid, IN t_void *pdata_buf)
+{
+	HostCmd_DS_GTK_REKEY_PARAMS *rekey = &cmd->params.gtk_rekey;
+	mlan_ds_misc_gtk_rekey_data *data =
+		(mlan_ds_misc_gtk_rekey_data *) pdata_buf;
+	t_u64 rekey_ctr;
+
+	ENTER();
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG);
+	cmd->size = wlan_cpu_to_le16(sizeof(*rekey) + S_DS_GEN);
+
+	rekey->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		memcpy(pmpriv->adapter, rekey->kek, data->kek, MLAN_KEK_LEN);
+		memcpy(pmpriv->adapter, rekey->kck, data->kck, MLAN_KCK_LEN);
+		rekey_ctr =
+			wlan_le64_to_cpu(swap_byte_64
+					 (*(t_u64 *)data->replay_ctr));
+		rekey->replay_ctr_low = wlan_cpu_to_le32((t_u32)rekey_ctr);
+		rekey->replay_ctr_high =
+			wlan_cpu_to_le32((t_u64)rekey_ctr >> 32);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief This function send eapol pkt to FW
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -1245,7 +1279,6 @@ wlan_cmd_802_11_rf_channel(IN pmlan_private pmpriv,
 
 	if (cmd_action == HostCmd_ACT_GEN_SET) {
 		if ((pmpriv->adapter->adhoc_start_band & BAND_A)
-		    || (pmpriv->adapter->adhoc_start_band & BAND_AN)
 			)
 			prf_chan->rf_type.bandcfg.chanBand = BAND_5GHZ;
 		prf_chan->rf_type.bandcfg.chanWidth =
@@ -2179,89 +2212,6 @@ wlan_cmd_inactivity_timeout(IN HostCmd_DS_COMMAND *cmd,
 }
 
 /**
- *  @brief This function prepares network monitor command
- *
- *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
- *  @param cmd_action   the action: GET or SET
- *  @param pdata_buf    A pointer to data buffer
- *  @return             MLAN_STATUS_SUCCESS
- */
-mlan_status
-wlan_cmd_net_monitor(IN HostCmd_DS_COMMAND *cmd,
-		     IN t_u16 cmd_action, IN t_void *pdata_buf)
-{
-	mlan_ds_misc_net_monitor *net_mon;
-	HostCmd_DS_802_11_NET_MONITOR *cmd_net_mon = &cmd->params.net_mon;
-	ChanBandParamSet_t *pchan_band = MNULL;
-	t_u8 sec_chan_offset = 0;
-	t_u32 bw_offset = 0;
-
-	ENTER();
-
-	net_mon = (mlan_ds_misc_net_monitor *)pdata_buf;
-
-	cmd->size =
-		wlan_cpu_to_le16(S_DS_GEN +
-				 sizeof(HostCmd_DS_802_11_NET_MONITOR));
-	cmd->command = wlan_cpu_to_le16(cmd->command);
-	cmd_net_mon->action = wlan_cpu_to_le16(cmd_action);
-	if (cmd_action == HostCmd_ACT_GEN_SET) {
-		cmd_net_mon->enable_net_mon =
-			wlan_cpu_to_le16((t_u16)net_mon->enable_net_mon);
-		if (net_mon->enable_net_mon) {
-			pchan_band =
-				&cmd_net_mon->monitor_chan.chan_band_param[0];
-			cmd_net_mon->filter_flag =
-				wlan_cpu_to_le16((t_u16)net_mon->filter_flag);
-			cmd_net_mon->monitor_chan.header.type =
-				wlan_cpu_to_le16(TLV_TYPE_CHANNELBANDLIST);
-			cmd_net_mon->monitor_chan.header.len =
-				wlan_cpu_to_le16(sizeof(ChanBandParamSet_t));
-			pchan_band->chan_number = (t_u8)net_mon->channel;
-			pchan_band->bandcfg.chanBand =
-				wlan_band_to_radio_type((t_u8)net_mon->band);
-
-			if (net_mon->band & BAND_GN
-			    || net_mon->band & BAND_AN
-			    || net_mon->band & BAND_GAC
-			    || net_mon->band & BAND_AAC) {
-				bw_offset = net_mon->chan_bandwidth;
-				if (bw_offset == CHANNEL_BW_40MHZ_ABOVE) {
-					pchan_band->bandcfg.chan2Offset =
-						SEC_CHAN_ABOVE;
-					pchan_band->bandcfg.chanWidth =
-						CHAN_BW_40MHZ;
-				} else if (bw_offset == CHANNEL_BW_40MHZ_BELOW) {
-					pchan_band->bandcfg.chan2Offset =
-						SEC_CHAN_BELOW;
-					pchan_band->bandcfg.chanWidth =
-						CHAN_BW_40MHZ;
-				} else if (bw_offset == CHANNEL_BW_80MHZ) {
-					sec_chan_offset =
-						wlan_get_second_channel_offset
-						(net_mon->channel);
-					if (sec_chan_offset == SEC_CHAN_ABOVE)
-						pchan_band->bandcfg.
-							chan2Offset =
-							SEC_CHAN_ABOVE;
-					else if (sec_chan_offset ==
-						 SEC_CHAN_BELOW)
-						pchan_band->bandcfg.
-							chan2Offset =
-							SEC_CHAN_BELOW;
-					pchan_band->bandcfg.chanWidth =
-						CHAN_BW_80MHZ;
-				}
-			}
-
-		}
-	}
-
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
  *  @brief This function prepares Low Power Mode
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -2379,36 +2329,6 @@ wlan_cmd_coalesce_config(IN pmlan_private pmpriv,
 ********************************************************/
 
 /**
- *  @brief This function prepares command for sensor temperature.
- *
- *  @param pmpriv       A pointer to mlan_private structure
- *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
- *  @param cmd_action   The action: GET or SET
- *
- *  @return             MLAN_STATUS_SUCCESS
- */
-static mlan_status
-wlan_cmd_get_sensor_temp(IN pmlan_private pmpriv,
-			 IN HostCmd_DS_COMMAND *cmd, IN t_u16 cmd_action)
-{
-	ENTER();
-
-	if (cmd_action != HostCmd_ACT_GEN_GET) {
-		PRINTM(MERROR,
-		       "wlan_cmd_get_sensor_temp(): support GET only.\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	cmd->command = wlan_cpu_to_le16(HostCmd_DS_GET_SENSOR_TEMP);
-	cmd->size = wlan_cpu_to_le16(S_DS_GEN + 4);
-
-	LEAVE();
-	return MLAN_STATUS_SUCCESS;
-
-}
-
-/**
  *  @brief This function sends get sta band channel command to firmware.
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -2461,38 +2381,6 @@ wlan_cmd_sta_config(IN pmlan_private pmpriv,
 		}
 	}
 
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief This function check if the command is supported by firmware
- *
- *  @param priv       A pointer to mlan_private structure
- *  @param cmd_no       Command number
- *
- *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-mlan_status
-wlan_is_cmd_allowed(mlan_private *priv, IN t_u16 cmd_no)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	ENTER();
-	if (priv->adapter->psdio_device->v16_fw_api) {
-		if (!IS_FW_SUPPORT_ADHOC(priv->adapter)) {
-			switch (cmd_no) {
-			case HostCmd_ACT_MAC_ADHOC_G_PROTECTION_ON:
-			case HostCmd_CMD_802_11_IBSS_COALESCING_STATUS:
-			case HostCmd_CMD_802_11_AD_HOC_START:
-			case HostCmd_CMD_802_11_AD_HOC_JOIN:
-			case HostCmd_CMD_802_11_AD_HOC_STOP:
-				ret = MLAN_STATUS_FAILURE;
-				break;
-			default:
-				break;
-			}
-		}
-	}
 	LEAVE();
 	return ret;
 }
@@ -2552,14 +2440,13 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 
 	ENTER();
 
-	if (wlan_is_cmd_allowed(pmpriv, cmd_no)) {
-		PRINTM(MERROR, "FW don't support the command 0x%x\n", cmd_no);
-		return MLAN_STATUS_FAILURE;
-	}
 	/* Prepare command */
 	switch (cmd_no) {
 	case HostCmd_CMD_GET_HW_SPEC:
 		ret = wlan_cmd_get_hw_spec(pmpriv, cmd_ptr);
+		break;
+	case HostCmd_CMD_SDIO_SP_RX_AGGR_CFG:
+		ret = wlan_cmd_sdio_rx_aggr_cfg(cmd_ptr, cmd_action, pdata_buf);
 		break;
 	case HostCmd_CMD_CFG_DATA:
 		ret = wlan_cmd_cfg_data(pmpriv, cmd_ptr, cmd_action, cmd_oid,
@@ -2583,6 +2470,10 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 	case HostCmd_CMD_802_11_RF_ANTENNA:
 		ret = wlan_cmd_802_11_rf_antenna(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
+		break;
+	case HostCmd_CMD_CW_MODE_CTRL:
+		ret = wlan_cmd_cw_mode_ctrl(pmpriv, cmd_ptr, cmd_action,
+					    pdata_buf);
 		break;
 	case HostCmd_CMD_TXPWR_CFG:
 		ret = wlan_cmd_tx_power_cfg(pmpriv, cmd_ptr, cmd_action,
@@ -2728,6 +2619,11 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 						   cmd_oid, pdata_buf);
 		break;
 
+	case HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG:
+		ret = wlan_cmd_gtk_rekey_offload(pmpriv, cmd_ptr, cmd_action,
+						 cmd_oid, pdata_buf);
+		break;
+
 	case HostCmd_CMD_SUPPLICANT_PMK:
 		ret = wlan_cmd_802_11_supplicant_pmk(pmpriv, cmd_ptr,
 						     cmd_action, pdata_buf);
@@ -2864,18 +2760,10 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 					 S_DS_GEN);
 		ret = MLAN_STATUS_SUCCESS;
 		break;
-	case HostCmd_CMD_802_11_NET_MONITOR:
-		ret = wlan_cmd_net_monitor(cmd_ptr, cmd_action, pdata_buf);
-		break;
 	case HostCmd_CMD_MEASUREMENT_REQUEST:
 	case HostCmd_CMD_MEASUREMENT_REPORT:
 		ret = wlan_meas_cmd_process(pmpriv, cmd_ptr, pdata_buf);
 		break;
-#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
-	case HostCmd_CMD_SDIO_PULL_CTRL:
-		ret = wlan_cmd_sdio_pull_ctl(pmpriv, cmd_ptr, cmd_action);
-		break;
-#endif
 	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
 		ret = wlan_cmd_remain_on_channel(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
@@ -2925,25 +2813,28 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 		ret = wlan_cmd_coalesce_config(pmpriv, cmd_ptr,
 					       cmd_action, pdata_buf);
 		break;
-	case HostCmd_DS_GET_SENSOR_TEMP:
-		ret = wlan_cmd_get_sensor_temp(pmpriv, cmd_ptr, cmd_action);
-		break;
 	case HostCmd_CMD_STA_CONFIGURE:
 		ret = wlan_cmd_sta_config(pmpriv, cmd_ptr, cmd_action,
 					  pioctl_buf, pdata_buf);
-		break;
-
-	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
-		ret = wlan_cmd_ind_rst_cfg(cmd_ptr, cmd_action, pdata_buf);
 		break;
 
 	case HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT:
 		ret = wlan_cmd_ps_inactivity_timeout(pmpriv, cmd_ptr,
 						     cmd_action, pdata_buf);
 		break;
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
+		cmd_ptr->size =
+			wlan_cpu_to_le16(sizeof(HostCmd_DS_CHAN_REGION_CFG) +
+					 S_DS_GEN);
+		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
+		break;
 	case HostCmd_CMD_DYN_BW:
 		ret = wlan_cmd_config_dyn_bw(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
+		break;
+	case HostCmd_CMD_ACS:
+		ret = wlan_cmd_acs(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
 	case HostCmd_CMD_BOOT_SLEEP:
 		ret = wlan_cmd_boot_sleep(pmpriv, cmd_ptr, cmd_action,
@@ -2976,7 +2867,6 @@ wlan_ops_sta_init_cmd(IN t_void *priv, IN t_u8 first_bss)
 {
 	pmlan_private pmpriv = (pmlan_private)priv;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
-	t_u16 enable = MTRUE;
 	mlan_ds_11n_amsdu_aggr_ctrl amsdu_aggr_ctrl;
 
 	ENTER();
@@ -3009,18 +2899,6 @@ wlan_ops_sta_init_cmd(IN t_void *priv, IN t_u8 first_bss)
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
-	}
-
-	if (pmpriv->adapter->psdio_device->v16_fw_api &&
-	    IS_FW_SUPPORT_ADHOC(pmpriv->adapter)) {
-		/* set ibss coalescing_status */
-		ret = wlan_prepare_cmd(pmpriv,
-				       HostCmd_CMD_802_11_IBSS_COALESCING_STATUS,
-				       HostCmd_ACT_GEN_SET, 0, MNULL, &enable);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
 	}
 
 	memset(pmpriv->adapter, &amsdu_aggr_ctrl, 0, sizeof(amsdu_aggr_ctrl));

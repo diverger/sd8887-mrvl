@@ -2,25 +2,20 @@
  *
  *  @brief This file contains functions for 802.11D.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  *
  */
 /********************************************************
@@ -64,11 +59,12 @@ static region_code_mapping_t region_code_mapping[] = {
 	{"JP ", 0xFF},		/* Japan special */
 };
 
-/** Default Tx power */
-#define TX_PWR_DEFAULT  10
-
 /** Universal region code */
 #define UNIVERSAL_REGION_CODE   0xff
+#endif
+
+/** Default Tx power */
+#define TX_PWR_DEFAULT  10
 
 /* Following two structures define the supported channels */
 /** Channels for 802.11b/g */
@@ -128,7 +124,6 @@ static chan_freq_power_t channel_freq_power_UN_AJ[] = {
     {252, 4980, TX_PWR_DEFAULT},
 channels for 11J JP 10M channel gap */
 };
-#endif /* STA_SUPPORT */
 
 /********************************************************
 			Global Variables
@@ -944,6 +939,44 @@ wlan_ret_802_11d_domain_info(mlan_private *pmpriv, HostCmd_DS_COMMAND *resp)
 	return ret;
 }
 
+/**
+ *  @brief This function converts channel to frequency
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param chan         Channel number
+ *  @param band         Band
+ *
+ *  @return             Channel frequency
+ */
+t_u32
+wlan_11d_chan_2_freq(pmlan_adapter pmadapter, t_u8 chan, t_u8 band)
+{
+	chan_freq_power_t *cf;
+	t_u16 cnt;
+	t_u16 i;
+	t_u32 freq = 0;
+
+	ENTER();
+
+	/* Get channel-frequency-power trios */
+	if (band & (BAND_A | BAND_AN | BAND_AAC)) {
+		cf = channel_freq_power_UN_AJ;
+		cnt = NELEMENTS(channel_freq_power_UN_AJ);
+	} else {
+		cf = channel_freq_power_UN_BG;
+		cnt = NELEMENTS(channel_freq_power_UN_BG);
+	}
+
+	/* Locate channel and return corresponding frequency */
+	for (i = 0; i < cnt; i++) {
+		if (chan == cf[i].channel)
+			freq = cf[i].freq;
+	}
+
+	LEAVE();
+	return freq;
+}
+
 #ifdef STA_SUPPORT
 /**
  *  @brief This function parses country information for region channel
@@ -1038,44 +1071,6 @@ wlan_11d_parse_domain_info(pmlan_adapter pmadapter,
 
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
-}
-
-/**
- *  @brief This function converts channel to frequency
- *
- *  @param pmadapter    A pointer to mlan_adapter structure
- *  @param chan         Channel number
- *  @param band         Band
- *
- *  @return             Channel frequency
- */
-t_u32
-wlan_11d_chan_2_freq(pmlan_adapter pmadapter, t_u8 chan, t_u8 band)
-{
-	chan_freq_power_t *cf;
-	t_u16 cnt;
-	t_u16 i;
-	t_u32 freq = 0;
-
-	ENTER();
-
-	/* Get channel-frequency-power trios */
-	if (band & (BAND_A | BAND_AN | BAND_AAC)) {
-		cf = channel_freq_power_UN_AJ;
-		cnt = NELEMENTS(channel_freq_power_UN_AJ);
-	} else {
-		cf = channel_freq_power_UN_BG;
-		cnt = NELEMENTS(channel_freq_power_UN_BG);
-	}
-
-	/* Locate channel and return corresponding frequency */
-	for (i = 0; i < cnt; i++) {
-		if (chan == cf[i].channel)
-			freq = cf[i].freq;
-	}
-
-	LEAVE();
-	return freq;
 }
 
 /**
@@ -1453,6 +1448,7 @@ wlan_11d_prepare_dnld_domain_info_cmd(mlan_private *pmpriv)
 	LEAVE();
 	return ret;
 }
+#endif /* STA_SUPPORT */
 
 /**
  *  @brief This function checks country code and maps it when needed
@@ -1496,6 +1492,12 @@ wlan_11d_cfg_domain_info(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
+	if (pmadapter->otp_region && pmadapter->otp_region->force_reg) {
+		PRINTM(MERROR,
+		       "ForceRegionRule is set in the on-chip OTP memory\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	cfg_11d = (mlan_ds_11d_cfg *)pioctl_req->pbuf;
 	domain_info = &cfg_11d->param.domain_info;
 	memcpy(pmadapter, pmadapter->country_code, domain_info->country_code,
@@ -1537,7 +1539,6 @@ done:
 	LEAVE();
 	return ret;
 }
-#endif /* STA_SUPPORT */
 
 #if defined(UAP_SUPPORT)
 /**

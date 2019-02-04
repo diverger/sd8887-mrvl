@@ -97,6 +97,7 @@ woal_uap_do_priv_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 			break;
 		}
 		break;
+		break;
 	case WOAL_UAP_SET_GET_256_CHAR:
 		switch (wrq->u.data.flags) {
 		case WOAL_WL_FW_RELOAD:

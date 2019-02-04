@@ -87,9 +87,8 @@ moal_malloc(IN t_void *pmoal_handle,
 	    IN t_u32 size, IN t_u32 flag, OUT t_u8 **ppbuf)
 {
 	moal_handle *handle = (moal_handle *)pmoal_handle;
-	t_u32 mem_flag = (in_interrupt() || irqs_disabled() ||
-			  !write_can_lock(&dev_base_lock)) ? GFP_ATOMIC :
-		GFP_KERNEL;
+	t_u32 mem_flag = (in_interrupt() || irqs_disabled())?
+		GFP_ATOMIC : GFP_KERNEL;
 
 	if (flag & MLAN_MEM_DMA)
 		mem_flag |= GFP_DMA;
@@ -311,9 +310,8 @@ moal_init_timer(IN t_void *pmoal_handle,
 		IN t_void (*callback) (t_void *pcontext), IN t_void *pcontext)
 {
 	moal_drv_timer *timer = NULL;
-	t_u32 mem_flag = (in_interrupt() || irqs_disabled() ||
-			  !write_can_lock(&dev_base_lock)) ? GFP_ATOMIC :
-		GFP_KERNEL;
+	t_u32 mem_flag = (in_interrupt() || irqs_disabled())?
+		GFP_ATOMIC : GFP_KERNEL;
 
 	timer = kmalloc(sizeof(moal_drv_timer), mem_flag);
 	if (timer == NULL)
@@ -847,205 +845,6 @@ moal_read_reg(IN t_void *pmoal_handle, IN t_u32 reg, OUT t_u32 *data)
 	return woal_read_reg((moal_handle *)pmoal_handle, reg, data);
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-/**
- *  @brief This function uploads the packet to the network stack monitor interface
- *
- *  @param handle Pointer to the MOAL context
- *  @param pmbuf    Pointer to mlan_buffer
- *
- *  @return  MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING/MLAN_STATUS_FAILURE
- */
-mlan_status
-moal_recv_packet_to_mon_if(IN moal_handle *handle, IN pmlan_buffer pmbuf)
-{
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	struct sk_buff *skb = NULL;
-	struct radiotap_header *rth = NULL;
-	radiotap_info rt_info;
-	t_u8 format = 0;
-	t_u8 bw = 0;
-	t_u8 gi = 0;
-	t_u8 ldpc = 0;
-	t_u8 chan_num;
-	t_u8 band = 0;
-	struct ieee80211_hdr *dot11_hdr = NULL;
-	t_u8 *payload = NULL;
-	ENTER();
-	if (!pmbuf->pdesc) {
-		LEAVE();
-		return status;
-	}
-
-	skb = (struct sk_buff *)pmbuf->pdesc;
-
-	if ((handle->mon_if) && netif_running(handle->mon_if->mon_ndev)) {
-		if (handle->mon_if->radiotap_enabled) {
-			if (skb_headroom(skb) < sizeof(*rth)) {
-				PRINTM(MERROR,
-				       "%s No space to add Radio TAP header\n",
-				       __func__);
-				status = MLAN_STATUS_FAILURE;
-				handle->mon_if->stats.rx_dropped++;
-				goto done;
-			}
-			dot11_hdr =
-				(struct ieee80211_hdr *)(pmbuf->pbuf +
-							 pmbuf->data_offset);
-			memcpy(&rt_info,
-			       pmbuf->pbuf + pmbuf->data_offset -
-			       sizeof(rt_info), sizeof(rt_info));
-			ldpc = (rt_info.rate_info.rate_info & 0x20) >> 5;
-			format = (rt_info.rate_info.rate_info & 0x18) >> 3;
-			bw = (rt_info.rate_info.rate_info & 0x06) >> 1;
-			gi = rt_info.rate_info.rate_info & 0x01;
-			skb_push(skb, sizeof(*rth));
-			rth = (struct radiotap_header *)skb->data;
-			memset(skb->data, 0, sizeof(*rth));
-			rth->hdr.it_version = PKTHDR_RADIOTAP_VERSION;
-			rth->hdr.it_pad = 0;
-			rth->hdr.it_len = cpu_to_le16(sizeof(*rth));
-			rth->hdr.it_present =
-				cpu_to_le32((1 << IEEE80211_RADIOTAP_TSFT) |
-					    (1 << IEEE80211_RADIOTAP_FLAGS) |
-					    (1 << IEEE80211_RADIOTAP_CHANNEL) |
-					    (1 <<
-					     IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
-					    (1 <<
-					     IEEE80211_RADIOTAP_DBM_ANTNOISE) |
-					    (1 << IEEE80211_RADIOTAP_ANTENNA));
-			//Timstamp
-			rth->body.timestamp = cpu_to_le64(jiffies);
-			//Flags
-			rth->body.flags = (rt_info.extra_info.flags &
-					   ~(RADIOTAP_FLAGS_USE_SGI_HT |
-					     RADIOTAP_FLAGS_WITH_FRAGMENT |
-					     RADIOTAP_FLAGS_WEP_ENCRYPTION |
-					     RADIOTAP_FLAGS_FAILED_FCS_CHECK));
-			//reverse fail fcs, 1 means pass FCS in FW, but means fail FCS in radiotap
-			rth->body.flags |=
-				(~rt_info.extra_info.
-				 flags) & RADIOTAP_FLAGS_FAILED_FCS_CHECK;
-			if ((format == MLAN_RATE_FORMAT_HT) && (gi == 1))
-				rth->body.flags |= RADIOTAP_FLAGS_USE_SGI_HT;
-			if (ieee80211_is_mgmt(dot11_hdr->frame_control) ||
-			    ieee80211_is_data(dot11_hdr->frame_control)) {
-				if ((ieee80211_has_morefrags
-				     (dot11_hdr->frame_control)) ||
-				    (!ieee80211_is_first_frag
-				     (dot11_hdr->seq_ctrl))) {
-					rth->body.flags |=
-						RADIOTAP_FLAGS_WITH_FRAGMENT;
-				}
-			}
-			if (ieee80211_is_data(dot11_hdr->frame_control) &&
-			    ieee80211_has_protected(dot11_hdr->frame_control)) {
-				payload =
-					(t_u8 *)dot11_hdr +
-					ieee80211_hdrlen(dot11_hdr->
-							 frame_control);
-				if (!(*(payload + 3) & 0x20))	//ExtIV bit shall be 0 for WEP frame
-					rth->body.flags |=
-						RADIOTAP_FLAGS_WEP_ENCRYPTION;
-			}
-			//Rate, t_u8 only apply for LG mode
-			if (format == MLAN_RATE_FORMAT_LG) {
-				rth->hdr.it_present |=
-					cpu_to_le32(1 <<
-						    IEEE80211_RADIOTAP_RATE);
-				rth->body.rate = rt_info.rate_info.bitrate;
-			}
-			//Channel
-			rth->body.channel.flags = 0;
-			if (rt_info.chan_num)
-				chan_num = rt_info.chan_num;
-			else
-				chan_num =
-					handle->mon_if->band_chan_cfg.channel;
-			band = (chan_num <=
-				14) ? IEEE80211_BAND_2GHZ : IEEE80211_BAND_5GHZ;
-			rth->body.channel.frequency =
-				cpu_to_le16(ieee80211_channel_to_frequency
-					    (chan_num, band));
-			rth->body.channel.flags |=
-				cpu_to_le16((band ==
-					     IEEE80211_BAND_2GHZ) ?
-					    CHANNEL_FLAGS_2GHZ :
-					    CHANNEL_FLAGS_5GHZ);
-			if (rth->body.channel.
-			    flags & cpu_to_le16(CHANNEL_FLAGS_2GHZ))
-				rth->body.channel.flags |=
-					cpu_to_le16
-					(CHANNEL_FLAGS_DYNAMIC_CCK_OFDM);
-			else
-				rth->body.channel.flags |=
-					cpu_to_le16(CHANNEL_FLAGS_OFDM);
-			if (handle->mon_if->chandef.chan &&
-			    (handle->mon_if->chandef.chan->
-			     flags & (IEEE80211_CHAN_PASSIVE_SCAN |
-				      IEEE80211_CHAN_RADAR)))
-				rth->body.channel.flags |=
-					cpu_to_le16
-					(CHANNEL_FLAGS_ONLY_PASSIVSCAN_ALLOW);
-			//Antenna
-			rth->body.antenna_signal = -(rt_info.nf - rt_info.snr);
-			rth->body.antenna_noise = -rt_info.nf;
-			rth->body.antenna = rt_info.antenna;
-			//MCS
-			if (format == MLAN_RATE_FORMAT_HT) {
-				rth->hdr.it_present |=
-					cpu_to_le32(1 <<
-						    IEEE80211_RADIOTAP_MCS);
-				rth->body.mcs.known =
-					rt_info.extra_info.mcs_known;
-				rth->body.mcs.flags =
-					rt_info.extra_info.mcs_flags;
-				//MCS mcs
-				rth->body.mcs.known |=
-					MCS_KNOWN_MCS_INDEX_KNOWN;
-				rth->body.mcs.mcs = rt_info.rate_info.mcs_index;
-				//MCS bw
-				rth->body.mcs.known |= MCS_KNOWN_BANDWIDTH;
-				rth->body.mcs.flags &= ~(0x03);	//Clear, 20MHz as default
-				if (bw == 1)
-					rth->body.mcs.flags |= RX_BW_40;
-				//MCS gi
-				rth->body.mcs.known |= MCS_KNOWN_GUARD_INTERVAL;
-				rth->body.mcs.flags &= ~(1 << 2);
-				if (gi)
-					rth->body.mcs.flags |= gi << 2;
-				//MCS FEC
-				rth->body.mcs.known |= MCS_KNOWN_FEC_TYPE;
-				rth->body.mcs.flags &= ~(1 << 4);
-				if (ldpc)
-					rth->body.mcs.flags |= ldpc << 4;
-			}
-		}
-		skb_set_mac_header(skb, 0);
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		skb->pkt_type = PACKET_OTHERHOST;
-		skb->protocol = htons(ETH_P_802_2);
-		memset(skb->cb, 0, sizeof(skb->cb));
-		skb->dev = handle->mon_if->mon_ndev;
-
-		handle->mon_if->stats.rx_bytes += skb->len;
-		handle->mon_if->stats.rx_packets++;
-
-		if (in_interrupt())
-			netif_rx(skb);
-		else
-			netif_rx_ni(skb);
-
-		status = MLAN_STATUS_PENDING;
-	}
-
-done:
-
-	LEAVE();
-	return status;
-}
-#endif
-
 /**
  *  @brief This function uploads the packet to the network stack
  *
@@ -1070,16 +869,6 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 			if (skb) {
 				skb_reserve(skb, pmbuf->data_offset);
 				skb_put(skb, pmbuf->data_len);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-				if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
-					status = moal_recv_packet_to_mon_if
-						(pmoal_handle, pmbuf);
-					if (status == MLAN_STATUS_PENDING)
-						atomic_dec(&handle->
-							   mbufalloc_count);
-					goto done;
-				}
-#endif
 				pmbuf->pdesc = NULL;
 				pmbuf->pbuf = NULL;
 				pmbuf->data_offset = pmbuf->data_len = 0;
@@ -1087,19 +876,9 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 				status = MLAN_STATUS_PENDING;
 				atomic_dec(&handle->mbufalloc_count);
 			} else {
-				PRINTM(MERROR, "%s without skb attach!!!\n",
-				       __func__);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-		/** drop the packet without skb in monitor mode */
-				if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
-					PRINTM(MINFO,
-					       "%s Drop packet without skb\n",
-					       __func__);
-					status = MLAN_STATUS_FAILURE;
-					priv->stats.rx_dropped++;
-					goto done;
-				}
-#endif
+				PRINTM(MERROR,
+				       "%s without skb attach!!! pkt_len=%d flags=0x%x\n",
+				       __func__, pmbuf->data_len, pmbuf->flags);
 				skb = dev_alloc_skb(pmbuf->data_len +
 						    MLAN_NET_IP_ALIGN);
 				if (!skb) {
@@ -1130,7 +909,8 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 						  wakelock_timeout);
 #else
 				wake_lock_timeout(&handle->wake_lock,
-						  wakelock_timeout);
+						  msecs_to_jiffies
+						  (wakelock_timeout));
 #endif
 			}
 #endif
@@ -1181,10 +961,9 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 #if defined(SDIO_SUSPEND_RESUME)
 	mlan_ds_ps_info pm_info;
 #endif
-#if defined(FW_ROAMING) || (defined(ROAMING_OFFLOAD) && defined(STA_CFG80211))
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-	struct cfg80211_roam_info roam_info;
-#endif
+
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+	chan_band_info *pchan_info = NULL;
 #endif
 
 	ENTER();
@@ -1373,7 +1152,15 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		break;
 
 	case MLAN_EVENT_ID_FW_DISCONNECTED:
-		woal_send_disconnect_to_system(priv);
+
+		woal_send_disconnect_to_system(priv,
+					       (t_u16)*pmevent->event_buf);
+#ifdef STA_CFG80211
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		priv->auth_flag = 0;
+		priv->host_mlme = MFALSE;
+#endif
+#endif
 #ifdef STA_WEXT
 		/* Reset wireless stats signal info */
 		if (IS_STA_WEXT(cfg80211_wext)) {
@@ -1711,7 +1498,8 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 						  ROAMING_WAKE_LOCK_TIMEOUT);
 #else
 				wake_lock_timeout(&priv->phandle->wake_lock,
-						  ROAMING_WAKE_LOCK_TIMEOUT);
+						  msecs_to_jiffies
+						  (ROAMING_WAKE_LOCK_TIMEOUT));
 #endif
 #endif
 				wake_up_interruptible(&priv->phandle->
@@ -1725,13 +1513,31 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 		if (IS_STA_CFG80211(cfg80211_wext)) {
 			if (priv->sched_scanning) {
-				cfg80211_sched_scan_stopped(priv->wdev->wiphy
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 14, 6)
+				priv->phandle->rx_bgscan_stop = MTRUE;
+				priv->phandle->bg_scan_priv = priv;
+				queue_work(priv->phandle->rx_workqueue,
+					   &priv->phandle->rx_work);
+#else
+				if (rtnl_is_locked())
+					cfg80211_sched_scan_stopped_rtnl(priv->
+									 wdev->
+									 wiphy
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-							    , 0
+									 , 0
 #endif
-					);
-				PRINTM(MEVENT, "Sched_Scan stopped\n");
+						);
+				else
+					cfg80211_sched_scan_stopped(priv->wdev->
+								    wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+								    , 0
+#endif
+						);
 				priv->sched_scanning = MFALSE;
+#endif
+				PRINTM(MEVENT, "Sched_Scan stopped\n");
+
 			}
 		}
 #endif
@@ -1747,12 +1553,37 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 								 MOAL_NO_WAIT);
 				cfg80211_sched_scan_results(priv->wdev->wiphy
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-							    , 0
+							    ,
+							    priv->bg_scan_reqid
 #endif
 					);
 				priv->last_event = 0;
 				PRINTM(MEVENT,
 				       "Reporting Sched_Scan results\n");
+#if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 14, 6)
+				priv->phandle->rx_bgscan_stop = MTRUE;
+				priv->phandle->bg_scan_priv = priv;
+				queue_work(priv->phandle->rx_workqueue,
+					   &priv->phandle->rx_work);
+#else
+				if (rtnl_is_locked())
+					cfg80211_sched_scan_stopped_rtnl(priv->
+									 wdev->
+									 wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+									 , 0
+#endif
+						);
+				else
+					cfg80211_sched_scan_stopped(priv->wdev->
+								    wiphy
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+								    , 0
+#endif
+						);
+				priv->sched_scanning = MFALSE;
+#endif
+				PRINTM(MEVENT, "Sched_Scan stopped\n");
 			}
 		}
 #endif
@@ -1856,50 +1687,56 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		break;
 #endif /* STA_SUPPORT */
 	case MLAN_EVENT_ID_FW_CHAN_SWITCH_COMPLETE:
-#if defined(UAP_SUPPORT)
-		if (priv->bss_role == MLAN_BSS_ROLE_UAP) {
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+		pchan_info = (chan_band_info *) pmevent->event_buf;
+		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext)) {
+			PRINTM(MMSG,
+			       "CSA/ECSA: Switch to new channel %d complete!\n",
+			       pchan_info->channel);
+			priv->channel = pchan_info->channel;
 #ifdef UAP_CFG80211
-			chan_band_info *pchan_info =
-				(chan_band_info *) pmevent->event_buf;
-			if (IS_UAP_CFG80211(cfg80211_wext)) {
-				PRINTM(MMSG,
-				       "CSA/ECSA: Switch to new channel %d complete!\n",
-				       pchan_info->channel);
-				priv->channel = pchan_info->channel;
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3,12,0)
-				if (priv->csa_chan.chan &&
-				    (pchan_info->channel ==
-				     priv->csa_chan.chan->hw_value)) {
-					memcpy(&priv->chan, &priv->csa_chan,
-					       sizeof(struct
-						      cfg80211_chan_def));
-				}
+			if (priv->csa_chan.chan &&
+			    (pchan_info->channel ==
+			     priv->csa_chan.chan->hw_value)) {
+				memcpy(&priv->chan, &priv->csa_chan,
+				       sizeof(struct cfg80211_chan_def));
+			}
+#endif
 #endif
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3,8,0)
-				if (priv->uap_host_based) {
-					PRINTM(MEVENT,
-					       "UAP: 11n=%d, chan=%d, center_chan=%d, band=%d, width=%d, 2Offset=%d\n",
-					       pchan_info->is_11n_enabled,
-					       pchan_info->channel,
-					       pchan_info->center_chan,
-					       pchan_info->bandcfg.chanBand,
-					       pchan_info->bandcfg.chanWidth,
-					       pchan_info->bandcfg.chan2Offset);
-					woal_cfg80211_notify_uap_channel(priv,
-									 pchan_info);
-				}
+			if (MFALSE
+#ifdef UAP_CFG80211
+			    || priv->uap_host_based
 #endif
+#ifdef STA_CFG80211
+			    || priv->sme_current.ssid_len
+#endif
+				) {
+				PRINTM(MEVENT,
+				       "CHAN_SWITCH: 11n=%d, chan=%d, center_chan=%d, band=%d, width=%d, 2Offset=%d\n",
+				       pchan_info->is_11n_enabled,
+				       pchan_info->channel,
+				       pchan_info->center_chan,
+				       pchan_info->bandcfg.chanBand,
+				       pchan_info->bandcfg.chanWidth,
+				       pchan_info->bandcfg.chan2Offset);
+				woal_cfg80211_notify_channel(priv, pchan_info);
 			}
 #endif
 		}
-		if (priv->uap_tx_blocked) {
-			if (!netif_carrier_ok(priv->netdev))
-				netif_carrier_on(priv->netdev);
-			woal_start_queue(priv->netdev);
-			priv->uap_tx_blocked = MFALSE;
+#endif
+#ifdef UAP_SUPPORT
+		if (priv->bss_role == MLAN_BSS_ROLE_UAP) {
+			if (priv->uap_tx_blocked) {
+				if (!netif_carrier_ok(priv->netdev))
+					netif_carrier_on(priv->netdev);
+				woal_start_queue(priv->netdev);
+				priv->uap_tx_blocked = MFALSE;
+			}
+			priv->phandle->chsw_wait_q_woken = MTRUE;
+			wake_up_interruptible(&priv->phandle->chsw_wait_q);
 		}
-		priv->phandle->chsw_wait_q_woken = MTRUE;
-		wake_up_interruptible(&priv->phandle->chsw_wait_q);
 #endif
 		break;
 	case MLAN_EVENT_ID_FW_STOP_TX:
@@ -2050,8 +1887,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 			       pchan_info->bandcfg.chan2Offset);
 			if (priv->uap_host_based &&
 			    (priv->channel != pchan_info->channel))
-				woal_cfg80211_notify_uap_channel(priv,
-								 pchan_info);
+				woal_cfg80211_notify_channel(priv, pchan_info);
 		}
 #endif
 		break;
@@ -2068,25 +1904,6 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		priv->media_connected = MFALSE;
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
-		break;
-	case MLAN_EVENT_ID_UAP_FW_MIC_COUNTERMEASURES:
-		{
-			t_u16 status = 0;
-			status = *(t_u16 *)(pmevent->event_buf + 4);
-			if (status) {
-				priv->media_connected = MFALSE;
-				woal_stop_queue(priv->netdev);
-				if (netif_carrier_ok(priv->netdev))
-					netif_carrier_off(priv->netdev);
-			} else {
-				priv->media_connected = MTRUE;
-				if (!netif_carrier_ok(priv->netdev))
-					netif_carrier_on(priv->netdev);
-				woal_wake_queue(priv->netdev);
-			}
-			woal_broadcast_event(priv, pmevent->event_buf,
-					     pmevent->event_len);
-		}
 		break;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 	case MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED:
@@ -2277,38 +2094,145 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 									    freq),
 									   MFALSE);
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
-				cfg80211_rx_mgmt(
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
-							priv->wdev,
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+		    /**Forward Deauth, Auth and disassoc frame to Host*/
+				if (priv->host_mlme &&
+				    (ieee80211_is_deauth
+				     (((struct ieee80211_mgmt *)pkt)->
+				      frame_control)
+				     ||
+				     ieee80211_is_auth(((struct ieee80211_mgmt
+							 *)pkt)->frame_control)
+				     ||
+				     ieee80211_is_disassoc(((struct
+							     ieee80211_mgmt *)
+							    pkt)->
+							   frame_control))) {
+
+					if ((priv->
+					     auth_flag & HOST_MLME_AUTH_PENDING)
+					    &&
+					    ieee80211_is_auth(((struct
+								ieee80211_mgmt
+								*)pkt)->
+							      frame_control)) {
+						priv->auth_flag &=
+							~HOST_MLME_AUTH_PENDING;
+						priv->auth_flag |=
+							HOST_MLME_AUTH_DONE;
+						priv->host_mlme_wait_condition =
+							MTRUE;
+						wake_up(&priv->
+							host_mlme_wait_q);
+					} else {
+						PRINTM(MEVENT,
+						       "HostMlme: Receive deauth/disassociate\n");
+						woal_cfg80211_mgmt_frame_register
+							(priv->wdev->wiphy,
+							 priv->wdev,
+							 IEEE80211_STYPE_DEAUTH,
+							 MFALSE);
+						woal_cfg80211_mgmt_frame_register
+							(priv->wdev->wiphy,
+							 priv->wdev,
+							 IEEE80211_STYPE_DISASSOC,
+							 MFALSE);
+						priv->host_mlme = MFALSE;
+						priv->auth_flag = 0;
+					}
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+					cfg80211_rx_mlme_mgmt(priv->netdev,
+							      pkt,
+							      pmevent->
+							      event_len -
+							      sizeof(pmevent->
+								     event_id)
+							      -
+							      MLAN_MAC_ADDR_LENGTH);
 #else
-							priv->netdev,
+					if (ieee80211_is_deauth
+					    (((struct ieee80211_mgmt *)pkt)->
+					     frame_control))
+						cfg80211_send_deauth(priv->
+								     netdev,
+								     pkt,
+								     pmevent->
+								     event_len -
+								     sizeof
+								     (pmevent->
+								      event_id)
+								     -
+								     MLAN_MAC_ADDR_LENGTH);
+					else if (ieee80211_is_auth
+						 (((struct ieee80211_mgmt *)
+						   pkt)->frame_control))
+						cfg80211_send_rx_auth(priv->
+								      netdev,
+								      pkt,
+								      pmevent->
+								      event_len
+								      -
+								      sizeof
+								      (pmevent->
+								       event_id)
+								      -
+								      MLAN_MAC_ADDR_LENGTH);
+					else if (ieee80211_is_disassoc
+						 (((struct ieee80211_mgmt *)
+						   pkt)->frame_control))
+						cfg80211_send_disassoc(priv->
+								       netdev,
+								       pkt,
+								       pmevent->
+								       event_len
+								       -
+								       sizeof
+								       (pmevent->
+									event_id)
+								       -
+								       MLAN_MAC_ADDR_LENGTH);
+
 #endif
-							freq, 0,
-							((const t_u8 *)pmevent->
-							 event_buf) +
-							sizeof(pmevent->
-							       event_id),
-							pmevent->event_len -
-							sizeof(pmevent->
-							       event_id) -
-							MLAN_MAC_ADDR_LENGTH
+
+				} else
+#endif
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+					cfg80211_rx_mgmt(
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+								priv->wdev,
+#else
+								priv->netdev,
+#endif
+								freq, 0,
+								((const t_u8 *)
+								 pmevent->
+								 event_buf) +
+								sizeof(pmevent->
+								       event_id),
+								pmevent->
+								event_len -
+								sizeof(pmevent->
+								       event_id)
+								-
+								MLAN_MAC_ADDR_LENGTH
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-							, 0
+								, 0
 #endif
 #if CFG80211_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
-							, GFP_ATOMIC
+								, GFP_ATOMIC
 #endif
-					);
+						);
 #else
-				cfg80211_rx_mgmt(priv->netdev, freq,
-						 ((const t_u8 *)pmevent->
-						  event_buf) +
-						 sizeof(pmevent->event_id),
-						 pmevent->event_len -
-						 sizeof(pmevent->event_id) -
-						 MLAN_MAC_ADDR_LENGTH,
-						 GFP_ATOMIC);
+					cfg80211_rx_mgmt(priv->netdev, freq,
+							 ((const t_u8 *)
+							  pmevent->event_buf) +
+							 sizeof(pmevent->
+								event_id),
+							 pmevent->event_len -
+							 sizeof(pmevent->
+								event_id) -
+							 MLAN_MAC_ADDR_LENGTH,
+							 GFP_ATOMIC);
 #endif
 			}
 #endif /* KERNEL_VERSION */
