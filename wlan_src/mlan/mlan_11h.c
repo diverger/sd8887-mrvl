@@ -2,25 +2,20 @@
  *
  *  @brief This file contains functions for 802.11H.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  *
  */
 
@@ -1166,6 +1161,7 @@ wlan_11h_get_channel_freq_idx(IN t_u8 channel_num)
  *
  *  @param pmadapter        Pointer to mlan_adapter
  *  @param pioctl_req       Pointer to completed mlan_ioctl_req (allocated inside)
+ *  @param ppcust_chansw_ie Poniter to customer ie
  *  @param is_adding_ie     CHAN_SW IE is to be added (MTRUE), or removed (MFALSE)
  *
  *  @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
@@ -1990,7 +1986,6 @@ wlan_11h_get_adhoc_start_channel(mlan_private *priv)
 	 * Check that we are looking for a channel in the A Band
 	 */
 	if ((adapter->adhoc_start_band & BAND_A)
-	    || (adapter->adhoc_start_band & BAND_AN)
 		) {
 		/*
 		 * Set default to the A Band default.
@@ -2346,7 +2341,6 @@ wlan_11h_process_start(mlan_private *priv,
 	ENTER();
 	if (wlan_11h_is_enabled(priv)
 	    && ((adapter->adhoc_start_band & BAND_A)
-		|| (adapter->adhoc_start_band & BAND_AN)
 	    )
 		) {
 		if (!wlan_11d_is_enabled(priv)) {
@@ -2749,8 +2743,88 @@ wlan_11h_handle_event_chanswann(mlan_private *priv)
 	mlan_deauth_param deauth_param;
 #endif
 	t_u32 sec, usec;
+#if defined(UAP_SUPPORT)
+	mlan_adapter *pmadapter = priv->adapter;
+	int i;
+	t_u8 radar_detected = MFALSE;
+	mlan_private *pmpriv = MNULL;
+#endif
 
 	ENTER();
+
+#if defined(UAP_SUPPORT)
+    /** No need handle AP if mc_policy is disabled, FW will move the AP to client's new channel */
+	if (pmadapter->mc_policy &&
+	    priv->adapter->state_11h.is_master_radar_det_active) {
+		for (i = 0; i < MIN(pmadapter->priv_num, MLAN_MAX_BSS_NUM); i++) {
+			if (pmadapter->priv[i] &&
+			    (pmadapter->priv[i]->bss_role == MLAN_BSS_ROLE_UAP)
+			    && pmadapter->priv[i]->uap_bss_started &&
+			    (priv->curr_bss_params.bss_descriptor.channel ==
+			     pmadapter->priv[i]->uap_channel)) {
+				PRINTM(MCMND,
+				       "Receive channel switch Ann event on uap_channel=%d\n",
+				       pmadapter->priv[i]->uap_channel);
+				radar_detected = MTRUE;
+				pmpriv = pmadapter->priv[i];
+				break;
+			}
+		}
+		if (radar_detected) {
+			if (!pmpriv->intf_state_11h.is_11h_host) {
+				if (pmadapter->state_rdh.stage == RDH_OFF) {
+					pmadapter->state_rdh.stage =
+						RDH_CHK_INTFS;
+					wlan_11h_radar_detected_handling
+						(pmadapter, pmpriv);
+					if (pmpriv->uap_host_based)
+						wlan_recv_event(pmpriv,
+								MLAN_EVENT_ID_FW_RADAR_DETECTED,
+								MNULL);
+				} else {
+					PRINTM(MEVENT,
+					       "Ignore Event Radar Detected - handling already in progress.\n");
+				}
+			} else {
+#ifdef DFS_TESTING_SUPPORT
+				if (pmpriv->adapter->dfs_test_params.
+				    no_channel_change_on_radar ||
+				    pmpriv->adapter->dfs_test_params.
+				    fixed_new_channel_on_radar) {
+					if (pmadapter->state_rdh.stage ==
+					    RDH_OFF ||
+					    pmadapter->state_rdh.stage ==
+					    RDH_SET_CUSTOM_IE) {
+						pmadapter->state_rdh.stage =
+							RDH_CHK_INTFS;
+						wlan_11h_radar_detected_handling
+							(pmadapter, pmpriv);
+					} else
+						PRINTM(MEVENT,
+						       "Ignore Event Radar Detected - handling already in progress.\n");
+				} else {
+#endif
+					pmpriv->intf_state_11h.tx_disabled =
+						MTRUE;
+					wlan_recv_event(pmpriv,
+							MLAN_EVENT_ID_FW_RADAR_DETECTED,
+							MNULL);
+
+#ifdef DFS_TESTING_SUPPORT
+				}
+#endif
+			}
+		}
+	}
+	if (pmadapter->ecsa_enable) {
+		t_u8 stop_tx = *(t_u8 *)pmadapter->event_body;
+		if (stop_tx)
+			pmadapter->state_rdh.tx_block = MTRUE;
+		LEAVE();
+		return ret;
+	}
+#endif
+
 	priv->adapter->state_11h.recvd_chanswann_event = MTRUE;
 
 	/* unlikely:  clean up previous csa if still on-going */
@@ -2854,7 +2928,7 @@ mlan_status
 wlan_11h_ioctl_get_channel_nop_info(pmlan_adapter pmadapter,
 				    pmlan_ioctl_req pioctl_req)
 {
-	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	pmlan_private pmpriv = MNULL;
 	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
 	t_s32 ret = MLAN_STATUS_FAILURE;
 	mlan_ds_11h_chan_nop_info *ch_nop_info = MNULL;
@@ -2864,6 +2938,7 @@ wlan_11h_ioctl_get_channel_nop_info(pmlan_adapter pmadapter,
 	if (pioctl_req) {
 		ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
 		ch_nop_info = &ds_11hcfg->param.ch_nop_info;
+		pmpriv = pmadapter->priv[pioctl_req->bss_index];
 
 		if (pioctl_req->action == MLAN_ACT_GET) {
 			ch_nop_info->chan_under_nop =
@@ -3198,6 +3273,62 @@ wlan_11h_get_priv_curr_idx(mlan_private *pmpriv,
 }
 
 /**
+ *  @brief Driver handling for remove customeie
+ *
+ *  @param pmadapter    Pointer to mlan_adapter
+ *  @param pmpriv       Pointer to mlan_private
+ *
+ *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE or MLAN_STATUS_PENDING
+ */
+mlan_status
+wlan_11h_remove_custom_ie(mlan_adapter *pmadapter, mlan_private *pmpriv)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	wlan_radar_det_hndlg_state_t *pstate_rdh = &pmadapter->state_rdh;
+	mlan_ioctl_req *pioctl_req = MNULL;
+
+	ENTER();
+	if (pstate_rdh->stage == RDH_SET_CUSTOM_IE) {
+		pstate_rdh->priv_curr_idx = RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
+		PRINTM(MMSG, "Removing CHAN_SW IE from interfaces.\n");
+		while ((++pstate_rdh->priv_curr_idx) <
+		       pstate_rdh->priv_list_count) {
+			pmpriv = pstate_rdh->priv_list[pstate_rdh->
+						       priv_curr_idx];
+			if (!wlan_11h_is_dfs_master(pmpriv))
+				continue;
+			ret = wlan_11h_prepare_custom_ie_chansw(pmadapter,
+								&pioctl_req,
+								MFALSE);
+			if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
+				PRINTM(MERROR,
+				       "%s(): Error in preparing CHAN_SW IE.\n",
+				       __func__);
+				goto done;
+			}
+
+			pioctl_req->bss_index = pmpriv->bss_index;
+			ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
+							     pioctl_req,
+							     MFALSE);
+			if (ret != MLAN_STATUS_SUCCESS &&
+			    ret != MLAN_STATUS_PENDING) {
+				PRINTM(MERROR,
+				       "%s(): Could not remove IE for priv=%p [priv_bss_idx=%d]!\n",
+				       __func__, pmpriv, pmpriv->bss_index);
+				/* TODO: hiow to handle this error case??  ignore & continue? */
+			}
+			/* free ioctl buffer memory before we leave */
+			pmadapter->callbacks.moal_mfree(pmadapter->pmoal_handle,
+							(t_u8 *)pioctl_req);
+		}
+	}
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Driver handling for RADAR_DETECTED event
  *
  *  @param pmadapter    Pointer to mlan_adapter
@@ -3485,43 +3616,43 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter, mlan_private *pmpriv)
 		       rdh_stage_str[pstate_rdh->stage],
 		       pstate_rdh->priv_curr_idx);
 
-		/* add CHAN_SW IE - firmware will accept on any interface, and apply to all */
+		/* add CHAN_SW IE - Need apply on each interface */
 		if (pstate_rdh->priv_curr_idx == RDH_STAGE_FIRST_ENTRY_PRIV_IDX) {
 			mlan_ioctl_req *pioctl_req = MNULL;
-
-			ret = wlan_11h_prepare_custom_ie_chansw(pmadapter,
-								&pioctl_req,
-								MTRUE);
-			if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
-				PRINTM(MERROR,
-				       "%s(): Error in preparing CHAN_SW IE.\n",
-				       __func__);
-				break;	/* EXIT CASE */
-			}
-
 			PRINTM(MMSG,
 			       "11h: Radar Detected - adding CHAN_SW IE to interfaces.\n");
-			ret = wlan_11h_get_priv_curr_idx(pmpriv, pstate_rdh);
-			if (ret != MLAN_STATUS_SUCCESS) {
-				PRINTM(MERROR,
-				       "Unable to locate pmpriv in current active priv_list\n");
-				break;	/* EXIT CASE */
+			while ((++pstate_rdh->priv_curr_idx) <
+			       pstate_rdh->priv_list_count) {
+				pmpriv = pstate_rdh->priv_list[pstate_rdh->
+							       priv_curr_idx];
+				if (!wlan_11h_is_dfs_master(pmpriv))
+					continue;
+				ret = wlan_11h_prepare_custom_ie_chansw
+					(pmadapter, &pioctl_req, MTRUE);
+				if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
+					PRINTM(MERROR,
+					       "%s(): Error in preparing CHAN_SW IE.\n",
+					       __func__);
+					break;	/* EXIT CASE */
+				}
+				pioctl_req->bss_index = pmpriv->bss_index;
+				ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
+								     pioctl_req,
+								     MFALSE);
+				if (ret != MLAN_STATUS_SUCCESS &&
+				    ret != MLAN_STATUS_PENDING) {
+					PRINTM(MERROR,
+					       "%s(): Could not set IE for priv=%p [priv_bss_idx=%d]!\n",
+					       __func__, pmpriv,
+					       pmpriv->bss_index);
+					/* TODO: how to handle this error case??  ignore & continue? */
+				}
+				/* free ioctl buffer memory before we leave */
+				pmadapter->callbacks.moal_mfree(pmadapter->
+								pmoal_handle,
+								(t_u8 *)
+								pioctl_req);
 			}
-
-			pioctl_req->bss_index = pmpriv->bss_index;
-			ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
-							     pioctl_req,
-							     MFALSE);
-			if (ret != MLAN_STATUS_SUCCESS &&
-			    ret != MLAN_STATUS_PENDING) {
-				PRINTM(MERROR,
-				       "%s(): Could not set IE for priv=%p [priv_bss_idx=%d]!\n",
-				       __func__, pmpriv, pmpriv->bss_index);
-				/* TODO: how to handle this error case??  ignore & continue? */
-			}
-			/* free ioctl buffer memory before we leave */
-			pmadapter->callbacks.moal_mfree(pmadapter->pmoal_handle,
-							(t_u8 *)pioctl_req);
 			break;	/* EXIT CASE */
 		}
 		/* else */
@@ -3535,11 +3666,9 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter, mlan_private *pmpriv)
 		       rdh_stage_str[pstate_rdh->stage],
 		       pstate_rdh->priv_curr_idx);
 
-		/* remove CHAN_SW IE - firmware will accept on any interface,
-		   and apply to all */
+		/* remove CHAN_SW IE - Need apply on each interface */
 		if (pstate_rdh->priv_curr_idx == RDH_STAGE_FIRST_ENTRY_PRIV_IDX) {
 			mlan_ioctl_req *pioctl_req = MNULL;
-
 			/*
 			 * first entry to this stage, do delay
 			 * DFS requires a minimum of 5 chances for clients to hear this IE.
@@ -3557,37 +3686,38 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter, mlan_private *pmpriv)
 			       "11h: Radar Detected - delay over, removing"
 			       " CHAN_SW IE from interfaces.\n");
 
-			ret = wlan_11h_prepare_custom_ie_chansw(pmadapter,
-								&pioctl_req,
-								MFALSE);
-			if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
-				PRINTM(MERROR,
-				       "%s(): Error in preparing CHAN_SW IE.\n",
-				       __func__);
-				break;	/* EXIT CASE */
+			while ((++pstate_rdh->priv_curr_idx) <
+			       pstate_rdh->priv_list_count) {
+				pmpriv = pstate_rdh->priv_list[pstate_rdh->
+							       priv_curr_idx];
+				if (!wlan_11h_is_dfs_master(pmpriv))
+					continue;
+				ret = wlan_11h_prepare_custom_ie_chansw
+					(pmadapter, &pioctl_req, MFALSE);
+				if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
+					PRINTM(MERROR,
+					       "%s(): Error in preparing CHAN_SW IE.\n",
+					       __func__);
+					break;	/* EXIT CASE */
+				}
+				pioctl_req->bss_index = pmpriv->bss_index;
+				ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
+								     pioctl_req,
+								     MFALSE);
+				if (ret != MLAN_STATUS_SUCCESS &&
+				    ret != MLAN_STATUS_PENDING) {
+					PRINTM(MERROR,
+					       "%s(): Could not remove IE for priv=%p [priv_bss_idx=%d]!\n",
+					       __func__, pmpriv,
+					       pmpriv->bss_index);
+					/* TODO: hiow to handle this error case??  ignore & continue? */
+				}
+				/* free ioctl buffer memory before we leave */
+				pmadapter->callbacks.moal_mfree(pmadapter->
+								pmoal_handle,
+								(t_u8 *)
+								pioctl_req);
 			}
-
-			ret = wlan_11h_get_priv_curr_idx(pmpriv, pstate_rdh);
-			if (ret != MLAN_STATUS_SUCCESS) {
-				PRINTM(MERROR,
-				       "Unable to locate pmpriv in current active priv_list\n");
-				break;	/* EXIT CASE */
-			}
-
-			pioctl_req->bss_index = pmpriv->bss_index;
-			ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
-							     pioctl_req,
-							     MFALSE);
-			if (ret != MLAN_STATUS_SUCCESS &&
-			    ret != MLAN_STATUS_PENDING) {
-				PRINTM(MERROR,
-				       "%s(): Could not remove IE for priv=%p [priv_bss_idx=%d]!\n",
-				       __func__, pmpriv, pmpriv->bss_index);
-				/* TODO: hiow to handle this error case??  ignore & continue? */
-			}
-			/* free ioctl buffer memory before we leave */
-			pmadapter->callbacks.moal_mfree(pmadapter->pmoal_handle,
-							(t_u8 *)pioctl_req);
 			break;	/* EXIT CASE */
 		}
 		/* else */
@@ -3797,32 +3927,45 @@ rdh_restart_intfs:
 		/* remove custome ie */
 		if (pmadapter->ecsa_enable) {
 			mlan_ioctl_req *pioctl_req = MNULL;
-			ret = wlan_11h_prepare_custom_ie_chansw(pmadapter,
-								&pioctl_req,
-								MFALSE);
-			if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
-				PRINTM(MERROR,
-				       "%s(): Error in preparing CHAN_SW IE.\n",
-				       __func__);
-				break;	/* EXIT CASE */
-			}
 
-			pmpriv = pstate_rdh->priv_list[0];
-			pstate_rdh->priv_curr_idx = 0;
-			pioctl_req->bss_index = pmpriv->bss_index;
-			ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
-							     pioctl_req,
-							     MFALSE);
-			if (ret != MLAN_STATUS_SUCCESS &&
-			    ret != MLAN_STATUS_PENDING) {
-				PRINTM(MERROR,
-				       "%s(): Could not set IE for priv=%p [priv_bss_idx=%d]!\n",
-				       __func__, pmpriv, pmpriv->bss_index);
-				/* TODO: hiow to handle this error case??  ignore & continue? */
+			/* After RDH_SET_CUSTOM_IE, priv_curr_idx value wasn't reset. Reset priv_curr_idx
+			 * and remove custome ie. The remove needs to be done after every set custom ie
+			 * to avoid the case of adding of duplicate ie */
+			pstate_rdh->priv_curr_idx =
+				RDH_STAGE_FIRST_ENTRY_PRIV_IDX;
+			while ((++pstate_rdh->priv_curr_idx) <
+			       pstate_rdh->priv_list_count) {
+				pmpriv = pstate_rdh->priv_list[pstate_rdh->
+							       priv_curr_idx];
+				if (!wlan_11h_is_dfs_master(pmpriv))
+					continue;
+				ret = wlan_11h_prepare_custom_ie_chansw
+					(pmadapter, &pioctl_req, MFALSE);
+				if ((ret != MLAN_STATUS_SUCCESS) || !pioctl_req) {
+					PRINTM(MERROR,
+					       "%s(): Error in preparing CHAN_SW IE.\n",
+					       __func__);
+					break;	/* EXIT CASE */
+				}
+				pioctl_req->bss_index = pmpriv->bss_index;
+
+				ret = wlan_misc_ioctl_custom_ie_list(pmadapter,
+								     pioctl_req,
+								     MFALSE);
+				if (ret != MLAN_STATUS_SUCCESS &&
+				    ret != MLAN_STATUS_PENDING) {
+					PRINTM(MERROR,
+					       "%s(): Could not remove IE for priv=%p [priv_bss_idx=%d]!\n",
+					       __func__, pmpriv,
+					       pmpriv->bss_index);
+					/* TODO: hiow to handle this error case??  ignore & continue? */
+				}
+				/* free ioctl buffer memory before we leave */
+				pmadapter->callbacks.moal_mfree(pmadapter->
+								pmoal_handle,
+								(t_u8 *)
+								pioctl_req);
 			}
-			/* free ioctl buffer memory before we leave */
-			pmadapter->callbacks.moal_mfree(pmadapter->pmoal_handle,
-							(t_u8 *)pioctl_req);
 		}
 		/* continue traffic for reactivated interfaces */
 		PRINTM(MMSG,

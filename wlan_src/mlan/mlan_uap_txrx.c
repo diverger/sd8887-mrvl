@@ -2,26 +2,20 @@
  *
  *  @brief This file contains AP mode transmit and receive functions
  *
- *  (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -281,7 +275,8 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 	sta_node *sta_ptr = MNULL;
 	t_u8 adj_rx_rate = 0;
 	t_u8 antenna = 0;
-	rxpd_extra_info *pextra_info = MNULL;
+	t_u32 last_rx_sec = 0;
+	t_u32 last_rx_usec = 0;
 
 	ENTER();
 
@@ -289,16 +284,8 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 	/* Endian conversion */
 	uap_endian_convert_RxPD(prx_pd);
 	priv->rxpd_rate = prx_pd->rx_rate;
-	if (prx_pd->flags & RXPD_FLAG_EXTRA_HEADER) {
-		pextra_info =
-			(rxpd_extra_info *) ((t_u8 *)prx_pd + sizeof(*prx_pd));
-		endian_convert_RxPD_extra_header(pextra_info);
-	}
 
 	priv->rxpd_rate_info = prx_pd->rate_info;
-	if (!priv->adapter->psdio_device->v15_fw_api)
-		priv->rxpd_rate_info =
-			wlan_convert_v14_rate_ht_info(priv->rxpd_rate_info);
 
 	if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 		antenna = wlan_adjust_antenna(priv, (RxPD *)prx_pd);
@@ -355,6 +342,16 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 						       (RxPD *)prx_pd);
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 		goto done;
+	}
+
+	sta_ptr = wlan_get_station_entry(priv, prx_pkt->eth803_hdr.src_addr);
+	if (sta_ptr) {
+		pmadapter->callbacks.moal_get_system_time(pmadapter->
+							  pmoal_handle,
+							  &last_rx_sec,
+							  &last_rx_usec);
+		sta_ptr->stats.last_rx_in_msec =
+			(t_u64)last_rx_sec *1000 + (t_u64)last_rx_usec / 1000;
 	}
 
 	pmbuf->priority = prx_pd->priority;
@@ -571,11 +568,6 @@ wlan_process_uap_rx_packet(IN mlan_private *priv, IN pmlan_buffer pmbuf)
 	PRINTM(MDATA, "Rx dest " MACSTR "\n",
 	       MAC2STR(prx_pkt->eth803_hdr.dest_addr));
 
-	if (pmadapter->enable_net_mon) {
-		pmbuf->flags |= MLAN_BUF_FLAG_NET_MONITOR;
-		goto upload;
-	}
-
 	/* don't do packet forwarding in disconnected state */
 	/* don't do packet forwarding when packet > 1514 */
 	if ((priv->media_connected == MFALSE) ||
@@ -681,16 +673,6 @@ upload:
 	PRINTM(MDATA, "%lu.%06lu : Data => kernel seq_num=%d tid=%d\n",
 	       pmbuf->out_ts_sec, pmbuf->out_ts_usec, prx_pd->seq_num,
 	       prx_pd->priority);
-	if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
-		//Use some rxpd space to save rxpd info for radiotap header
-		//We should insure radiotap_info is not bigger than RxPD
-		wlan_rxpdinfo_to_radiotapinfo(priv, (RxPD *)prx_pd,
-					      (radiotap_info *) (pmbuf->pbuf +
-								 pmbuf->
-								 data_offset -
-								 sizeof
-								 (radiotap_info)));
-	}
 
 	ret = pmadapter->callbacks.moal_recv_packet(pmadapter->pmoal_handle,
 						    pmbuf);

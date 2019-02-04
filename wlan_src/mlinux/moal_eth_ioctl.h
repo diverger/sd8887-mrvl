@@ -134,7 +134,6 @@ Change log:
 #define PRIV_CMD_MEMRDWR        "memrdwr"
 #define PRIV_CMD_SDCMD52RW      "sdcmd52rw"
 #define PRIV_CMD_ARPFILTER      "arpfilter"
-#define PRIV_CMD_HOTSPOTCFG     "hotspotcfg"
 #define PRIV_CMD_MGMT_FRAME_CTRL  "mgmtframectrl"
 #define PRIV_CMD_QCONFIG        "qconfig"
 #define PRIV_CMD_ADDTS          "addts"
@@ -168,14 +167,10 @@ Change log:
 #define PRIV_CMD_AUTH_TYPE          "authtype"
 #endif
 #define PRIV_CMD_POWER_CONS         "powercons"
-#define PRIV_CMD_HT_STREAM_CFG      "htstreamcfg"
 #define PRIV_CMD_THERMAL            "thermal"
 #define PRIV_CMD_BCN_INTERVAL       "bcninterval"
 #ifdef STA_SUPPORT
 #define PRIV_CMD_GET_SIGNAL         "getsignal"
-#define PRIV_CMD_SIGNALEXT_CFG      "signalextcfg"
-#define PRIV_CMD_GET_SIGNAL_EXT_V2  "getsignalextv2"
-#define PRIV_CMD_GET_SIGNAL_EXT     "getsignalext"
 #endif
 #if defined(STA_SUPPORT)
 #define PRIV_CMD_PMFCFG         "pmfcfg"
@@ -188,23 +183,17 @@ Change log:
 #define PRIV_CMD_MPA_CTRL           "mpactrl"
 #endif
 #define PRIV_CMD_SLEEP_PARAMS       "sleepparams"
-#define PRIV_CMD_NET_MON            "netmon"
-#if defined(STA_CFG80211) && defined(UAP_CFG80211)
-#define PRIV_CMD_MONITOR_MODE       "monitormode"
-#endif
 #if defined(DFS_TESTING_SUPPORT)
 #define PRIV_CMD_DFS_TESTING        "dfstesting"
 #endif
 #define PRIV_CMD_CFP_CODE           "cfpcode"
+#define PRIV_CMD_CWMODE             "cwmode"
 #define PRIV_CMD_ANT_CFG            "antcfg"
 #define PRIV_CMD_SYSCLOCK       "sysclock"
-#define PRIV_CMD_ADHOC_AES      "adhocaes"
-#define PRIV_CMD_GET_KEY        "getkey"
 #define PRIV_CMD_ASSOCIATE      "associate"
 #define PRIV_CMD_TX_BF_CFG      "httxbfcfg"
 #define PRIV_CMD_PORT_CTRL      "port_ctrl"
 #define PRIV_CMD_PB_BYPASS      "pb_bypass"
-#define PRIV_CMD_COALESCE_STATUS    "coalesce_status"
 #define PRIV_CMD_FW_WAKEUP_METHOD   "fwwakeupmethod"
 #define PRIV_CMD_SD_CMD53_RW        "sdcmd53rw"
 #ifdef RX_PACKET_COALESCE
@@ -214,12 +203,6 @@ Change log:
 #define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
 #define PRIV_CMD_DRCS_CFG "mc_cfg_ext"
 #if defined(WIFI_DIRECT_SUPPORT)
-#if defined(UAP_CFG80211)
-#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-#define PRIV_CMD_CFG_NOA            "cfg_noa"
-#define PRIV_CMD_CFG_OPP_PS         "cfg_opp_ps"
-#endif
-#endif
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
@@ -229,8 +212,6 @@ Change log:
 #define PRIV_CMD_COEX_RX_WINSIZE    "coex_rx_winsize"
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
 #define PRIV_CMD_AUTO_TDLS          "autotdls"
-
-#define PRIV_CMD_GET_SENSOR_TEMP        "get_sensor_temp"
 
 #if defined(UAP_SUPPORT)
 #define PRIV_CMD_EXTEND_CHAN_SWITCH        "channel_switch"
@@ -249,9 +230,6 @@ Change log:
 #endif
 
 #define PRIV_CMD_DEAUTH_CTRL    "ctrldeauth"
-
-/**Private command ID to set/get independent reset*/
-#define PRIV_CMD_IND_RST_CFG            "indrstcfg"
 
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD        (SIOCDEVPRIVATE + 1)
@@ -357,10 +335,14 @@ typedef struct _android_wifi_priv_cmd {
 
 /* Generic format for most parameters that fit in an int */
 struct mw_param {
-	t_s32 value;		/* The value of the parameter itself */
-	t_u8 fixed;		/* Hardware should not use auto select */
-	t_u8 disabled;		/* Disable the feature */
-	t_u16 flags;		/* Various specifc flags (if any) */
+  /** The value of the parameter itself */
+	t_s32 value;
+  /** Hardware should not use auto select */
+	t_u8 fixed;
+  /** Disable the feature */
+	t_u8 disabled;
+  /** Various specifc flags (if any) */
+	t_u16 flags;
 };
 
 /*
@@ -368,9 +350,12 @@ struct mw_param {
  *  pointer to memory allocated in user space.
  */
 struct mw_point {
-	t_u8 *pointer;		/* Pointer to the data  (in user space) */
-	t_u16 length;		/* number of fields or size in bytes */
-	t_u16 flags;		/* Optional params */
+  /** Pointer to the data  (in user space) */
+	t_u8 *pointer;
+  /** number of fields or size in bytes */
+	t_u16 length;
+  /** Optional params */
+	t_u16 flags;
 };
 
 /*
@@ -378,59 +363,59 @@ struct mw_point {
  * below.
  */
 union mwreq_data {
-	/* Config - generic */
+    /** Config - generic */
 	char name[IFNAMSIZ];
 
-	struct mw_point essid;	/* Extended network name */
-	t_u32 mode;		/* Operation mode */
-	struct mw_param power;	/* PM duration/timeout */
-	struct sockaddr ap_addr;	/* Access point address */
-	struct mw_param param;	/* Other small parameters */
-	struct mw_point data;	/* Other large parameters */
+    /** Extended network name */
+	struct mw_point essid;
+    /** Operation mode */
+	t_u32 mode;
+    /** PM duration/timeout */
+	struct mw_param power;
+    /** Access point address */
+	struct sockaddr ap_addr;
+    /** Other small parameters */
+	struct mw_param param;
+    /** Other large parameters */
+	struct mw_point data;
 };
 
  /* The structure to exchange data for ioctl */
 struct mwreq {
 	union {
-		char ifrn_name[IFNAMSIZ];	/* if name, e.g. "eth0" */
+	/** if name, e.g. "eth0" */
+		char ifrn_name[IFNAMSIZ];
 	} ifr_ifrn;
 
-	/* Data part */
+    /** Data part */
 	union mwreq_data u;
 };
 
+/** woal HT capacity info structure */
 typedef struct woal_priv_ht_cap_info {
+    /** HT capacity info for bg */
 	t_u32 ht_cap_info_bg;
+    /** HT capacity info for a */
 	t_u32 ht_cap_info_a;
 } woal_ht_cap_info;
 
+/** woal private addba structure */
 typedef struct woal_priv_addba {
+    /** Time out */
 	t_u32 time_out;
+    /** Transmission window size */
 	t_u32 tx_win_size;
+    /** Receiver window size */
 	t_u32 rx_win_size;
+    /** Tx amsdu */
 	t_u32 tx_amsdu;
+    /** Rx amsdu */
 	t_u32 rx_amsdu;
 } woal_addba;
 
-/** data structure for extended channel switch */
-typedef struct woal_priv_extend_chan_switch {
-	/* IEEE element ID = 60 */
-	t_u8 element_id;
-    /** Element length after id and len, set to 4 */
-	t_u8 len;
-    /** STA should not transmit any frames if 1 */
-	t_u8 chan_switch_mode;
-    /** Operate class # that AP/IBSS is moving to */
-	t_u8 new_oper_class;
-    /** Channel # that AP/IBSS is moving to */
-	t_u8 new_channel_num;
-    /** of TBTTs before channel switch */
-	t_u8 chan_switch_count;
-} woal_extend_chan_switch;
-
 /** data structure for cmd txratecfg */
 typedef struct woal_priv_tx_rate_cfg {
-	/* LG rate: 0, HT rate: 1, VHT rate: 2 */
+   /** LG rate: 0, HT rate: 1, VHT rate: 2 */
 	t_u32 rate_format;
     /** Rate/MCS index (0xFF: auto) */
 	t_u32 rate_index;
@@ -440,12 +425,13 @@ typedef struct woal_priv_tx_rate_cfg {
 	t_u32 nss;
 } woal_tx_rate_cfg;
 
+/** woal embedded supplicant structure */
 typedef struct woal_priv_esuppmode_cfg {
-	/* RSN mode */
+    /** RSN mode */
 	t_u16 rsn_mode;
-	/* Pairwise cipher */
+    /** Pairwise cipher */
 	t_u8 pairwise_cipher;
-	/* Group cipher */
+    /** Group cipher */
 	t_u8 group_cipher;
 } woal_esuppmode_cfg;
 
@@ -455,4 +441,22 @@ mlan_status woal_ioctl_aggr_prio_tbl(moal_private *priv, t_u32 action,
 
 int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req);
 
-#endif /* _WOAL_ETH_PRIV_H_ */
+#define PRIV_CMD_ACS_SCAN "acs"
+
+/** Type definition of mlan_acs_scan */
+typedef struct _acs_result {
+    /** Best Channel Number */
+	t_u8 best_ch;
+    /** Channel Statistics Number */
+	t_u8 ch_stats_num;
+    /** Channel Statistics */
+	ChStat_t ch_stats[0];
+} acs_result, *pacs_result;
+
+/** Enum for different CW mode type */
+typedef enum _cw_modes_e {
+	CWMODE_DISABLE,
+	CWMODE_TXCONTPKT,
+	CWMODE_TXCONTWAVE,
+} cw_modes_e;
+#endif /** _WOAL_ETH_PRIV_H_ */

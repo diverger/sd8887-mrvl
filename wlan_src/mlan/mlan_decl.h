@@ -2,26 +2,20 @@
  *
  *  @brief This file declares the generic data structures and APIs.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /******************************************************
@@ -33,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		 "C509"
+#define MLAN_RELEASE_VERSION		 "C605"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -107,8 +101,6 @@ typedef t_s32 t_sval;
 /** MLAN FALSE */
 #define MFALSE                   (0)
 
-#define CHANNEL_SPEC_SNIFFER_MODE 1
-
 #ifndef MACSTR
 /** MAC address security format */
 #define MACSTR "%02x:XX:XX:XX:%02x:%02x"
@@ -161,20 +153,8 @@ typedef t_s32 t_sval;
 /** This is current limit on Maximum Tx AMPDU allowed */
 #define MLAN_MAX_TX_BASTREAM_SUPPORTED          16
 #define MLAN_MAX_TX_BASTREAM_DEFAULT            2
-#define MLAN_MAX_TX_BASTREAM_SUPPORTED_NOV15    2
 /** This is current limit on Maximum Rx AMPDU allowed */
 #define MLAN_MAX_RX_BASTREAM_SUPPORTED     16
-
-/** station ampdu tx win size */
-#define MLAN_STA_AMPDU_DEF_TXWINSIZE_NOV15      32
-/** uap ampdu tx win size */
-#define MLAN_UAP_AMPDU_DEF_TXWINSIZE_NOV15      32
-/** uap ampdu rx win size */
-#define MLAN_UAP_AMPDU_DEF_RXWINSIZE_NOV15      32
-#ifdef WIFI_DIRECT_SUPPORT
-/** wfd ampdu tx/rx win size */
-#define MLAN_WFD_AMPDU_DEF_TXRXWINSIZE_NOV15    32
-#endif
 
 #ifdef STA_SUPPORT
 /** Default Win size attached during ADDBA request */
@@ -226,8 +206,6 @@ typedef t_s32 t_sval;
 #define MLAN_RATE_INDEX_MCS7    7
 /** Rate index for MCS 9 */
 #define MLAN_RATE_INDEX_MCS9    9
-/** Rate index for MCS15 */
-#define MLAN_RATE_INDEX_MCS15   15
 /** Rate index for MCS 32 */
 #define MLAN_RATE_INDEX_MCS32   32
 /** Rate index for MCS 127 */
@@ -251,8 +229,8 @@ typedef t_s32 t_sval;
 /** MU beamformer */
 #define DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK   (MBIT(19))
 
-/** Size of rx data buffer */
-#define MLAN_RX_DATA_BUF_SIZE     (4 * 1024)
+/** Size of rx data buffer 4096+256 */
+#define MLAN_RX_DATA_BUF_SIZE     4352
 /** Size of rx command buffer */
 #define MLAN_RX_CMD_BUF_SIZE      (2 * 1024)
 
@@ -292,15 +270,9 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 #define MLAN_SDIO_BLOCK_SIZE_FW_DNLD	MLAN_SDIO_BLOCK_SIZE
 
 /** define allocated buffer size */
-#define ALLOC_BUF_SIZE           (4 * 1024)
+#define ALLOC_BUF_SIZE              MLAN_RX_DATA_BUF_SIZE
 /** SDIO MP aggr pkt limit */
 #define SDIO_MP_AGGR_DEF_PKT_LIMIT       (16)
-/** SDIO MP aggr pkt limit 8 */
-#define SDIO_MP_AGGR_DEF_PKT_LIMIT_8	 (8)
-/** SDIO MP aggr pkt limit 16*/
-#define SDIO_MP_AGGR_DEF_PKT_LIMIT_16	 (16)
-/** max SDIO MP aggr pkt limit */
-#define SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX	 (16)
 
 /** SDIO IO Port mask */
 #define MLAN_SDIO_IO_PORT_MASK		0xfffff
@@ -336,9 +308,6 @@ typedef t_u8 mlan_802_11_mac_addr[MLAN_MAC_ADDR_LENGTH];
 
 /** Buffer flag for TX_STATUS */
 #define MLAN_BUF_FLAG_TX_STATUS         MBIT(10)
-
-/** Buffer flag for NET_MONITOR */
-#define MLAN_BUF_FLAG_NET_MONITOR        MBIT(11)
 
 /** Buffer flag for NULL data packet */
 #define MLAN_BUF_FLAG_NULL_PKT        MBIT(12)
@@ -417,6 +386,7 @@ typedef enum _mlan_buf_type {
 	MLAN_BUF_TYPE_DATA,
 	MLAN_BUF_TYPE_EVENT,
 	MLAN_BUF_TYPE_RAW_DATA,
+	MLAN_BUF_TYPE_SPA_DATA,
 } mlan_buf_type;
 
 /** MLAN BSS type */
@@ -487,7 +457,6 @@ typedef enum _mlan_event_id {
 	MLAN_EVENT_ID_UAP_FW_BSS_START = 0x0000002C,
 	MLAN_EVENT_ID_UAP_FW_BSS_ACTIVE = 0x0000002D,
 	MLAN_EVENT_ID_UAP_FW_BSS_IDLE = 0x0000002E,
-	MLAN_EVENT_ID_UAP_FW_MIC_COUNTERMEASURES = 0x0000002F,
 	MLAN_EVENT_ID_UAP_FW_STA_CONNECT = 0x00000030,
 	MLAN_EVENT_ID_UAP_FW_STA_DISCONNECT = 0x00000031,
 #endif
@@ -535,6 +504,22 @@ typedef struct _mlan_fw_image {
     /** Firmware reload flag */
 	t_u8 fw_reload;
 } mlan_fw_image, *pmlan_fw_image;
+
+/** MrvlIEtypesHeader_t */
+typedef MLAN_PACK_START struct _MrvlIEtypesHeader {
+    /** Header type */
+	t_u16 type;
+    /** Header length */
+	t_u16 len;
+} MLAN_PACK_END MrvlIEtypesHeader_t;
+
+/** MrvlIEtypes_Data_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_Data_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Data */
+	t_u8 data[1];
+} MLAN_PACK_END MrvlIEtypes_Data_t;
 
 #define OID_TYPE_CAL    0x2
 #define OID_TYPE_DPD    0xa
@@ -619,6 +604,8 @@ typedef MLAN_PACK_START struct _chan_band_info {
 	t_u8 is_11n_enabled;
 	/** center channel */
 	t_u8 center_chan;
+	/** dfs channel flag */
+	t_u8 is_dfs_chan;
 } MLAN_PACK_END chan_band_info;
 
 /** mlan_event data structure */
@@ -658,50 +645,6 @@ typedef struct _mlan_ioctl_req {
     /** Reserved for MOAL module */
 	t_ptr reserved_1;
 } mlan_ioctl_req, *pmlan_ioctl_req;
-
-/** mix rate information structure */
-typedef MLAN_PACK_START struct _mix_rate_info {
-    /**  bit0: LGI: gi=0, SGI: gi= 1 */
-    /**  bit1-2: 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3  */
-    /**  bit3-4: LG: format=0, HT: format=1, VHT: format=2 */
-    /**  bit5: LDPC: 0-not support,  1-support */
-    /**  bit6-7:reserved */
-	t_u8 rate_info;
-    /** MCS index */
-	t_u8 mcs_index;
-    /** bitrate, in 500Kbps */
-	t_u16 bitrate;
-} MLAN_PACK_END mix_rate_info, *pmix_rate_info;
-
-/** rxpd extra information structure */
-typedef MLAN_PACK_START struct _rxpd_extra_info {
-    /** flags */
-	t_u8 flags;
-    /** channel.flags */
-	t_u16 channel_flags;
-    /** mcs.known */
-	t_u8 mcs_known;
-    /** mcs.flags */
-	t_u8 mcs_flags;
-} MLAN_PACK_END rxpd_extra_info, *prxpd_extra_info;
-
-/** rdaio tap information structure */
-typedef MLAN_PACK_START struct _radiotap_info {
-    /** Rate Info */
-	mix_rate_info rate_info;
-    /** SNR */
-	t_s8 snr;
-    /** Noise Floor */
-	t_s8 nf;
-    /** band config */
-	t_u8 band_config;
-    /** chan number */
-	t_u8 chan_num;
-    /** antenna */
-	t_u8 antenna;
-    /** extra rxpd info from FW */
-	rxpd_extra_info extra_info;
-} MLAN_PACK_END radiotap_info, *pradiotap_info;
 
 /** mlan_buffer data structure */
 typedef struct _mlan_buffer {
@@ -854,7 +797,7 @@ typedef MLAN_PACK_START struct _custom_ie {
 /** Max IE index to FW */
 #define MAX_MGMT_IE_INDEX_TO_FW         4
 /** Max IE index per BSS */
-#define MAX_MGMT_IE_INDEX               16
+#define MAX_MGMT_IE_INDEX               26
 
 /** custom IE info */
 typedef MLAN_PACK_START struct _custom_ie_info {
@@ -1124,6 +1067,11 @@ typedef struct _tdls_tear_down_event {
 	t_u16 reason_code;
 } tdls_tear_down_event;
 
+/** station stats */
+typedef struct _sta_stats {
+	t_u64 last_rx_in_msec;
+} sta_stats;
+
 #ifdef PRAGMA_PACK
 #pragma pack(pop)
 #endif
@@ -1286,14 +1234,6 @@ typedef struct _mlan_callbacks {
 /** Parameter disabled, override MLAN default setting */
 #define MLAN_INIT_PARA_DISABLED      2
 
-/** Control bit for stream 2X2 */
-#define FEATURE_CTRL_STREAM_2X2     MBIT(6)
-/** Control bit for DFS support */
-#define FEATURE_CTRL_DFS_SUPPORT    MBIT(7)
-
-/** Default feature control */
-#define FEATURE_CTRL_DEFAULT        0xffffffff
-
 /** mlan_device data structure */
 typedef struct _mlan_device {
     /** MOAL Handle */
@@ -1324,6 +1264,8 @@ typedef struct _mlan_device {
     /** SDIO MPA Rx */
 	t_u32 mpa_rx_cfg;
 #endif
+	/** SDIO Single port rx aggr */
+	t_u8 sdio_rx_aggr_enable;
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
 	/* see blk_queue_max_segment_size */
 	t_u32 max_seg_size;
@@ -1340,28 +1282,21 @@ typedef struct _mlan_device {
     /** 802.11d configuration */
 	t_u32 cfg_11d;
 #endif
-    /** FW download CRC check flag */
-	t_u32 fw_crc_check;
-    /** Feature control bitmask */
-	t_u32 feature_control;
     /** enable/disable rx work */
 	t_u8 rx_work;
     /** dev cap mask */
 	t_u32 dev_cap_mask;
-    /** oob independent reset */
-	t_u32 indrstcfg;
     /** dtim interval */
-	t_u32 multi_dtim;
+	t_u16 multi_dtim;
     /** IEEE ps inactivity timeout value */
-	t_u32 inact_tmo;
-	/** card type */
-	t_u16 card_type;
+	t_u16 inact_tmo;
     /** Host sleep wakeup interval */
 	t_u32 hs_wake_interval;
     /** GPIO to indicate wakeup source */
 	t_u8 indication_gpio;
     /** channel time and mode for DRCS*/
 	t_u32 drcs_chantime_mode;
+	t_bool fw_region;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

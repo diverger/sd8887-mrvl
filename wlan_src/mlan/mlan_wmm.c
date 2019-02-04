@@ -2,26 +2,20 @@
  *
  *  @brief This file contains functions for WMM.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -364,7 +358,7 @@ wlan_wmm_eval_downgrade_ac(pmlan_private priv, mlan_wmm_ac_e eval_ac)
  *
  *  @return     WMM AC Queue mapping of the IP TOS field
  */
-static mlan_wmm_ac_e INLINE
+static INLINE mlan_wmm_ac_e
 wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter, t_u32 tos)
 {
 	ENTER();
@@ -390,7 +384,7 @@ wlan_wmm_convert_tos_to_ac(pmlan_adapter pmadapter, t_u32 tos)
  *  @return       Same tid as input if downgrading not required or
  *                the tid the traffic for the given tid should be downgraded to
  */
-static t_u8 INLINE
+static INLINE t_u8
 wlan_wmm_downgrade_tid(pmlan_private priv, t_u32 tid)
 {
 	mlan_wmm_ac_e ac_down;
@@ -745,7 +739,6 @@ wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 							   pmoal_handle,
 							   &ptr->buf_head,
 							   MNULL, MNULL)) {
-
 						/* Because WMM only support BK/BE/VI/VO, we have 8 tid
 						 * We should balance the traffic of the same AC */
 						if (i % 2)
@@ -869,7 +862,7 @@ wlan_num_pkts_in_txq(mlan_private *priv, raListTbl *ptr, int max_buf_size)
  *
  *  @return             N/A
  */
-static void INLINE
+static INLINE void
 wlan_send_single_packet(pmlan_private priv, raListTbl *ptr, int ptrindex)
 {
 	pmlan_buffer pmbuf;
@@ -972,7 +965,7 @@ wlan_send_single_packet(pmlan_private priv, raListTbl *ptr, int ptrindex)
  *
  *  @return         MTRUE or MFALSE
  */
-static int INLINE
+static INLINE int
 wlan_is_ptr_processed(mlan_private *priv, raListTbl *ptr)
 {
 	pmlan_buffer pmbuf;
@@ -994,7 +987,7 @@ wlan_is_ptr_processed(mlan_private *priv, raListTbl *ptr)
  *
  *  @return             N/A
  */
-static void INLINE
+static INLINE void
 wlan_send_processed_packet(pmlan_private priv, raListTbl *ptr, int ptrindex)
 {
 	pmlan_buffer pmbuf_next = MNULL;
@@ -1216,9 +1209,10 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
  *  @param mac        peer mac address
  *  @param tx_pause   tx_pause flag (0/1)
  *
- *  @return           N/A
+ *
+ *  @return           packets queued for this mac
  */
-t_void
+t_u16
 wlan_update_ralist_tx_pause(pmlan_private priv, t_u8 *mac, t_u8 tx_pause)
 {
 	raListTbl *ra_list;
@@ -1260,6 +1254,7 @@ wlan_update_ralist_tx_pause(pmlan_private priv, t_u8 *mac, t_u8 tx_pause)
 	pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
 					      priv->wmm.ra_list_spinlock);
 	LEAVE();
+	return pkt_cnt;
 }
 
 #ifdef STA_SUPPORT
@@ -1428,6 +1423,10 @@ wlan_wmm_delete_tdls_ralist(pmlan_private priv, t_u8 *mac)
 							    tid_tbl_ptr[i].
 							    ra_list, MNULL,
 							    MNULL);
+			if (!ra_list_ap) {
+				LEAVE();
+				return;
+			}
 			while ((pmbuf =
 				(pmlan_buffer)util_peek_list(pmadapter->
 							     pmoal_handle,
@@ -1858,8 +1857,7 @@ wlan_wmm_init(pmlan_adapter pmadapter)
 #ifdef STA_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_STA) {
 				priv->add_ba_param.tx_win_size =
-					pmadapter->psdio_device->ampdu_info->
-					ampdu_sta_txwinsize;
+					MLAN_STA_AMPDU_DEF_TXWINSIZE;
 				priv->add_ba_param.rx_win_size =
 					MLAN_STA_AMPDU_DEF_RXWINSIZE;
 			}
@@ -1867,11 +1865,9 @@ wlan_wmm_init(pmlan_adapter pmadapter)
 #ifdef WIFI_DIRECT_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
 				priv->add_ba_param.tx_win_size =
-					pmadapter->psdio_device->ampdu_info->
-					ampdu_wfd_txrxwinsize;
+					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
 				priv->add_ba_param.rx_win_size =
-					pmadapter->psdio_device->ampdu_info->
-					ampdu_wfd_txrxwinsize;
+					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
 			}
 #endif
 			if (priv->bss_type == MLAN_BSS_TYPE_NAN) {
@@ -1883,11 +1879,9 @@ wlan_wmm_init(pmlan_adapter pmadapter)
 #ifdef UAP_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 				priv->add_ba_param.tx_win_size =
-					pmadapter->psdio_device->ampdu_info->
-					ampdu_uap_txwinsize;
+					MLAN_UAP_AMPDU_DEF_TXWINSIZE;
 				priv->add_ba_param.rx_win_size =
-					pmadapter->psdio_device->ampdu_info->
-					ampdu_uap_rxwinsize;
+					MLAN_UAP_AMPDU_DEF_RXWINSIZE;
 			}
 #endif
 			priv->user_rxwinsize = priv->add_ba_param.rx_win_size;

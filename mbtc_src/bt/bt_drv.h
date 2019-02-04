@@ -29,6 +29,9 @@
 
 #include "hci_wrapper.h"
 
+/** MAX adapter BT driver supported */
+#define MAX_BT_ADAPTER    3
+
 #ifndef BIT
 /** BIT definition */
 #define BIT(x) (1UL << (x))
@@ -44,15 +47,11 @@ typedef u32 t_ptr;
 #define MAX_BT_ADAPTER      3
 /** Define drv_mode bit */
 #define DRV_MODE_BT         BIT(0)
-#define DRV_MODE_FM        BIT(1)
-#define DRV_MODE_NFC       BIT(2)
 
 /** Define devFeature bit */
 #define DEV_FEATURE_BT     BIT(0)
 #define DEV_FEATURE_BTAMP     BIT(1)
 #define DEV_FEATURE_BLE     BIT(2)
-#define DEV_FEATURE_FM     BIT(3)
-#define DEV_FEATURE_NFC     BIT(4)
 
 /** Define maximum number of radio func supported */
 #define MAX_RADIO_FUNC     4
@@ -232,6 +231,8 @@ hexdump(char *prompt, u8 *buf, int len)
 #define	BT_UPLD_SIZE				2312
 /** Bluetooth status success */
 #define BT_STATUS_SUCCESS			(0)
+/** Bluetooth status pending */
+#define BT_STATUS_PENDING           (1)
 /** Bluetooth status failure */
 #define BT_STATUS_FAILURE			(-1)
 
@@ -459,8 +460,6 @@ typedef struct _bt_dev {
 typedef struct _bt_adapter {
 	/** Chip revision ID */
 	u8 chip_rev;
-    /** magic val */
-	u8 magic_val;
 	/** Surprise removed flag */
 	u8 SurpriseRemoved;
 	/** IRQ number */
@@ -469,10 +468,9 @@ typedef struct _bt_adapter {
 	u32 IntCounter;
 	/** Tx packet queue */
 	struct sk_buff_head tx_queue;
+
 	/** Pointer of fw dump file name */
 	char *fwdump_fname;
-	/** Fw dump queue */
-	struct sk_buff_head fwdump_queue;
 	/** Pending Tx packet queue */
 	struct sk_buff_head pending_queue;
 	/** tx lock flag */
@@ -596,15 +594,8 @@ typedef struct _bt_private {
 	ulong driver_flags;
 	/** Driver reference flags */
 	struct kobject kobj;
-	/** CRC check flag */
-	u16 fw_crc_check;
-	/** Card type */
-	u16 card_type;
-	/** sdio device */
-	const struct sdio_device *psdio_device;
 	int debug_device_pending;
 	int debug_ocf_ogf[2];
-	u8 fw_reload;
 	/* hist_data_len */
 	u8 hist_data_len;
     /** hist data */
@@ -615,6 +606,8 @@ typedef struct _bt_private {
 	u8 ble_wakeup_buf_size;
 	u8 *ble_wakeup_buf;
 #endif
+    /** fw dump state */
+	u8 fw_dump;
 } bt_private, *pbt_private;
 
 int bt_get_histogram(bt_private *priv);
@@ -635,10 +628,6 @@ int bt_get_histogram(bt_private *priv);
 #define DEV_TYPE_BT		0x00
 /** Device type of AMP */
 #define DEV_TYPE_AMP		0x01
-/** Device type of FM */
-#define DEV_TYPE_FM		0x02
-/** Device type of NFC */
-#define DEV_TYPE_NFC		0x04
 
 /** Marvell vendor packet */
 #define MRVL_VENDOR_PKT			0xFE
@@ -654,9 +643,6 @@ int bt_get_histogram(bt_private *priv);
 /** Bluetooth command : Module Configuration request */
 #define BT_CMD_MODULE_CFG_REQ		0x5B
 
-/** Bluetooth command : PMIC Configure */
-#define BT_CMD_PMIC_CONFIGURE           0x7D
-
 /** Bluetooth command : SDIO pull up down configuration request */
 #define BT_CMD_SDIO_PULL_CFG_REQ	0x69
 /** Bluetooth command : Set Evt Filter Command */
@@ -665,20 +651,6 @@ int bt_get_histogram(bt_private *priv);
 #define BT_CMD_ENABLE_WRITE_SCAN	0x1A
 /** Bluetooth command : Enable Device under test mode */
 #define BT_CMD_ENABLE_DEVICE_TESTMODE	0x03
-#if defined(SDIO_SUSPEND_RESUME)
-/* FM default event interrupt mask
-		bit[0], RSSI low
-		bit[1], New RDS data
-		bit[2], RSSI indication */
-#define FM_DEFAULT_INTR_MASK    0x07
-/** Disable FM event interrupt mask */
-#define FM_DISABLE_INTR_MASK    0x00
-/** FM set event interrupt mask command */
-#define FM_SET_INTR_MASK	0x2E
-/** FM ocf value */
-#define FM_CMD			    0x0280
-int fm_set_intr_mask(bt_private *priv, u32 mask);
-#endif
 /** Sub Command: Module Bring Up Request */
 #define MODULE_BRINGUP_REQ		0xF1
 /** Sub Command: Module Shut Down Request */
@@ -759,6 +731,9 @@ int fm_set_intr_mask(bt_private *priv, u32 mask);
 
 #define BT_CMD_HEADER_SIZE    3
 
+#define BT_CMD_DATA_LEN    128
+#define BT_EVT_DATA_LEN    8
+
 /** BT command structure */
 typedef struct _BT_CMD {
 	/** OCF OGF */
@@ -766,7 +741,7 @@ typedef struct _BT_CMD {
 	/** Length */
 	u8 length;
 	/** Data */
-	u8 data[128];
+	u8 data[BT_CMD_DATA_LEN];
 } __ATTRIB_PACK__ BT_CMD;
 
 /** BT event structure */
@@ -776,7 +751,7 @@ typedef struct _BT_EVENT {
 	/** Length */
 	u8 length;
 	/** Data */
-	u8 data[8];
+	u8 data[BT_EVT_DATA_LEN];
 } BT_EVENT;
 
 #if defined(SDIO_SUSPEND_RESUME)
@@ -832,6 +807,7 @@ int bt_prepare_command(bt_private *priv);
 void bt_free_adapter(bt_private *priv);
 /** This function handle the receive packet */
 void bt_recv_frame(bt_private *priv, struct sk_buff *skb);
+void bt_store_firmware_dump(bt_private *priv, u8 *buf, u32 len);
 
 /** clean up m_devs */
 void clean_up_m_devs(bt_private *priv);
@@ -859,20 +835,19 @@ int sbi_enable_host_int(bt_private *priv);
 /** This function disables the host interrupts */
 int sbi_disable_host_int(bt_private *priv);
 
-/** bt fw reload flag */
-extern int bt_fw_reload;
-/** driver initial the fw reset */
-#define FW_RELOAD_SDIO_INBAND_RESET   1
-/** out band reset trigger reset, no interface re-emulation */
-#define FW_RELOAD_NO_EMULATION  2
-/** out band reset with interface re-emulation */
-#define FW_RELOAD_WITH_EMULATION 3
-/** This function reload firmware */
-void bt_request_fw_reload(bt_private *priv, int mode);
 #define MAX_TX_BUF_SIZE     2312
 /** This function downloads firmware image to the card */
 int sd_download_firmware_w_helper(bt_private *priv);
 void bt_dump_sdio_regs(bt_private *priv);
+#define FW_DUMP_TYPE_ENDED                    0x002
+#define FW_DUMP_TYPE_MEM_ITCM                 0x004
+#define FW_DUMP_TYPE_MEM_DTCM                 0x005
+#define FW_DUMP_TYPE_MEM_SQRAM                0x006
+#define FW_DUMP_TYPE_MEM_IRAM                 0x007
+#define FW_DUMP_TYPE_REG_MAC                  0x009
+#define FW_DUMP_TYPE_REG_CIU                  0x00E
+#define FW_DUMP_TYPE_REG_APU                  0x00F
+#define FW_DUMP_TYPE_REG_ICU                  0x014
 /* dumps the firmware to /var/ or /data/ */
 void bt_dump_firmware_info_v2(bt_private *priv);
 
@@ -925,8 +900,6 @@ int bt_set_mac_address(bt_private *priv, u8 *mac);
 int bt_write_reg(bt_private *priv, u8 type, u32 offset, u16 value);
 /** BT set user defined init data and param */
 int bt_init_config(bt_private *priv, char *cfg_file);
-/** BT PMIC Configure command */
-int bt_pmic_configure(bt_private *priv);
 /** This function load the calibrate data */
 int bt_load_cal_data(bt_private *priv, u8 *config_data, u8 *mac);
 /** This function load the calibrate ext data */
@@ -936,18 +909,6 @@ int bt_cal_config(bt_private *priv, char *cfg_file, char *mac);
 /** BT set user defined calibration ext data */
 int bt_cal_config_ext(bt_private *priv, char *cfg_file);
 int bt_init_mac_address(bt_private *priv, char *mac);
-int bt_set_gpio_pin(bt_private *priv);
-/** Bluetooth command : Set gpio pin */
-#define BT_CMD_SET_GPIO_PIN     0xEC
-/** Interrupt Raising Edge**/
-#define INT_RASING_EDGE  0
-/** Interrupt Falling Edge**/
-#define INT_FALLING_EDGE 1
-#define DELAY_50_US      50
-
-int bt_set_independent_reset(bt_private *priv);
-/** Bluetooth command : Independent reset */
-#define BT_CMD_INDEPENDENT_RESET     0x0D
 
 /** BT HCI command structure */
 typedef struct _BT_HCI_CMD {

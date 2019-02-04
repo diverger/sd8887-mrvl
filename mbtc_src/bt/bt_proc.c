@@ -325,8 +325,6 @@ proc_write(struct file *file,
 	loff_t pos = *offset;
 	struct proc_data *pdata = (struct proc_data *)file->private_data;
 	int func = 0, reg = 0, val = 0;
-	int config_data = 0;
-	char *line = NULL;
 
 	if (!pdata->wrbuf || (pos < 0))
 		return -EINVAL;
@@ -336,17 +334,6 @@ proc_write(struct file *file,
 		len = pdata->maxwrlen - pos;
 	if (copy_from_user(pdata->wrbuf + pos, buffer, len))
 		return -EFAULT;
-	if (!strncmp(pdata->wrbuf + pos, "fw_reload", strlen("fw_reload"))) {
-		if (!strncmp
-		    (pdata->wrbuf + pos, "fw_reload=", strlen("fw_reload="))) {
-			line = pdata->wrbuf + pos;
-			line += strlen("fw_reload") + 1;
-			config_data = string_to_number(line);
-		} else
-			config_data = FW_RELOAD_SDIO_INBAND_RESET;
-		PRINTM(MSG, "Request fw_reload=%d\n", config_data);
-		bt_request_fw_reload(pdata->pbt, config_data);
-	}
 	if (!strncmp(pdata->wrbuf + pos, "sdcmd52rw=", strlen("sdcmd52rw="))) {
 		parse_cmd52_string(pdata->wrbuf + pos, len, &func, &reg, &val);
 		sd_write_cmd52_val(pdata->pbt, func, reg, val);
@@ -667,6 +654,7 @@ bt_proc_init(bt_private *priv, struct m_dev *m_dev, int seq)
 	struct proc_dir_entry *entry;
 	int i, j;
 	char hist_entry[50];
+
 	ENTER();
 
 	memset(cmd52_string, 0, CMD52_STR_LEN);
@@ -712,6 +700,7 @@ bt_proc_init(bt_private *priv, struct m_dev *m_dev, int seq)
 				goto done;
 			}
 		}
+
 		priv->dev_proc[seq].pfiles =
 			kmalloc(sizeof(proc_files), GFP_ATOMIC);
 		if (!priv->dev_proc[seq].pfiles) {
@@ -819,6 +808,7 @@ bt_proc_remove(bt_private *priv)
 {
 	int j, i;
 	char hist_entry[50];
+
 	ENTER();
 	PRINTM(INFO, "BT: Remove Proc Interface\n");
 	if (proc_mbt) {

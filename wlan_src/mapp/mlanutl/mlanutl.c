@@ -2,26 +2,20 @@
   *
   * @brief Program to control parameters in the mlandriver
   *
-  * Usage: mlanutl mlanX cmd [...]
+  * Copyright (C) 2011-2018, Marvell International Ltd.
   *
-  * (C) Copyright 2011-2018 Marvell International Ltd. All Rights Reserved
+  * This software file (the "File") is distributed by Marvell International
+  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+  * (the "License").  You may use, redistribute and/or modify this File in
+  * accordance with the terms and conditions of the License, a copy of which
+  * is available by writing to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+  * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
   *
-  * MARVELL CONFIDENTIAL
-  * The source code contained or described herein and all documents related to
-  * the source code ("Material") are owned by Marvell International Ltd or its
-  * suppliers or licensors. Title to the Material remains with Marvell International Ltd
-  * or its suppliers and licensors. The Material contains trade secrets and
-  * proprietary and confidential information of Marvell or its suppliers and
-  * licensors. The Material is protected by worldwide copyright and trade secret
-  * laws and treaty provisions. No part of the Material may be used, copied,
-  * reproduced, modified, published, uploaded, posted, transmitted, distributed,
-  * or disclosed in any way without Marvell's prior express written permission.
-  *
-  * No license under any patent, copyright, trade secret or other intellectual
-  * property right is granted to or conferred upon you by disclosure or delivery
-  * of the Materials, either expressly, by implication, inducement, estoppel or
-  * otherwise. Any license under such intellectual property rights must be
-  * express and approved by Marvell in writing.
+  * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+  * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+  * this warranty disclaimer.
   *
   */
 /************************************************************************
@@ -43,10 +37,6 @@ Change log:
 #include <linux/if.h>
 
 #include    "mlanutl.h"
-
-/** Supported stream modes */
-#define HT_STREAM_MODE_1X1   0x11
-#define HT_STREAM_MODE_2X2   0x22
 
 /** mlanutl version number */
 #define MLANUTL_VER "M1.3"
@@ -85,14 +75,6 @@ static char *band[] = {
 	"AN",
 	"GAC",
 	"AAC",
-};
-
-static char *adhoc_bw[] = {
-	"20 MHz",
-	"HT 40 MHz above",
-	" ",
-	"HT 40 MHz below",
-	"VHT 80 MHz",
 };
 
 /** Stringification of rateId enumeration */
@@ -218,7 +200,6 @@ static int process_arpfilter(int argc, char *argv[]);
 static int process_cfgdata(int argc, char *argv[]);
 static int process_mgmtframetx(int argc, char *argv[]);
 static int process_mgmt_frame_passthrough(int argc, char *argv[]);
-static int process_hotspot_config(int argc, char *argv[]);
 static int process_qconfig(int argc, char *argv[]);
 static int process_addts(int argc, char *argv[]);
 static int process_delts(int argc, char *argv[]);
@@ -253,13 +234,11 @@ static int process_txbuf_cfg(int argc, char *argv[]);
 static int process_set_get_auth_type(int argc, char *argv[]);
 #endif
 static int process_11h_local_pwr_constraint(int argc, char *argv[]);
-static int process_ht_stream_cfg(int argc, char *argv[]);
 static int process_thermal(int argc, char *argv[]);
 static int process_beacon_interval(int argc, char *argv[]);
+static int process_cwmode(int argc, char *argv[]);
 #ifdef STA_SUPPORT
 static int process_get_signal(int argc, char *argv[]);
-static int process_get_signal_ext(int argc, char *argv[]);
-static int process_signalext_cfg(int argc, char *argv[]);
 #endif
 static int process_inactivity_timeout_ext(int argc, char *argv[]);
 static int process_11n_amsdu_aggr_ctrl(int argc, char *argv[]);
@@ -269,30 +248,22 @@ static int process_sdio_clock_ioctl(int argc, char *argv[]);
 static int process_sdio_mpa_ctrl(int argc, char *argv[]);
 #endif
 static int process_sleep_params(int argc, char *argv[]);
-static int process_net_monitor(int argc, char *argv[]);
-static int process_monitor_mode(int argc, char *argv[]);
 #if defined(DFS_TESTING_SUPPORT)
 static int process_dfs_testing(int argc, char *argv[]);
 #endif
 static int process_cfp_code(int argc, char *argv[]);
 static int process_set_get_tx_rx_ant(int argc, char *argv[]);
 static int process_sysclock(int argc, char *argv[]);
-static int process_adhoc_aes(int argc, char *argv[]);
-static int process_get_key(int argc, char *argv[]);
 static int process_associate_ssid_bssid(int argc, char *argv[]);
 static int process_tx_bf_cfg(int argc, char *argv[]);
 static int process_wps_cfg(int argc, char *argv[]);
 static int process_port_ctrl(int argc, char *argv[]);
 static int process_bypassed_packet(int argc, char *argv[]);
-static int process_coalescing_status(int argc, char *argv[]);
 /* #ifdef FW_WAKEUP_METHOD */
 static int process_fw_wakeup_method(int argc, char *argv[]);
 /* #endif */
 static int process_sdcmd53rw(int argc, char *argv[]);
 #if defined(WIFI_DIRECT_SUPPORT)
-#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-static int process_cfg_noa_opp_ps(int argc, char *argv[]);
-#endif
 #endif
 static int process_dscpmap(int argc, char *argv[]);
 #ifdef WIFI_DIRECT_SUPPORT
@@ -307,11 +278,11 @@ static int process_extend_channel_switch(int argc, char *argv[]);
 #if defined(SDIO_SUSPEND_RESUME)
 static int process_auto_arp(int argc, char *argv[]);
 #endif
-static int process_ind_rst_cfg(int argc, char *argv[]);
 int process_tsf(int argc, char *argv[]);
 static int process_dyn_bw(int argc, char *argv[]);
 static int process_ctrldeauth(int argc, char *argv[]);
 static int process_robustcoex(int argc, char *argv[]);
+static int process_acs(int argc, char *argv[]);
 static int process_bootsleep(int argc, char *argv[]);
 
 struct command_node command_list[] = {
@@ -401,7 +372,6 @@ struct command_node command_list[] = {
 	{"cfgdata", process_cfgdata},
 	{"mgmtframetx", process_mgmtframetx},
 	{"mgmtframectrl", process_mgmt_frame_passthrough},
-	{"hotspotcfg", process_hotspot_config},
 	{"qconfig", process_qconfig},
 	{"addts", process_addts},
 	{"delts", process_delts},
@@ -436,14 +406,11 @@ struct command_node command_list[] = {
 	{"authtype", process_set_get_auth_type},
 #endif
 	{"powercons", process_11h_local_pwr_constraint},
-	{"htstreamcfg", process_ht_stream_cfg},
 	{"thermal", process_thermal},
 	{"bcninterval", process_beacon_interval},
+	{"cwmode", process_cwmode},
 #ifdef STA_SUPPORT
 	{"getsignal", process_get_signal},
-	{"getsignalext", process_get_signal_ext},
-	{"getsignalextv2", process_get_signal_ext},
-	{"signalextcfg", process_signalext_cfg},
 #endif
 	{"inactivityto", process_inactivity_timeout_ext},
 	{"amsduaggrctrl", process_11n_amsdu_aggr_ctrl},
@@ -453,8 +420,6 @@ struct command_node command_list[] = {
 	{"mpactrl", process_sdio_mpa_ctrl},
 #endif
 	{"sleepparams", process_sleep_params},
-	{"netmon", process_net_monitor},
-	{"monitormode", process_monitor_mode},
 #if defined(DFS_TESTING_SUPPORT)
 	{"dfstesting", process_dfs_testing},
 #endif
@@ -462,14 +427,11 @@ struct command_node command_list[] = {
 	{"antcfg", process_set_get_tx_rx_ant},
 	{"dscpmap", process_dscpmap},
 	{"changraph", process_chan_graph},
-	{"adhocaes", process_adhoc_aes},
-	{"getkey", process_get_key},
 	{"associate", process_associate_ssid_bssid},
 	{"httxbfcfg", process_tx_bf_cfg},
 	{"wpssession", process_wps_cfg},
 	{"port_ctrl", process_port_ctrl},
 	{"pb_bypass", process_bypassed_packet},
-	{"coalesce_status", process_coalescing_status},
 /* #ifdef FW_WAKEUP_METHOD */
 	{"fwwakeupmethod", process_fw_wakeup_method},
 /* #endif */
@@ -482,10 +444,6 @@ struct command_node command_list[] = {
 	{"rxpktcoal_cfg", process_rx_pkt_coalesce_cfg},
 #endif
 #if defined(WIFI_DIRECT_SUPPORT)
-#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	{"cfg_noa", process_cfg_noa_opp_ps},
-	{"cfg_opp_ps", process_cfg_noa_opp_ps},
-#endif
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 	{"miracastcfg", process_miracastcfg},
@@ -498,11 +456,11 @@ struct command_node command_list[] = {
 #if defined(SDIO_SUSPEND_RESUME)
 	{"auto_arp", process_auto_arp},
 #endif
-	{"indrstcfg", process_ind_rst_cfg},
 	{"tsf", process_tsf},
 	{"dyn_bw", process_dyn_bw},
 	{"ctrldeauth", process_ctrldeauth},
 	{"robustcoex", process_robustcoex},
+	{"acs", process_acs},
 	{"bootsleep", process_bootsleep},
 };
 
@@ -518,7 +476,6 @@ static char *usage[] = {
 	"         addbapara",
 	"         addbareject",
 	"         addts",
-	"         adhocaes",
 	"         aggrpriotbl",
 	"         amsduaggrctrl",
 	"         antcfg",
@@ -566,7 +523,6 @@ static char *usage[] = {
 	"         fwwakeupmethod",
 /* #endif */
 	"         getdatarate",
-	"         getkey",
 	"         getlog",
 #ifdef STA_SUPPORT
 	"         getscantable",
@@ -576,17 +532,10 @@ static char *usage[] = {
 	"         getstalist",
 #endif
 	"         hostcmd",
-	"         hotspotcfg",
 	"         hscfg",
 	"         hssetpara",
 	"         mgmtfilter",
 	"         htcapinfo",
-	"         htstreamcfg",
-#ifdef STA_SUPPORT
-	"         signalextcfg",
-	"         getsignalext",
-	"         getsignalextv2",
-#endif
 	"         httxbfcap",
 	"         httxbfcfg",
 	"         httxcfg",
@@ -607,11 +556,8 @@ static char *usage[] = {
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
 	"         mpactrl",
 #endif
-	"         netmon",
 #if defined(WIFI_DIRECT_SUPPORT)
 #if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-	"         cfg_noa",
-	"         cfg_opp_ps",
 #endif
 #endif
 	"         offchannel",
@@ -691,9 +637,9 @@ static char *usage[] = {
 #endif
 	"         get_sensor_temp",
 	"         channel_switch",
-	"         indrstcfg",
 	"         dfs_offload",
 
+	"         cwmode",
 	"         dyn_bw",
 	"         ctrldeauth",
 	"         robustcoex",
@@ -1405,6 +1351,88 @@ process_robustcoex(int argc, char *argv[])
 }
 
 /**
+ * @brief      Do acs scan
+ *
+ * @param argc Number of arguments
+ * @param argv Pointer to the arguments array
+ *
+ * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
+ */
+
+static int
+process_acs(int argc, char *argv[])
+{
+	t_u8 *buffer = NULL;
+	struct eth_priv_cmd *cmd;
+	struct ifreq ifr;
+	acs_result *pacs_result = NULL;
+	int i = 0;
+
+	if (argc < 3) {
+		printf("Err: Invalid number of arguments\n");
+		printf("Usage: ./mlanutl <interface> acs [channels]\n");
+		return MLAN_STATUS_FAILURE;
+	}
+	/* Initialize buffer */
+	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
+	if (!buffer) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
+	if (!cmd) {
+		printf("ERR:Cannot allocate buffer for command!\n");
+		free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Fill up buffer */
+#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
+	memset(cmd, 0, sizeof(struct eth_priv_cmd));
+	memcpy(&cmd->buf, &buffer, sizeof(buffer));
+#else
+	cmd->buf = buffer;
+#endif
+	cmd->used_len = 0;
+	cmd->total_len = BUFFER_LENGTH;
+
+	/* Perform IOCTL */
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
+	ifr.ifr_ifru.ifru_data = (void *)cmd;
+
+	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
+		perror("mlanutl");
+		fprintf(stderr, "mlanutl: acs fail\n");
+		if (cmd)
+			free(cmd);
+		if (buffer)
+			free(buffer);
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Process result */
+	if (cmd->used_len) {
+		pacs_result = (acs_result *) buffer;
+		printf("Best Channel: %d\n", pacs_result->best_ch);
+		if (pacs_result->ch_stats_num) {
+			printf("Channel Statistics:\n");
+			for (i = 0; i < pacs_result->ch_stats_num; i++)
+				printf("\t[CH %d]\t\ttotal_networks=%d\tcca_busy_duration=%d\n", pacs_result->ch_stats[i].chan_num, pacs_result->ch_stats[i].total_networks, pacs_result->ch_stats[i].cca_busy_duration);
+		}
+	}
+
+	if (buffer)
+		free(buffer);
+	if (cmd)
+		free(cmd);
+
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
  *  @brief Get one line from the File
  *
  *  @param fp       File handler
@@ -1777,9 +1805,6 @@ process_bandcfg(int argc, char *argv[])
 		printf(" )\n");
 		printf("  Adhoc Start Channel: %d\n",
 		       (int)bandcfg->adhoc_channel);
-		printf("  Adhoc Band Width: %d (%s)\n",
-		       (int)bandcfg->adhoc_chan_bandwidth,
-		       adhoc_bw[bandcfg->adhoc_chan_bandwidth]);
 	}
 
 	if (buffer)
@@ -1802,7 +1827,7 @@ static int
 mlan_get_hostcmd_data(FILE * fp, int *ln, t_u8 *buf, t_u16 *size)
 {
 	t_s32 errors = 0, i;
-	char line[256], *pos, *pos1, *pos2, *pos3;
+	char line[512], *pos, *pos1, *pos2, *pos3;
 	t_u16 len;
 
 	while ((pos = mlan_config_get_line(fp, line, sizeof(line), ln))) {
@@ -2037,7 +2062,8 @@ process_host_cmd_resp(char *cmd_name, t_u8 *buf)
 					le16_to_cpu((t_u16)
 						    *(buf + S_DS_GEN +
 						      sizeof(t_u16)));
-				if (alg == CIPHER_TEST_AES_CCM) {
+				if (alg == CIPHER_TEST_AES_CCM ||
+				    alg == CIPHER_TEST_GCMP) {
 					HostCmd_DS_802_11_CRYPTO_AES_CCM
 						*cmd_aes_ccm =
 						(HostCmd_DS_802_11_CRYPTO_AES_CCM
@@ -4390,8 +4416,11 @@ scantable_get_ssid_from_ie(t_u8 *ie_buf,
 	IEEEtypes_Generic_t *pie_gen;
 
 	retval = scantable_find_elem(ie_buf, ie_buf_len, SSID, &pie_gen);
-
-	memcpy(pssid, pie_gen->data, MIN(pie_gen->ieee_hdr.len, ssid_buf_max));
+	if (retval == MLAN_STATUS_SUCCESS)
+		memcpy(pssid, pie_gen->data,
+		       MIN(pie_gen->ieee_hdr.len, ssid_buf_max));
+	else
+		return MLAN_STATUS_FAILURE;
 
 	return retval;
 }
@@ -4819,6 +4848,12 @@ wlan_process_getscantable(int argc, char *argv[],
 				pelement_id = (IEEEtypes_ElementId_e *)pcurrent;
 				pelement_len = pcurrent + 1;
 				pcurrent += 2;
+
+				if ((bss_info_length - 2) < *pelement_len) {
+					printf("Error when processing bss info, bss_info_length < element length\n");
+					bss_info_length = 0;
+					continue;
+				}
 
 				switch (*pelement_id) {
 				case SSID:
@@ -5339,6 +5374,12 @@ prepare_setuserscan_buffer(wlan_ioctl_user_scan_cfg *scan_req, t_u32 num,
 				scan_req->bss_mode = MLAN_SCAN_MODE_ANY;
 				break;
 			}
+		} else if (strncmp
+			   (args[arg_idx], "scan_type=",
+			    strlen("scan_type=")) == 0) {
+			/* "scan_type" token string handler */
+			scan_req->ext_scan_type =
+				atoi(args[arg_idx] + strlen("scan_type="));
 		}
 	}
 
@@ -6766,33 +6807,39 @@ process_scancfg(int argc, char *argv[])
 
 	/* Process result */
 	scancfg = (struct eth_priv_scan_cfg *)buffer;
-	if (argc == 3) {
-		/* GET operation */
-		printf("Scan Configuration:\n");
-		printf("    Scan Type:              %d (%s)\n",
-		       scancfg->scan_type,
-		       (scancfg->scan_type ==
-			1) ? "Active" : (scancfg->scan_type ==
-					 2) ? "Passive" : "");
-		printf("    Scan Mode:              %d (%s)\n",
-		       scancfg->scan_mode,
-		       (scancfg->scan_mode ==
-			1) ? "BSS" : (scancfg->scan_mode ==
-				      2) ? "IBSS" : (scancfg->scan_mode ==
-						     3) ? "Any" : "");
-		printf("    Scan Probes:            %d (%s)\n",
-		       scancfg->scan_probe, "per channel");
-		printf("    Specific Scan Time:     %d ms\n",
-		       scancfg->scan_time.specific_scan_time);
-		printf("    Active Scan Time:       %d ms\n",
-		       scancfg->scan_time.active_scan_time);
-		printf("    Passive Scan Time:      %d ms\n",
-		       scancfg->scan_time.passive_scan_time);
-		printf("    Extended Scan Support:  %d (%s)\n",
-		       scancfg->ext_scan,
-		       (scancfg->ext_scan == 0) ? "No" : (scancfg->ext_scan ==
-							  1) ? "Yes" : "");
-	}
+	/* Show scan configure */
+	printf("Scan Configuration:\n");
+	printf("    Scan Type:              %d (%s)\n", scancfg->scan_type,
+	       (scancfg->scan_type == 1) ? "Active" : (scancfg->scan_type ==
+						       2) ? "Passive" : "");
+	printf("    Scan Mode:              %d (%s)\n", scancfg->scan_mode,
+	       (scancfg->scan_mode == 1) ? "BSS" : (scancfg->scan_mode ==
+						    2) ? "IBSS" : (scancfg->
+								   scan_mode ==
+								   3) ? "Any" :
+	       "");
+	printf("    Scan Probes:            %d (%s)\n", scancfg->scan_probe,
+	       "per channel");
+	printf("    Specific Scan Time:     %d ms\n",
+	       scancfg->scan_time.specific_scan_time);
+	printf("    Active Scan Time:       %d ms\n",
+	       scancfg->scan_time.active_scan_time);
+	printf("    Passive Scan Time:      %d ms\n",
+	       scancfg->scan_time.passive_scan_time);
+	printf("    Passive to Active Scan: %d (%s)\n",
+	       scancfg->passive_to_active_scan,
+	       (scancfg->passive_to_active_scan ==
+		MLAN_PASS_TO_ACT_SCAN_EN) ? "Enable" : (scancfg->
+							passive_to_active_scan
+							==
+							MLAN_PASS_TO_ACT_SCAN_DIS)
+	       ? "Disable" : "");
+	printf("    Extended Scan Support:  %d (%s)\n", scancfg->ext_scan,
+	       (scancfg->ext_scan == 0) ? "No" : (scancfg->ext_scan ==
+						  1) ? "Yes" : (scancfg->
+								ext_scan ==
+								2) ? "Enhanced"
+	       : "");
 
 	if (buffer)
 		free(buffer);
@@ -7035,7 +7082,6 @@ process_pscfg(int argc, char *argv[])
 		printf("%d", (int)ps_cfg->ps_null_interval);
 		printf("  %d", (int)ps_cfg->multiple_dtim_interval);
 		printf("  %d", (int)ps_cfg->listen_interval);
-		printf("  %d  ", (int)ps_cfg->adhoc_awake_period);
 		printf("  %d", (int)ps_cfg->bcn_miss_timeout);
 		printf("  %d", (int)ps_cfg->delay_to_ps);
 		printf("  %d", (int)ps_cfg->ps_mode);
@@ -9401,6 +9447,7 @@ process_customie(int argc, char *argv[])
 	/* Initialize the command buffer */
 	tlv = (eth_priv_ds_misc_custom_ie *)(buffer + strlen(CMD_MARVELL) +
 					     strlen(argv[2]));
+
 	tlv->type = MRVL_MGMT_IE_LIST_TLV_ID;
 	if (argc == 3 || argc == 4) {
 		if (argc == 3)
@@ -10516,7 +10563,6 @@ process_mefcfg(int argc, char *argv[])
 	cmd_len = sizeof(HostCmd_DS_GEN) + sizeof(HostCmd_DS_MEF_CFG);
 	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
 	if (buffer == NULL) {
-		fclose(fp);
 		fprintf(stderr, "Cannot alloc memory\n");
 		exit(1);
 	}
@@ -10738,7 +10784,6 @@ process_arpfilter(int argc, char *argv[])
 	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
 	if (buffer == NULL) {
 		printf("Error: allocate memory for arpfilter failed\n");
-		fclose(fp);
 		return -ENOMEM;
 	}
 	memset(buffer, 0, BUFFER_LENGTH);
@@ -11186,74 +11231,6 @@ process_mgmt_frame_passthrough(int argc, char *argv[])
 	mask = *(t_u32 *)buffer;
 	if (argc == 3)
 		printf("Registed Management Frame Mask: 0x%x\n", mask);
-
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
- *  @brief set/get hotspot enable/disable config
- *  @param argc   Number of arguments
- *  @param argv   A pointer to arguments array
- *  @return     MLAN_STATUS_SUCCESS--success, otherwise--fail
- */
-static int
-process_hotspot_config(int argc, char *argv[])
-{
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd = NULL;
-	struct ifreq ifr;
-	t_u32 hotspotcfg = 0;
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: htcapinfo fail\n");
-		if (cmd)
-			free(cmd);
-		if (buffer)
-			free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Process result */
-	hotspotcfg = *(t_u32 *)buffer;
-	if (argc == 3)
-		printf("HotSpot 2.0 Status: 0x%x\n", hotspotcfg);
 
 	if (buffer)
 		free(buffer);
@@ -12795,6 +12772,8 @@ process_cfpinfo(int argc, char *argv[])
 	struct eth_priv_cmd *cmd = NULL;
 	struct ifreq ifr;
 	t_u32 i, size = 0;
+	t_u32 j;
+	t_u32 rows, cols;
 	struct chan_freq_power {
 		t_u16 channel;
 		t_u32 freq;
@@ -12859,6 +12838,10 @@ process_cfpinfo(int argc, char *argv[])
 	data += 2;
 	printf("Country Code : %c%c\n", *data, *(data + 1));
 	data += 3;
+	if (size == 6) {
+		printf("Environment  : 0x%x\n", *data);
+		data++;
+	}
 	/* Print cfp tables */
 	size = *(t_u32 *)data;
 	if (!size)
@@ -12909,6 +12892,61 @@ process_cfpinfo(int argc, char *argv[])
 		i += sizeof(struct chan_freq_power);
 	}
 
+	/* Print power tables */
+	size = *(t_u32 *)data;
+	if (!size)
+		goto out;
+
+	data += sizeof(size);
+	rows = *(t_u32 *)data;
+	data += sizeof(size);
+	cols = *(t_u32 *)data;
+	data += sizeof(size);
+	if (!rows || !cols)
+		goto out;
+
+	printf("\n2.4GHz Power Table:\n");
+	printf("%8s ", "Channel");
+	for (i = 0; i < cols - 1; i++)
+		printf(" m%02d", i);
+
+	for (i = 0; i < rows; i++) {
+		printf("\n%8u ", *data++);
+		for (j = 1; j < cols; j++)
+			printf("%3u ", *data++);
+	}
+	printf("\n");
+	size = *(t_u32 *)data;
+	if (!size)
+		goto out;
+
+	data += sizeof(size);
+	rows = *(t_u32 *)data;
+	data += sizeof(size);
+	cols = *(t_u32 *)data;
+	data += sizeof(size);
+	if (!rows || !cols)
+		goto out;
+
+	printf("\n5GHz Power Table:\n");
+	printf("%8s ", "Channel");
+	for (i = 0; i < cols - 1; i++)
+		printf(" m%02d", i);
+
+	for (i = 0; i < rows; i++) {
+		printf("\n%8u ", *data++);
+		for (j = 1; j < cols; j++)
+			printf("%3u ", *data++);
+	}
+	/* Print Modulation Conversion Information */
+	printf("\n\nModulation Conversions:\n");
+	j = 0;
+	for (i = 0; i < 10; i++)
+		printf("m%02d: %s\n", j++, mod_conv_bg_1x1[i]);
+	if (j >= cols - 1)
+		goto out;
+	for (i = 0; i < 6; i++)
+		printf("m%02d: %s\n", j++, mod_conv_a_1x1[i]);
 out:
 	printf("\n");
 	if (buffer)
@@ -14105,84 +14143,6 @@ done:
 }
 
 /**
- *  @brief Set/get HT stream configurations
- *  @param argc   Number of arguments
- *  @param argv   A pointer to arguments array
- *  @return       MLAN_STATUS_SUCCESS--success, otherwise--fail
- */
-static int
-process_ht_stream_cfg(int argc, char *argv[])
-{
-	int ret = 0, mode = 0;
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd = NULL;
-	struct ifreq ifr;
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	memset(buffer, 0, BUFFER_LENGTH);
-
-	/* Sanity tests */
-	if (argc < 3 || argc > 4) {
-		printf("Error: invalid no of arguments\n");
-		printf("mlanutl mlanX htstreamcfg [#]\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: htstreamcfg fail\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Process result */
-	memcpy(&mode, buffer, sizeof(mode));
-	if (mode == HT_STREAM_MODE_1X1)
-		printf("HT stream is in 1x1 mode\n");
-	else if (mode == HT_STREAM_MODE_2X2)
-		printf("HT stream is in 2x2 mode\n");
-
-done:
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return ret;
-}
-
-/**
  *  @brief Get thermal reading
  *  @param argc   Number of arguments
  *  @param argv   A pointer to arguments array
@@ -14339,175 +14299,6 @@ done:
 	return ret;
 }
 
-/**
- *  @brief Set signalext cfg
- *  @param argc   Number of arguments
- *  @param argv   A pointer to arguments array
- *  @return       MLAN_STATUS_SUCCESS--success, otherwise--fail
- */
-static int
-process_signalext_cfg(int argc, char *argv[])
-{
-	int ret = 0;
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd = NULL;
-	struct ifreq ifr;
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	memset(buffer, 0, BUFFER_LENGTH);
-
-	/* Sanity tests */
-	if (argc != 4) {
-		printf("Error: invalid no of arguments\n");
-		printf("mlanutl mlanX signalextcfg [#]\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: signalext cfg fail\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-done:
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return ret;
-}
-
-/**
- *  @brief Get signal
- *  @param argc   Number of arguments
- *  @param argv   A pointer to arguments array
- *  @return       MLAN_STATUS_SUCCESS--success, otherwise--fail
- */
-static int
-process_get_signal_ext(int argc, char *argv[])
-{
-#define MAX_NUM_PATH 3
-#define PATH_SIZE  13
-#define PATH_A 		1
-#define PATH_B		2
-#define PATH_AB		3
-	int ret = 0, data[PATH_SIZE * MAX_NUM_PATH] = { 0 };
-	int i = 0, copy_size = 0;
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd = NULL;
-	struct ifreq ifr;
-	t_u8 num_path = 0;
-
-	memset(data, 0, sizeof(data));
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	memset(buffer, 0, BUFFER_LENGTH);
-
-	/* Sanity tests */
-	if (argc != 3 && argc != 4) {
-		printf("Error: invalid no of arguments\n");
-		if (strncmp(argv[2], "getsignalextv2", strlen("getsignalextv2"))
-		    == 0)
-			printf("mlanutl mlanX getsignalextv2 [m]\n");
-		else if (strncmp
-			 (argv[2], "getsignalext", strlen("getsignalext")) == 0)
-			printf("mlanutl mlanX getsignalext [m]\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: getsignal fail\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Process result */
-	copy_size = cmd->used_len;
-	memcpy(&data, (int *)buffer, copy_size);
-
-	num_path = copy_size / sizeof(int) / PATH_SIZE;
-	for (i = 0; i < num_path; i++) {
-		if (data[i * PATH_SIZE] == PATH_A)
-			printf("PATH A:   %d %d %d %d %d %d %d %d %d %d %d %d\n", data[i * PATH_SIZE + 1], data[i * PATH_SIZE + 2], data[i * PATH_SIZE + 3], data[i * PATH_SIZE + 4], data[i * PATH_SIZE + 5], data[i * PATH_SIZE + 6], data[i * PATH_SIZE + 7], data[i * PATH_SIZE + 8], data[i * PATH_SIZE + 9], data[i * PATH_SIZE + 10], data[i * PATH_SIZE + 11], data[i * PATH_SIZE + 12]);
-		else if (data[i * PATH_SIZE] == PATH_B)
-			printf("PATH B:   %d %d %d %d %d %d %d %d %d %d %d %d\n", data[i * PATH_SIZE + 1], data[i * PATH_SIZE + 2], data[i * PATH_SIZE + 3], data[i * PATH_SIZE + 4], data[i * PATH_SIZE + 5], data[i * PATH_SIZE + 6], data[i * PATH_SIZE + 7], data[i * PATH_SIZE + 8], data[i * PATH_SIZE + 9], data[i * PATH_SIZE + 10], data[i * PATH_SIZE + 11], data[i * PATH_SIZE + 12]);
-		else if (data[i * PATH_SIZE] == PATH_AB)
-			printf("PATH A+B: %d %d %d %d %d %d %d %d %d %d %d %d\n", data[i * PATH_SIZE + 1], data[i * PATH_SIZE + 2], data[i * PATH_SIZE + 3], data[i * PATH_SIZE + 4], data[i * PATH_SIZE + 5], data[i * PATH_SIZE + 6], data[i * PATH_SIZE + 7], data[i * PATH_SIZE + 8], data[i * PATH_SIZE + 9], data[i * PATH_SIZE + 10], data[i * PATH_SIZE + 11], data[i * PATH_SIZE + 12]);
-	}
-	printf("\n");
-
-done:
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return ret;
-}
 #endif /* #ifdef STA_SUPPORT */
 
 /**
@@ -14842,7 +14633,6 @@ process_sdio_clock_ioctl(int argc, char *argv[])
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
-
 	/* Initialize buffer */
 	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
 	if (!buffer) {
@@ -14909,7 +14699,7 @@ static int
 process_sdio_mpa_ctrl(int argc, char *argv[])
 {
 	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
+	struct eth_priv_cmd *cmd = NULL;
 	int ret = 0, data[6];
 	struct ifreq ifr;
 
@@ -15061,7 +14851,7 @@ done:
 }
 
 /**
- * @brief      Set/Get network monitor configurations
+ * @brief      Set/Get cw mode
  *
  * @param argc Number of arguments
  * @param argv Pointer to the arguments array
@@ -15069,92 +14859,16 @@ done:
  * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
  */
 static int
-process_net_monitor(int argc, char *argv[])
+process_cwmode(int argc, char *argv[])
 {
-	int ret = 0;
-	int data[5];
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
-	struct ifreq ifr;
-
-	/* Check if arguments are valid */
-	if ((argc != 3) && (argc != 4) && (argc != 7)
-	    && (argc != 8)
-		) {
-		printf("ERR: Invalid arguments\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: netmon fail\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	memset(data, 0, sizeof(data));
-	memcpy(data, buffer, sizeof(data));
-	printf("Network monitor activity enabled is %d\n", data[0]);
-	printf("Network monitor filter flag is %d\n", data[1]);
-	printf("802.11 band is %d\n", data[2]);
-	printf("Channel to monitor is %d\n", data[3]);
-	printf("Secondary channel bandwidth is %d\n", data[4]);
-
-done:
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return ret;
-}
-
-/**
- * @brief      Set/Get monitor mode
- *
- * @param argc Number of arguments
- * @param argv Pointer to the arguments array
- *
- * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
- */
-static int
-process_monitor_mode(int argc, char *argv[])
-{
-	t_u8 *buffer = NULL;
+	t_u8 *buffer = NULL, *pos = NULL, *action;
+	char *data = NULL, *args[100];
 	struct eth_priv_cmd *cmd = NULL;
 	struct ifreq ifr;
+	cw_mode_ctrl *cwmode = NULL;
+	FILE *config_file = NULL;
+	char *line = NULL;
+	int li = 0;
 
 	/* Initialize buffer */
 	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
@@ -15163,8 +14877,74 @@ process_monitor_mode(int argc, char *argv[])
 		return MLAN_STATUS_FAILURE;
 	}
 
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
+	memset(buffer, 0, BUFFER_LENGTH);
+	pos = buffer;
+	strncpy((char *)pos, CMD_MARVELL, strlen(CMD_MARVELL));
+	pos += (strlen(CMD_MARVELL));
+	strcpy((char *)pos, argv[2]);
+	pos += (strlen(argv[2]));
+	action = pos;
+	pos++;
 
+	if (argc > 3) {
+		*action = 1;
+		config_file = fopen(argv[3], "r");
+		if (config_file == NULL) {
+			perror("CONFIG");
+			exit(1);
+		}
+
+		line = (char *)malloc(MAX_CONFIG_LINE);
+		if (!line) {
+			printf("ERR:Cannot allocate memory for line\n");
+			exit(1);
+		}
+		memset(line, 0, MAX_CONFIG_LINE);
+		/* Parse file and process */
+		while (config_get_line
+		       (line, MAX_CONFIG_LINE, config_file, &li, &data)) {
+			parse_line(line, args);
+
+			if (strcmp(args[0], "CW_MODE") == 0)
+				cwmode = (cw_mode_ctrl *) pos;
+			else {
+				if (cwmode) {
+					if (strcmp(args[0], "Mode") == 0)
+						cwmode->mode =
+							a2hex_or_atoi(args[1]);
+					else if (strcmp(args[0], "Channel") ==
+						 0)
+						cwmode->channel =
+							a2hex_or_atoi(args[1]);
+					else if (strcmp(args[0], "Chaninfo") ==
+						 0)
+						cwmode->chanInfo =
+							a2hex_or_atoi(args[1]);
+					else if (strcmp(args[0], "TxPower") ==
+						 0)
+						cwmode->txPower =
+							a2hex_or_atoi(args[1]);
+					else if (strcmp(args[0], "PktLength") ==
+						 0)
+						cwmode->pktLength =
+							a2hex_or_atoi(args[1]);
+					else if (strcmp(args[0], "RateInfo") ==
+						 0)
+						cwmode->rateInfo =
+							a2hex_or_atoi(args[1]);
+				} else {
+					printf("invalid config file\n");
+					printf("Specify the parameters in CW_MODE header as shown below:\n");
+					printf("CW_MODE = {\n");
+					printf("//\n");
+					printf("// specify parameters between CW_MODE header only\n");
+					printf("//\n");
+					printf("}\n");
+					exit(1);
+				}
+			}
+		}
+	}
 	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
 	if (!cmd) {
 		printf("ERR:Cannot allocate buffer for command!\n");
@@ -15173,12 +14953,7 @@ process_monitor_mode(int argc, char *argv[])
 	}
 
 	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
 	cmd->buf = buffer;
-#endif
 	cmd->used_len = 0;
 	cmd->total_len = BUFFER_LENGTH;
 
@@ -15189,7 +14964,7 @@ process_monitor_mode(int argc, char *argv[])
 
 	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
 		perror("mlanutl");
-		fprintf(stderr, "mlanutl: monitormode fail\n");
+		fprintf(stderr, "mlanutl: cwmode fail\n");
 		if (cmd)
 			free(cmd);
 		if (buffer)
@@ -15198,7 +14973,11 @@ process_monitor_mode(int argc, char *argv[])
 	}
 
 	/* Process result */
-	printf("%s\n", buffer);
+	cwmode = (cw_mode_ctrl *) buffer;
+	printf("CW Mode:\nMode = %d\nChannel = %d\nChanInfo = 0x%x\n"
+	       "TxPower=%d\nRateInfo=0x%x\nPacket Length=%d\n",
+	       cwmode->mode, cwmode->channel, cwmode->chanInfo,
+	       cwmode->txPower, cwmode->rateInfo, cwmode->pktLength);
 
 	if (buffer)
 		free(buffer);
@@ -15222,7 +15001,7 @@ process_dfs_testing(int argc, char *argv[])
 {
 	int ret = 0, data[4];
 	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
+	struct eth_priv_cmd *cmd = NULL;
 	struct ifreq ifr;
 
 	/* Check if arguments are valid */
@@ -15433,22 +15212,14 @@ process_set_get_tx_rx_ant(int argc, char *argv[])
 		goto done;
 	}
 	if (argc == 3) {
-		if (cmd->used_len < sizeof(data)) {
-			memcpy(data, buffer, cmd->used_len);
-			printf("Mode of Tx path is %d\n", data[0]);
-			if (cmd->used_len == (sizeof(int) * 2))
-				printf("Mode of Rx path is %d\n", data[1]);
-		} else {
-			memcpy(data, buffer, sizeof(data));
-			printf("Mode of Tx/Rx path is %d\n", data[0]);
-			/* Evaluate time is valid only when SAD is enabled */
-			if (data[0] == 0xffff) {
-				printf("Evaluate time = %d\n", data[1]);
-				/* Current antenna value should be 1,2,3. 0 is invalid value */
-				if (data[2] > 0)
-					printf("Current antenna is %d\n",
-					       data[2]);
-			}
+		memcpy(data, buffer, sizeof(data));
+		printf("Mode of Tx/Rx path is %d\n", data[0]);
+		/* Evaluate timie is valid only when SAD is enabled */
+		if (data[0] == 0xffff) {
+			printf("Evaluate time = %d\n", data[1]);
+			/* Current antenna value should be 1,2,3. 0 is invalid value */
+			if (data[2] > 0)
+				printf("Current antenna is %d\n", data[2]);
 		}
 	}
 
@@ -15528,147 +15299,6 @@ process_sysclock(int argc, char *argv[])
 		}
 		printf("\n");
 	}
-
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
- * @brief      Adhoc AES control
- *
- * @param argc Number of arguments
- * @param argv Pointer to the arguments array
- *
- * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
- */
-static int
-process_adhoc_aes(int argc, char *argv[])
-{
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
-	struct ifreq ifr;
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: adhocaes fail\n");
-		if (cmd)
-			free(cmd);
-		if (buffer)
-			free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* GET operation */
-	if (argc == 3)
-		printf("ad-hoc aes key is %s\n", buffer);
-
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return MLAN_STATUS_SUCCESS;
-}
-
-/**
- * @brief      Get GTK/PTK
- *
- * @param argc Number of arguments
- * @param argv Pointer to the arguments array
- *
- * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
- */
-static int
-process_get_key(int argc, char *argv[])
-{
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
-	struct ifreq ifr;
-
-	if (argc != 3) {
-		printf("ERR: Invalid arguments\n");
-		return MLAN_STATUS_FAILURE;
-	}
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	prepare_buffer(buffer, argv[2], 0, NULL);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: getkey fail\n");
-		if (cmd)
-			free(cmd);
-		if (buffer)
-			free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	if (cmd->used_len)
-		printf("Key is %s\n", buffer);
-	else
-		printf("Key is not set\n");
 
 	if (buffer)
 		free(buffer);
@@ -16050,82 +15680,6 @@ process_bypassed_packet(int argc, char *argv[])
 	return MLAN_STATUS_SUCCESS;
 }
 
-/**
- * @brief      Control Coalescing status Enable/Disable
- *
- * @param argc Number of arguments
- * @param argv Pointer to the arguments array
- *
- * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
- */
-static int
-process_coalescing_status(int argc, char *argv[])
-{
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
-	struct ifreq ifr;
-	int status = 0;
-
-	if (argc < 3 && argc > 4) {
-		printf("ERR: Invalid number of arguments\n");
-		return MLAN_STATUS_FAILURE;
-	}
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: coalesce_status fail\n");
-		if (cmd)
-			free(cmd);
-		if (buffer)
-			free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-	if (argc == 3) {
-		status = (int)*buffer;
-		if (status == 1)
-			printf("coalesce_status is Enabled\n");
-		else
-			printf("coalesce_status is Disabled\n");
-	}
-
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return MLAN_STATUS_SUCCESS;
-}
-
 /* #ifdef FW_WAKEUP_METHOD */
 /**
  * @brief      Set/Get module configuration
@@ -16224,7 +15778,7 @@ process_sdcmd53rw(int argc, char *argv[])
 	struct ifreq ifr;
 	t_u8 *buffer = NULL;
 	t_u8 *pos = NULL;
-	int addr, mode, blklen, blknum, i, rw;
+	int addr, mode, blklen, blknum, i = 0, rw;
 	t_u16 cmd_len = 0;
 
 	if (argc < 8) {
@@ -16318,100 +15872,6 @@ done:
 }
 
 #if defined(WIFI_DIRECT_SUPPORT)
-#if CFG80211_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
-/**
- * @brief      Set/Get P2P NoA (Notice of Absence) Or OPP-PS parameters
- *
- * @param argc Number of arguments
- * @param argv Pointer to the arguments array
- *
- * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
- */
-static int
-process_cfg_noa_opp_ps(int argc, char *argv[])
-{
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd;
-	struct ifreq ifr;
-	mlan_ds_wifi_direct_config *cfg;
-
-	if (argc < 3 || argc > 8) {
-		printf("ERR: Invalid number of arguments\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: noa_cfg fail\n");
-		if (cmd)
-			free(cmd);
-		if (buffer)
-			free(buffer);
-		return MLAN_STATUS_FAILURE;
-	}
-	if (argc == 3) {
-		cfg = (mlan_ds_wifi_direct_config *)buffer;
-		if (!cfg) {
-			printf("Err : Could not get P2P noa configuration\n");
-			if (cmd)
-				free(cmd);
-			if (buffer)
-				free(buffer);
-			return MLAN_STATUS_FAILURE;
-		}
-
-		if (cfg->flags & WIFI_DIRECT_NOA) {
-			printf("noa_enable : %d\n", cfg->noa_enable);
-			printf("index : %d\n", cfg->index);
-			printf("noa_count : %d\n", cfg->noa_count);
-			printf("noa_duration : %d\n", cfg->noa_duration);
-			printf("noa_interval : %d\n", cfg->noa_interval);
-		}
-		if (cfg->flags & WIFI_DIRECT_OPP_PS) {
-			printf("opp_ps_enable : %d\n", cfg->opp_ps_enable);
-			printf("ct_window : %d\n", cfg->ct_window);
-		}
-	}
-
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return MLAN_STATUS_SUCCESS;
-}
-#endif
 #endif
 
 /**
@@ -17474,93 +16934,6 @@ done:
 	return ret;
 }
 #endif
-/**
- * @brief      Set/Get out band independent reset
- *
- * @param argc Number of arguments
- * @param argv Pointer to the arguments array
- *
- * @return     MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
- */
-static int
-process_ind_rst_cfg(int argc, char *argv[])
-{
-	int ret = 0;
-	int data[3] = { 0 };
-	t_u8 *buffer = NULL;
-	struct eth_priv_cmd *cmd = NULL;
-	struct ifreq ifr;
-
-	/* Check if arguments are valid */
-	if ((argc < 3) || (argc > 5)) {
-		printf("ERR: Invalid arguments\n");
-		printf("usage: mlanutl <interface> indrstcfg <ir_mode> [gpio_pin]\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	if (((argc == 4) || (argc == 5)) &&
-	    ((atoi(argv[3]) < 0) || (atoi(argv[3]) > 2))) {
-		printf("ERR: Mode must be 0, 1 or 2\n");
-		return MLAN_STATUS_FAILURE;
-	}
-
-	/* Initialize buffer */
-	buffer = (t_u8 *)malloc(BUFFER_LENGTH);
-	if (!buffer) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	prepare_buffer(buffer, argv[2], (argc - 3), &argv[3]);
-
-	cmd = (struct eth_priv_cmd *)malloc(sizeof(struct eth_priv_cmd));
-	if (!cmd) {
-		printf("ERR:Cannot allocate buffer for command!\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-
-	/* Fill up buffer */
-#ifdef USERSPACE_32BIT_OVER_KERNEL_64BIT
-	memset(cmd, 0, sizeof(struct eth_priv_cmd));
-	memcpy(&cmd->buf, &buffer, sizeof(buffer));
-#else
-	cmd->buf = buffer;
-#endif
-	cmd->used_len = 0;
-	cmd->total_len = BUFFER_LENGTH;
-
-	/* Perform IOCTL */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)cmd;
-
-	if (ioctl(sockfd, MLAN_ETH_PRIV, &ifr)) {
-		perror("mlanutl");
-		fprintf(stderr, "mlanutl: indrstcfg fail\n");
-		ret = MLAN_STATUS_FAILURE;
-		goto done;
-	}
-	if (argc == 3) {
-		memcpy(data, buffer, sizeof(data));
-		/* Display the result */
-		printf("Independent Reset Mode = %s\n",
-		       (data[0] ==
-			0) ? "disabled" : ((data[0] ==
-					    1) ? "Out Band" : "In Band"));
-		if (data[0] == 1)
-			printf("GPIO Pin = %d\n", data[1]);
-	}
-
-done:
-	if (buffer)
-		free(buffer);
-	if (cmd)
-		free(cmd);
-
-	return ret;
-}
 
 /**
  *  @brief Issue a tsf command

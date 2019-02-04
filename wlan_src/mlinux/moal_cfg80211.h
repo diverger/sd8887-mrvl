@@ -75,6 +75,13 @@ void *woal_get_netdev_priv(struct net_device *dev);
 #ifdef STA_SUPPORT
 /** get scan interface */
 moal_private *woal_get_scan_interface(moal_handle *handle);
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+/** AUTH pending flag */
+#define HOST_MLME_AUTH_PENDING			MBIT(0)
+/** AUTH complete flag */
+#define HOST_MLME_AUTH_DONE			MBIT(1)
+void woal_host_mlme_disconnect(moal_private *priv, t_u16 reason_code);
+#endif
 #endif
 
 t_u8 woal_band_cfg_to_ieee_band(t_u32 band);
@@ -180,6 +187,11 @@ int woal_cfg80211_set_default_key(struct wiphy *wiphy,
 int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       struct net_device *netdev,
 				       t_u8 key_index);
+#endif
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+int woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
+				 struct cfg80211_gtk_rekey_data *data);
 #endif
 
 void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
@@ -404,11 +416,15 @@ int woal_cfg80211_channel_switch(struct wiphy *wiphy,
 void woal_cac_timer_func(void *context);
 void woal_csa_work_queue(struct work_struct *work);
 #endif
-#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-void woal_cfg80211_notify_uap_channel(moal_private *priv,
-				      chan_band_info * pchan_info);
-#endif
 #endif /* UAP_CFG80211 */
+#if defined(UAP_SUPPORT) || defined(STA_SUPPORT)
+#if defined(UAP_CFG80211) || defined(STA_CFG80211)
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+void woal_cfg80211_notify_channel(moal_private *priv,
+				  chan_band_info * pchan_info);
+#endif
+#endif
+#endif
 
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 mlan_status woal_chandef_create(moal_private *priv,
@@ -435,7 +451,19 @@ void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
 void woal_cfg80211_setup_vht_cap(moal_private *priv,
 				 struct ieee80211_sta_vht_cap *vht_cap);
 #endif
-int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option);
+int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option,
+			mlan_ds_misc_assoc_rsp *assoc_rsp);
+
+#if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#define REGULATORY_CFG_LEN  (NL80211_MAX_SUPP_REG_RULES << 1)
+enum marvell_channel_flags {
+	MARVELL_CHANNEL_PASSIVE = BIT(0),
+	MARVELL_CHANNEL_DFS = BIT(1),
+	MARVELL_CHANNEL_NOHT40 = BIT(2),
+	MARVELL_CHANNEL_NOHT80 = BIT(3),
+	MARVELL_CHANNEL_DISABLED = BIT(7),
+};
+#endif
 
 t_u8 woal_get_second_channel_offset(int chan);
 

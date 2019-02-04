@@ -2,26 +2,20 @@
   *
   * @brief 11n 20/40 MHz Coex application
   *
-  *  Usage:
+  * Copyright (C) 2009-2018, Marvell International Ltd.
   *
-  * (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
+  * This software file (the "File") is distributed by Marvell International
+  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+  * (the "License").  You may use, redistribute and/or modify this File in
+  * accordance with the terms and conditions of the License, a copy of which
+  * is available by writing to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+  * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
   *
-  * MARVELL CONFIDENTIAL
-  * The source code contained or described herein and all documents related to
-  * the source code ("Material") are owned by Marvell International Ltd or its
-  * suppliers or licensors. Title to the Material remains with Marvell International Ltd
-  * or its suppliers and licensors. The Material contains trade secrets and
-  * proprietary and confidential information of Marvell or its suppliers and
-  * licensors. The Material is protected by worldwide copyright and trade secret
-  * laws and treaty provisions. No part of the Material may be used, copied,
-  * reproduced, modified, published, uploaded, posted, transmitted, distributed,
-  * or disclosed in any way without Marvell's prior express written permission.
-  *
-  * No license under any patent, copyright, trade secret or other intellectual
-  * property right is granted to or conferred upon you by disclosure or delivery
-  * of the Materials, either expressly, by implication, inducement, estoppel or
-  * otherwise. Any license under such intellectual property rights must be
-  * express and approved by Marvell in writing.
+  * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+  * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+  * this warranty disclaimer.
   *
   */
 /************************************************************************
@@ -936,8 +930,7 @@ get_netlink_num(int dev_index)
 	fp = fopen(filename, "r");
 
 	if (fp) {
-		while (!feof(fp)) {
-			fgets(str, sizeof(str), fp);
+		while (fgets(str, sizeof(str), fp)) {
 			if (strncmp(str, srch, strlen(srch)) == 0) {
 				netlink_num = atoi(str + strlen(srch) + 1);
 				break;
@@ -1229,8 +1222,8 @@ main(int argc, char *argv[])
 {
 	char ifname[IFNAMSIZ + 1] = "mlan0";
 	int c, daemonize = FALSE;
-	t_s32 nl_sk;
-		  /**< netlink socket descriptor to receive an event */
+	t_s32 nl_sk = 0;
+		      /**< netlink socket descriptor to receive an event */
 	int dev_index = 0;	     /** initialise with -1 to open multiple NETLINK Sockets */
 
 	char temp[2];

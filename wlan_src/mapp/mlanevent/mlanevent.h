@@ -2,26 +2,21 @@
  *
  *  @brief Header file for mlanevent application
  *
- * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
- * MARVELL CONFIDENTIAL
- * The source code contained or described herein and all documents related to
- * the source code ("Material") are owned by Marvell International Ltd or its
- * suppliers or licensors. Title to the Material remains with Marvell International Ltd
- * or its suppliers and licensors. The Material contains trade secrets and
- * proprietary and confidential information of Marvell or its suppliers and
- * licensors. The Material is protected by worldwide copyright and trade secret
- * laws and treaty provisions. No part of the Material may be used, copied,
- * reproduced, modified, published, uploaded, posted, transmitted, distributed,
- * or disclosed in any way without Marvell's prior express written permission.
+ * This software file (the "File") is distributed by Marvell International
+ * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ * (the "License").  You may use, redistribute and/or modify this File in
+ * accordance with the terms and conditions of the License, a copy of which
+ * is available along with the File in the gpl.txt file or by writing to
+ * the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ * 02111-1307 or on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
  *
- * No license under any patent, copyright, trade secret or other intellectual
- * property right is granted to or conferred upon you by disclosure or delivery
- * of the Materials, either expressly, by implication, inducement, estoppel or
- * otherwise. Any license under such intellectual property rights must be
- * express and approved by Marvell in writing.
+ * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ * this warranty disclaimer.
  *
- *  All Rights Reserved
  */
 /************************************************************************
 Change log:
@@ -232,9 +227,6 @@ typedef PACK_START struct _event_header {
 #define EVENT_WIFIDIRECT_SERVICE_DISCOVERY         0x0000004a
 #endif
 
-/** Event ID: MIC Countermeasures event */
-#define MICRO_AP_EV_ID_MIC_COUNTERMEASURES  0x0000004c
-
 /** Event ID: RSN Connect event */
 #define MICRO_AP_EV_RSN_CONNECT             0x00000051
 
@@ -264,9 +256,6 @@ typedef PACK_START struct _event_header {
 #define EVENT_RADAR_DETECTED                0x00000053
 /** Event ID: Channel Report Ready */
 #define EVENT_CHANNEL_REPORT_RDY            0x00000054
-
-/** Event ID: SAD Report */
-#define EVENT_SAD_REPORT                    0x00000066
 
 /** HS WAKE UP event id */
 #define UAP_EVENT_ID_HS_WAKEUP             0x80000001
@@ -365,45 +354,6 @@ typedef PACK_START struct _eventbuf_bss_start {
     /** MAC address of BSS */
 	t_u8 ap_mac_address[ETH_ALEN];
 } PACK_END eventbuf_bss_start;
-
-/** Event body : MIC Countermeasures */
-typedef PACK_START struct _eventbuf_mic_countermeasures {
-    /** Status */
-	t_u16 status;
-} PACK_END eventbuf_mic_countermeasures;
-
-typedef PACK_START struct _stSadVar {
-	t_u32 txAttemptCnt;
-	t_s16 snr;
-	t_u8 fer;
-	t_u8 missedBcns;
-} PACK_END stSadVar;
-
-typedef PACK_START struct _sad_report_info {
-	int info_size;
-	t_u8 link_fsm_state;
-	t_u8 sad_fsm_state;
-	t_u8 avail_antenna;
-	t_u8 curr_antenna;
-	t_u32 evalinterval_timer;
-	t_u32 evalperiod_timer;
-	t_u32 forceantswap_timer;
-	stSadVar last_info;
-	stSadVar curr_info;
-	t_u8 sad_urgent;
-} PACK_END sad_report_info;
-
-typedef PACK_START struct _sad_report_strings {
-	char func_name[36];
-	int line;
-	char message[100];
-} PACK_END sad_report_strings;
-
-/** Event body : SAD Report */
-typedef PACK_START struct _eventbuf_sad_report {
-	sad_report_info info;
-	sad_report_strings strings;
-} PACK_END eventbuf_sad_report;
 
 /**
  *                 IEEE 802.11 MAC Message Data Structures

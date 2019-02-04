@@ -2,26 +2,20 @@
  *
  *  @brief This file contains the handling of AP mode ioctls
  *
- *  (C) Copyright 2009-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -276,14 +270,6 @@ wlan_uap_bss_ioctl_start(IN pmlan_adapter pmadapter,
 	mlan_ds_bss *bss = MNULL;
 
 	ENTER();
-
-	if (pmadapter->enable_net_mon == CHANNEL_SPEC_SNIFFER_MODE) {
-		PRINTM(MINFO,
-		       "BSS start is blocked in Channel Specified Network Monitor mode...\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	pmpriv->uap_host_based = bss->param.host_based;
 	if (!pmpriv->intf_state_11h.is_11h_host &&
@@ -337,10 +323,8 @@ wlan_uap_bss_ioctl_reset(IN pmlan_adapter pmadapter,
 	for (i = 0; i < pmadapter->max_mgmt_ie_index; i++)
 		memset(pmadapter, &pmpriv->mgmt_ie[i], 0, sizeof(custom_ie));
 	pmpriv->add_ba_param.timeout = MLAN_DEFAULT_BLOCK_ACK_TIMEOUT;
-	pmpriv->add_ba_param.tx_win_size =
-		pmadapter->psdio_device->ampdu_info->ampdu_uap_txwinsize;
-	pmpriv->add_ba_param.rx_win_size =
-		pmadapter->psdio_device->ampdu_info->ampdu_uap_rxwinsize;
+	pmpriv->add_ba_param.tx_win_size = MLAN_UAP_AMPDU_DEF_TXWINSIZE;
+	pmpriv->add_ba_param.rx_win_size = MLAN_UAP_AMPDU_DEF_RXWINSIZE;
 	pmpriv->user_rxwinsize = pmpriv->add_ba_param.rx_win_size;
 
 	for (i = 0; i < MAX_NUM_TID; i++) {
@@ -972,38 +956,6 @@ wlan_uap_sec_ioctl_wapi_enable(IN pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief report mic error
- *
- *  @param pmadapter	A pointer to mlan_adapter structure
- *  @param pioctl_req	A pointer to ioctl request buffer
- *
- *  @return		MLAN_STATUS_PENDING --success, otherwise fail
- */
-static mlan_status
-wlan_uap_sec_ioctl_report_mic_error(IN pmlan_adapter pmadapter,
-				    IN pmlan_ioctl_req pioctl_req)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_sec_cfg *sec = MNULL;
-
-	ENTER();
-
-	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
-	ret = wlan_prepare_cmd(pmpriv,
-			       HOST_CMD_APCMD_REPORT_MIC,
-			       HostCmd_ACT_GEN_SET,
-			       0,
-			       (t_void *)pioctl_req,
-			       (t_void *)sec->param.sta_mac);
-	if (ret == MLAN_STATUS_SUCCESS)
-		ret = MLAN_STATUS_PENDING;
-
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Set encrypt key
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -1074,6 +1026,10 @@ wlan_uap_get_bss_info(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	info->param.bss_info.scan_block = pmadapter->scan_block;
 
 	info->param.bss_info.is_hs_configured = pmadapter->is_hs_configured;
+	info->param.bss_info.is_11h_active =
+		pmpriv->intf_state_11h.is_11h_active;
+	info->param.bss_info.dfs_check_channel =
+		pmpriv->adapter->state_dfs.dfs_check_channel;
 	pioctl_req->data_read_written =
 		sizeof(mlan_bss_info) + MLAN_SUB_COMMAND_SIZE;
 
@@ -1761,6 +1717,7 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (bss->sub_command == MLAN_OID_UAP_OPER_CTRL)
 			status = wlan_uap_bss_ioctl_uap_oper_ctrl(pmadapter,
 								  pioctl_req);
+
 		break;
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 	case MLAN_IOCTL_SCAN:
@@ -1891,20 +1848,16 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_misc_p2p_config(pmadapter, pioctl_req);
 #endif
 
-		if (misc->sub_command == MLAN_OID_MISC_IND_RST_CFG)
-			status = wlan_misc_ioctl_ind_rst_cfg(pmadapter,
-							     pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_GET_TSF)
 			status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_GET_CHAN_REGION_CFG)
+			status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_OPER_CLASS_CHECK)
 			status = wlan_misc_ioctl_operclass_validation(pmadapter,
 								      pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_OPER_CLASS)
 			status = wlan_misc_ioctl_oper_class(pmadapter,
 							    pioctl_req);
-		if (misc->sub_command == MLAN_OID_MISC_NET_MONITOR)
-			status = wlan_misc_ioctl_net_monitor(pmadapter,
-							     pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_FW_DUMP_EVENT)
 			status = wlan_misc_ioctl_fw_dump_event(pmadapter,
 							       pioctl_req);
@@ -1914,6 +1867,10 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_get_cfpinfo(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_BOOT_SLEEP)
 			status = wlan_misc_bootsleep(pmadapter, pioctl_req);
+#ifdef STA_SUPPORT
+		if (misc->sub_command == MLAN_OID_MISC_ACS)
+			status = wlan_misc_acs(pmadapter, pioctl_req);
+#endif
 		break;
 	case MLAN_IOCTL_PM_CFG:
 		pm = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
@@ -1952,9 +1909,6 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (sec->sub_command == MLAN_OID_SEC_CFG_WAPI_ENABLED)
 			status = wlan_uap_sec_ioctl_wapi_enable(pmadapter,
 								pioctl_req);
-		if (sec->sub_command == MLAN_OID_SEC_CFG_REPORT_MIC_ERR)
-			status = wlan_uap_sec_ioctl_report_mic_error(pmadapter,
-								     pioctl_req);
 		break;
 	case MLAN_IOCTL_11N_CFG:
 		status = wlan_11n_cfg_ioctl(pmadapter, pioctl_req);
@@ -1963,6 +1917,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		cfg11d = (mlan_ds_11d_cfg *)pioctl_req->pbuf;
 		if (cfg11d->sub_command == MLAN_OID_11D_DOMAIN_INFO)
 			status = wlan_uap_domain_info(pmadapter, pioctl_req);
+		else if (cfg11d->sub_command == MLAN_OID_11D_DOMAIN_INFO_EXT)
+			status = wlan_11d_cfg_domain_info(pmadapter,
+							  pioctl_req);
 		break;
 	case MLAN_IOCTL_11H_CFG:
 		cfg11h = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
@@ -1992,9 +1949,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (radiocfg->sub_command == MLAN_OID_REMAIN_CHAN_CFG)
 			status = wlan_radio_ioctl_remain_chan_cfg(pmadapter,
 								  pioctl_req);
-		if (radiocfg->sub_command == MLAN_OID_ANT_CFG)
-			status = wlan_radio_ioctl_ant_cfg(pmadapter,
-							  pioctl_req);
+		if (radiocfg->sub_command == MLAN_OID_BAND_CFG)
+			status = wlan_radio_ioctl_band_cfg(pmadapter,
+							   pioctl_req);
 		break;
 	case MLAN_IOCTL_RATE:
 		rate = (mlan_ds_rate *)pioctl_req->pbuf;
@@ -2025,6 +1982,7 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		break;
 	default:
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
+		status = MLAN_ERROR_IOCTL_INVALID;
 		break;
 	}
 	LEAVE();

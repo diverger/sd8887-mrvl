@@ -145,6 +145,7 @@ static struct debug_data items[] = {
 	{"num_of_irq", item_size(num_of_irq), item_addr(num_of_irq)},
 	{"mp_invalid_update", item_size(mp_invalid_update),
 	 item_addr(mp_invalid_update)},
+	{"sdio_rx_aggr", item_size(sdio_rx_aggr), item_addr(sdio_rx_aggr)},
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 	{"mpa_sent_last_pkt", item_size(mpa_sent_last_pkt),
 	 item_addr(mpa_sent_last_pkt)},
@@ -291,6 +292,7 @@ static struct debug_data uap_items[] = {
 	{"num_of_irq", item_size(num_of_irq), item_addr(num_of_irq)},
 	{"mp_invalid_update", item_size(mp_invalid_update),
 	 item_addr(mp_invalid_update)},
+	{"sdio_rx_aggr", item_size(sdio_rx_aggr), item_addr(sdio_rx_aggr)},
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 	{"mpa_sent_last_pkt", item_size(mpa_sent_last_pkt),
 	 item_addr(mpa_sent_last_pkt)},
@@ -351,7 +353,7 @@ woal_hist_do_reset(moal_private *priv, void *data)
 {
 	hgm_data *phist_data = (hgm_data *)data;
 	int ix;
-	t_u8 rx_rate_max_size = priv->phandle->card_info->rx_rate_max;
+	t_u8 rx_rate_max_size = RX_RATE_MAX;
 
 	if (!phist_data)
 		return;
@@ -466,9 +468,7 @@ woal_histogram_info(struct seq_file *sfp, void *data)
 	t_u8 bw = 0;
 	t_u8 mcs_index = 0;
 	t_u8 nss = 0;
-	wlan_hist_proc_data *hist_data = (wlan_hist_proc_data *) sfp->private;
-	moal_private *priv = (moal_private *)hist_data->priv;
-	t_u8 rx_rate_max_size = priv->phandle->card_info->rx_rate_max;
+	t_u8 rx_rate_max_size = RX_RATE_MAX;
 
 	ENTER();
 	if (MODULE_GET == 0) {
@@ -830,7 +830,7 @@ woal_debug_read(struct seq_file *sfp, void *data)
 	moal_private *priv = items_priv->priv;
 #ifdef SDIO_MULTI_PORT_TX_AGGR
 	unsigned int j;
-	t_u8 mp_aggr_pkt_limit = 0;
+	t_u8 mp_aggr_pkt_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
 #endif
 
 	ENTER();
@@ -875,7 +875,6 @@ woal_debug_read(struct seq_file *sfp, void *data)
 			seq_printf(sfp, "%s=%d\n", d[i].name, val);
 	}
 #ifdef SDIO_MULTI_PORT_TX_AGGR
-	mp_aggr_pkt_limit = info.mp_aggr_pkt_limit;
 	seq_printf(sfp, "last_recv_wr_bitmap=0x%x last_mp_index=%d\n",
 		   info.last_recv_wr_bitmap, info.last_mp_index);
 	for (i = 0; i < SDIO_MP_DBG_NUM; i++) {
@@ -900,11 +899,11 @@ woal_debug_read(struct seq_file *sfp, void *data)
 	for (i = 0; i < mp_aggr_pkt_limit; i++)
 		seq_printf(sfp, "%d ", info.mpa_rx_count[i]);
 	seq_printf(sfp, "\n");
-#endif
 	seq_printf(sfp, "SDIO MP Update: ");
 	for (i = 0; i < (mp_aggr_pkt_limit * 2); i++)
 		seq_printf(sfp, "%d ", info.mp_update[i]);
 	seq_printf(sfp, "\n");
+#endif
 	seq_printf(sfp, "tcp_ack_drop_cnt=%d\n", priv->tcp_ack_drop_cnt);
 	seq_printf(sfp, "tcp_ack_cnt=%d\n", priv->tcp_ack_cnt);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)

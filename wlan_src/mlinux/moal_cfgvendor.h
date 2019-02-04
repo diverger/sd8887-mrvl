@@ -119,11 +119,17 @@ enum vendor_event {
 
 /** struct dfs_event */
 typedef struct _dfs_event {
+    /** Frequency */
 	int freq;
+    /** HT enable */
 	int ht_enabled;
+    /** Channel Offset */
 	int chan_offset;
+    /** Channel width */
 	enum nl80211_chan_width chan_width;
+    /** Center Frequency 1 */
 	int cf1;
+    /** Center Frequency 2 */
 	int cf2;
 } dfs_event;
 
@@ -145,6 +151,7 @@ void woal_cfg80211_rssi_monitor_event(moal_private *priv, t_s16 rssi);
 enum vendor_sub_command {
 	sub_cmd_set_drvdbg = 0,
 	sub_cmd_dfs_capability = 0x0005,
+	sub_cmd_nd_offload = 0x0100,
 	sub_cmd_get_valid_channels = 0x1009,
 	sub_cmd_get_wifi_supp_feature_set = 0x100a,
 	sub_cmd_set_country_code = 0x100d,
@@ -167,6 +174,11 @@ enum mrvl_wlan_vendor_attr {
 	MRVL_WLAN_VENDOR_ATTR_MAX = MRVL_WLAN_VENDOR_ATTR_AFTER_LAST - 1,
 };
 
-#endif /*endif CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) */
+typedef enum {
+	ATTR_ND_OFFLOAD_INVALID = 0,
+	ATTR_ND_OFFLOAD_CONTROL,
+	ATTR_ND_OFFLOAD_MAX,
+} ND_OFFLOAD_ATTR;
 
+#endif
 #endif /* _MOAL_CFGVENDOR_H_ */

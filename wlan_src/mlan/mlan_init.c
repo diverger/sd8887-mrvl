@@ -3,26 +3,20 @@
  *  @brief This file contains the initialization for FW
  *  and HW.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -190,12 +184,10 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 		140, 144, 149, 153, 157, 161, 165
 	};
 #endif
-	t_u32 max_mp_regs = pmadapter->psdio_device->reg->max_mp_regs;
+	t_u32 max_mp_regs = MAX_MP_REGS;
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
-	t_u32 mp_tx_aggr_buf_size =
-		pmadapter->psdio_device->mp_tx_aggr_buf_size;
-	t_u32 mp_rx_aggr_buf_size =
-		pmadapter->psdio_device->mp_rx_aggr_buf_size;
+	t_u32 mp_tx_aggr_buf_size = SDIO_MP_TX_AGGR_DEF_BUF_SIZE;
+	t_u32 mp_rx_aggr_buf_size = SDIO_MP_RX_AGGR_DEF_BUF_SIZE;
 #endif
 
 	ENTER();
@@ -279,7 +271,8 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 
 #if defined(SDIO_MULTI_PORT_RX_AGGR)
 	ret = pmadapter->callbacks.moal_malloc(pmadapter->pmoal_handle,
-					       MAX_SUPPORT_AMSDU_SIZE,
+					       SDIO_CMD53_MAX_SIZE +
+					       DMA_ALIGNMENT,
 					       MLAN_MEM_DEF | MLAN_MEM_DMA,
 					       (t_u8 **)&pmadapter->rx_buffer);
 	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->rx_buffer) {
@@ -304,8 +297,7 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 #ifdef DEBUG_LEVEL1
 	if (mlan_drvdbg & MMPA_D) {
 		pmadapter->mpa_buf_size =
-			SDIO_MP_DBG_NUM *
-			pmadapter->psdio_device->mp_aggr_pkt_limit *
+			SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT *
 			MLAN_SDIO_BLOCK_SIZE;
 		if (pmadapter->callbacks.moal_vmalloc &&
 		    pmadapter->callbacks.moal_vfree)
@@ -378,7 +370,6 @@ wlan_init_priv(pmlan_private priv)
 		memset(pmadapter, &priv->wep_key[i], 0, sizeof(mrvl_wep_key_t));
 	priv->wep_key_curr_index = 0;
 	priv->ewpa_query = MFALSE;
-	priv->adhoc_aes_enabled = MFALSE;
 	priv->curr_pkt_filter =
 		HostCmd_ACT_MAC_STATIC_DYNAMIC_BW_ENABLE |
 		HostCmd_ACT_MAC_RTS_CTS_ENABLE |
@@ -387,6 +378,8 @@ wlan_init_priv(pmlan_private priv)
 
 	priv->beacon_period = MLAN_BEACON_INTERVAL;
 	priv->pattempted_bss_desc = MNULL;
+	memset(pmadapter, &priv->gtk_rekey, 0,
+	       sizeof(mlan_ds_misc_gtk_rekey_data));
 	memset(pmadapter, &priv->curr_bss_params, 0,
 	       sizeof(priv->curr_bss_params));
 	priv->listen_interval = MLAN_DEFAULT_LISTEN_INTERVAL;
@@ -411,7 +404,6 @@ wlan_init_priv(pmlan_private priv)
 	memset(pmadapter, &priv->adhoc_last_start_ssid, 0,
 	       sizeof(priv->adhoc_last_start_ssid));
 #endif
-	priv->adhoc_channel = DEFAULT_AD_HOC_CHANNEL;
 	priv->atim_window = 0;
 	priv->adhoc_state = ADHOC_IDLE;
 	priv->tx_power_level = 0;
@@ -484,30 +476,20 @@ wlan_init_priv(pmlan_private priv)
 	priv->max_amsdu = 0;
 #ifdef STA_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_STA) {
-		priv->add_ba_param.tx_win_size =
-			pmadapter->psdio_device->ampdu_info->
-			ampdu_sta_txwinsize;
+		priv->add_ba_param.tx_win_size = MLAN_STA_AMPDU_DEF_TXWINSIZE;
 		priv->add_ba_param.rx_win_size = MLAN_STA_AMPDU_DEF_RXWINSIZE;
 	}
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
-		priv->add_ba_param.tx_win_size =
-			pmadapter->psdio_device->ampdu_info->
-			ampdu_wfd_txrxwinsize;
-		priv->add_ba_param.rx_win_size =
-			pmadapter->psdio_device->ampdu_info->
-			ampdu_wfd_txrxwinsize;
+		priv->add_ba_param.tx_win_size = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
+		priv->add_ba_param.rx_win_size = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
 	}
 #endif
 #ifdef UAP_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
-		priv->add_ba_param.tx_win_size =
-			pmadapter->psdio_device->ampdu_info->
-			ampdu_uap_txwinsize;
-		priv->add_ba_param.rx_win_size =
-			pmadapter->psdio_device->ampdu_info->
-			ampdu_uap_rxwinsize;
+		priv->add_ba_param.tx_win_size = MLAN_UAP_AMPDU_DEF_TXWINSIZE;
+		priv->add_ba_param.rx_win_size = MLAN_UAP_AMPDU_DEF_RXWINSIZE;
 		priv->aggr_prio_tbl[6].ampdu_user =
 			priv->aggr_prio_tbl[7].ampdu_user =
 			BA_STREAM_NOT_ALLOWED;
@@ -565,15 +547,9 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->data_sent = MTRUE;
 	pmadapter->mp_rd_bitmap = 0;
 	pmadapter->mp_wr_bitmap = 0;
-	if (pmadapter->psdio_device->supports_sdio_new_mode) {
-		pmadapter->curr_rd_port = 0;
-		pmadapter->curr_wr_port = 0;
-	} else {
-		pmadapter->curr_rd_port = 1;
-		pmadapter->curr_wr_port = 1;
-	}
-	pmadapter->mp_data_port_mask =
-		pmadapter->psdio_device->reg->data_port_mask;
+	pmadapter->curr_rd_port = 0;
+	pmadapter->curr_wr_port = 0;
+	pmadapter->mp_data_port_mask = DATA_PORT_MASK;
 	pmadapter->mp_invalid_update = 0;
 	memset(pmadapter, pmadapter->mp_update, 0,
 	       sizeof(pmadapter->mp_update));
@@ -588,8 +564,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 		pmadapter->mpa_tx.enabled = MFALSE;
 	else
 		pmadapter->mpa_tx.enabled = MTRUE;
-	pmadapter->mpa_tx.pkt_aggr_limit =
-		pmadapter->psdio_device->mp_aggr_pkt_limit;
+	pmadapter->mpa_tx.pkt_aggr_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
 #endif /* SDIO_MULTI_PORT_TX_AGGR */
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
@@ -603,8 +578,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 		pmadapter->mpa_rx.enabled = MFALSE;
 	else
 		pmadapter->mpa_rx.enabled = MTRUE;
-	pmadapter->mpa_rx.pkt_aggr_limit =
-		pmadapter->psdio_device->mp_aggr_pkt_limit;
+	pmadapter->mpa_rx.pkt_aggr_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
 
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
@@ -617,6 +591,8 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 
 	/* PnP and power profile */
 	pmadapter->surprise_removed = MFALSE;
+	/* FW hang report */
+	pmadapter->fw_hang_report = MFALSE;
 
 	if (!pmadapter->init_para.ps_mode) {
 		pmadapter->ps_mode = DEFAULT_PS_MODE;
@@ -637,12 +613,13 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->specific_scan_time = MRVDRV_SPECIFIC_SCAN_CHAN_TIME;
 	pmadapter->active_scan_time = MRVDRV_ACTIVE_SCAN_CHAN_TIME;
 	pmadapter->passive_scan_time = MRVDRV_PASSIVE_SCAN_CHAN_TIME;
+	pmadapter->passive_to_active_scan = MLAN_PASS_TO_ACT_SCAN_EN;
 
 	pmadapter->num_in_scan_table = 0;
 	memset(pmadapter, pmadapter->pscan_table, 0,
 	       (sizeof(BSSDescriptor_t) * MRVDRV_MAX_BSSID_LIST));
 	pmadapter->active_scan_triggered = MFALSE;
-	pmadapter->ext_scan = pmadapter->psdio_device->ext_scan;
+	pmadapter->ext_scan = MTRUE;
 	pmadapter->scan_probes = DEFAULT_PROBES;
 
 	memset(pmadapter, pmadapter->bcn_buf, 0, pmadapter->bcn_buf_size);
@@ -678,8 +655,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->pm_wakeup_fw_try = MFALSE;
 
 	if (!pmadapter->init_para.max_tx_buf)
-		pmadapter->max_tx_buf_size =
-			pmadapter->psdio_device->max_tx_buf_size;
+		pmadapter->max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K;
 	else
 		pmadapter->max_tx_buf_size =
 			(t_u16)pmadapter->init_para.max_tx_buf;
@@ -701,7 +677,6 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->coex_rx_winsize = 1;
 #ifdef STA_SUPPORT
 	pmadapter->chan_bandwidth = 0;
-	pmadapter->adhoc_11n_enabled = MFALSE;
 	pmadapter->tdls_status = TDLS_NOT_SETUP;
 #endif /* STA_SUPPORT */
 
@@ -755,7 +730,6 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	memcpy(pmadapter, pmadapter->country_code, MRVDRV_DEFAULT_COUNTRY_CODE,
 	       COUNTRY_CODE_LEN);
 	pmadapter->bcn_miss_time_out = DEFAULT_BCN_MISS_TIMEOUT;
-	pmadapter->adhoc_awake_period = 0;
 #ifdef STA_SUPPORT
 	memset(pmadapter, &pmadapter->arp_filter, 0,
 	       sizeof(pmadapter->arp_filter));
@@ -1096,6 +1070,15 @@ wlan_init_timer(IN pmlan_adapter pmadapter)
 		ret = MLAN_STATUS_FAILURE;
 		goto error;
 	}
+	if (pcb->
+	    moal_init_timer(pmadapter->pmoal_handle,
+			    &pmadapter->pwakeup_fw_timer,
+			    wlan_wakeup_card_timeout_func, pmadapter)
+	    != MLAN_STATUS_SUCCESS) {
+		ret = MLAN_STATUS_FAILURE;
+		goto error;
+	}
+	pmadapter->wakeup_fw_timer_is_set = MFALSE;
 error:
 	LEAVE();
 	return ret;
@@ -1118,6 +1101,10 @@ wlan_free_timer(IN pmlan_adapter pmadapter)
 	if (pmadapter->pmlan_cmd_timer)
 		pcb->moal_free_timer(pmadapter->pmoal_handle,
 				     pmadapter->pmlan_cmd_timer);
+
+	if (pmadapter->pwakeup_fw_timer)
+		pcb->moal_free_timer(pmadapter->pmoal_handle,
+				     pmadapter->pwakeup_fw_timer);
 
 	LEAVE();
 	return;
@@ -1181,6 +1168,11 @@ wlan_update_hw_spec(IN pmlan_adapter pmadapter)
 	else
 		pmadapter->fw_bands = BAND_B;
 
+	if ((pmadapter->fw_bands & BAND_A) && (pmadapter->fw_bands & BAND_GN))
+		pmadapter->fw_bands |= BAND_AN;
+	if (!(pmadapter->fw_bands & BAND_G) && (pmadapter->fw_bands & BAND_GN))
+		pmadapter->fw_bands &= ~BAND_GN;
+
 	pmadapter->config_bands = pmadapter->fw_bands;
 	for (i = 0; i < pmadapter->priv_num; i++) {
 		if (pmadapter->priv[i]) {
@@ -1189,15 +1181,13 @@ wlan_update_hw_spec(IN pmlan_adapter pmadapter)
 	}
 
 	if (pmadapter->fw_bands & BAND_A) {
-		if (pmadapter->fw_bands & BAND_GN) {
+		if (pmadapter->fw_bands & BAND_AN) {
 			pmadapter->config_bands |= BAND_AN;
 			for (i = 0; i < pmadapter->priv_num; i++) {
 				if (pmadapter->priv[i])
 					pmadapter->priv[i]->config_bands |=
 						BAND_AN;
 			}
-
-			pmadapter->fw_bands |= BAND_AN;
 		}
 		if (pmadapter->fw_bands & BAND_AAC) {
 			pmadapter->config_bands |= BAND_AAC;
@@ -1207,27 +1197,13 @@ wlan_update_hw_spec(IN pmlan_adapter pmadapter)
 						BAND_AAC;
 			}
 		}
-		if ((pmadapter->fw_bands & BAND_AN)
-			) {
-			pmadapter->adhoc_start_band = BAND_A | BAND_AN;
-			pmadapter->adhoc_11n_enabled = MTRUE;
-		} else
-			pmadapter->adhoc_start_band = BAND_A;
+		pmadapter->adhoc_start_band = BAND_A;
 		for (i = 0; i < pmadapter->priv_num; i++) {
 			if (pmadapter->priv[i])
 				pmadapter->priv[i]->adhoc_channel =
 					DEFAULT_AD_HOC_CHANNEL_A;
 		}
 
-	} else if ((pmadapter->fw_bands & BAND_GN)
-		) {
-		pmadapter->adhoc_start_band = BAND_G | BAND_B | BAND_GN;
-		for (i = 0; i < pmadapter->priv_num; i++) {
-			if (pmadapter->priv[i])
-				pmadapter->priv[i]->adhoc_channel =
-					DEFAULT_AD_HOC_CHANNEL;
-		}
-		pmadapter->adhoc_11n_enabled = MTRUE;
 	} else if (pmadapter->fw_bands & BAND_G) {
 		pmadapter->adhoc_start_band = BAND_G | BAND_B;
 		for (i = 0; i < pmadapter->priv_num; i++) {
@@ -1367,6 +1343,13 @@ wlan_free_adapter(pmlan_adapter pmadapter)
 				     pmadapter->pmlan_cmd_timer);
 		pmadapter->cmd_timer_is_set = MFALSE;
 	}
+	if (pmadapter->wakeup_fw_timer_is_set) {
+		/* Cancel wakeup card timer */
+		pcb->moal_stop_timer(pmadapter->pmoal_handle,
+				     pmadapter->pwakeup_fw_timer);
+		pmadapter->wakeup_fw_timer_is_set = MFALSE;
+	}
+	wlan_free_fw_cfp_tables(pmadapter);
 #ifdef STA_SUPPORT
 	PRINTM(MINFO, "Free ScanTable\n");
 	if (pmadapter->pscan_table) {

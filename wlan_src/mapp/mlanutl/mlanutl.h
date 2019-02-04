@@ -2,24 +2,20 @@
   *
   * @brief This file contains definitions for application
   *
-  * (C) Copyright 2011-2018 Marvell International Ltd. All Rights Reserved
+  * Copyright (C) 2011-2018, Marvell International Ltd.
   *
-  * MARVELL CONFIDENTIAL
-  * The source code contained or described herein and all documents related to
-  * the source code ("Material") are owned by Marvell International Ltd or its
-  * suppliers or licensors. Title to the Material remains with Marvell International Ltd
-  * or its suppliers and licensors. The Material contains trade secrets and
-  * proprietary and confidential information of Marvell or its suppliers and
-  * licensors. The Material is protected by worldwide copyright and trade secret
-  * laws and treaty provisions. No part of the Material may be used, copied,
-  * reproduced, modified, published, uploaded, posted, transmitted, distributed,
-  * or disclosed in any way without Marvell's prior express written permission.
+  * This software file (the "File") is distributed by Marvell International
+  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+  * (the "License").  You may use, redistribute and/or modify this File in
+  * accordance with the terms and conditions of the License, a copy of which
+  * is available by writing to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+  * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
   *
-  * No license under any patent, copyright, trade secret or other intellectual
-  * property right is granted to or conferred upon you by disclosure or delivery
-  * of the Materials, either expressly, by implication, inducement, estoppel or
-  * otherwise. Any license under such intellectual property rights must be
-  * express and approved by Marvell in writing.
+  * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+  * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+  * this warranty disclaimer.
   *
   */
 /************************************************************************
@@ -151,8 +147,6 @@ typedef void t_void;
 /** Action field value : set */
 #define ACTION_SET  1
 
-#define CHANNEL_SPEC_SNIFFER_MODE 1
-
 /** Channel usability flags */
 #define MARVELL_CHANNEL_DISABLED			MBIT(7)
 #define MARVELL_CHANNEL_NOHT160				MBIT(4)
@@ -160,6 +154,26 @@ typedef void t_void;
 #define MARVELL_CHANNEL_NOHT40				MBIT(2)
 #define MARVELL_CHANNEL_DFS					MBIT(1)
 #define MARVELL_CHANNEL_PASSIVE				MBIT(0)
+
+char mod_conv_bg_1x1[10][35] = { "CCK            (1,2,5.5,11 Mbps)",
+	"OFDM_PSK       (6,9,12,18 Mbps)",
+	"OFDM_QAM16     (24,36 Mbps)",
+	"OFDM_QAM64     (48,54 Mbps)",
+	"HT_20_PSK      (MCS 0,1,2)",
+	"HT_20_QAM16    (MCS 3,4)",
+	"HT_20_QAM64    (MCS 5,6,7)",
+	"HT_40_PSK      (MCS 0,1,2)",
+	"HT_40_QAM16    (MCS 3,4)",
+	"HT_40_QAM64    (MCS 5,6,7)"
+};
+
+char mod_conv_a_1x1[6][35] = { "VHT_20_QAM256  (MCS 8)",
+	"VHT_40_QAM256  (MCS 8,9)",
+	"VHT_80_PSK     (MCS 0,1,2)",
+	"VHT_80_QAM16   (MCS 3,4)",
+	"VHT_80_QAM64   (MCS 5,6,7)",
+	"VHT_80_QAM256  (MCS 8,9)"
+};
 
 /** Socket */
 extern t_s32 sockfd;
@@ -282,7 +296,6 @@ struct eth_priv_bandcfg {
 	t_u32 adhoc_start_band;
     /** Ad-hoc start channel */
 	t_u32 adhoc_channel;
-	t_u32 adhoc_chan_bandwidth;
     /** fw supported band */
 	t_u32 fw_bands;
 };
@@ -545,6 +558,8 @@ struct eth_priv_scan_cfg {
 	t_u32 scan_probe;
     /** Scan time parameters */
 	struct eth_priv_scan_time_params scan_time;
+    /** First passive scan then active scan */
+	t_u8 passive_to_active_scan;
     /** Extended Scan */
 	t_u32 ext_scan;
 };
@@ -602,8 +617,6 @@ struct eth_priv_ds_ps_cfg {
 	t_u32 multiple_dtim_interval;
     /** Listen interval */
 	t_u32 listen_interval;
-    /** Adhoc awake period */
-	t_u32 adhoc_awake_period;
     /** Beacon miss timeout in milliseconds */
 	t_u32 bcn_miss_timeout;
     /** Delay to PS in milliseconds */
@@ -664,6 +677,13 @@ enum {
 	MLAN_SCAN_TYPE_PASSIVE
 };
 
+/** Enumeration for passive to active scan */
+enum _mlan_pass_to_act_scan {
+	MLAN_PASS_TO_ACT_SCAN_UNCHANGED = 0,
+	MLAN_PASS_TO_ACT_SCAN_EN,
+	MLAN_PASS_TO_ACT_SCAN_DIS
+};
+
 /** IEEE Type definitions  */
 typedef enum _IEEEtypes_ElementId_e {
 	SSID = 0,
@@ -675,6 +695,8 @@ typedef enum _IEEEtypes_ElementId_e {
 	IBSS_PARAM_SET = 6,
 
 	COUNTRY_INFO = 7,
+
+	TCLAS = 14,
 
 	POWER_CONSTRAINT = 32,
 	POWER_CAPABILITY = 33,
@@ -977,6 +999,8 @@ typedef struct {
 
     /** Gap between two scans */
 	t_u16 scan_chan_gap;
+	/** scan type: 0 legacy, 1: enhance scan*/
+	t_u8 ext_scan_type;
 
 } __ATTRIB_PACK__ wlan_ioctl_user_scan_cfg;
 
@@ -2190,6 +2214,8 @@ typedef struct MAPP_HostCmd_DS_802_11_CRYPTO_WAPI {
 #define CIPHER_TEST_WAPI (5)
 /** AES CCM cipher test */
 #define CIPHER_TEST_AES_CCM (4)
+/** GCMP cipher test */
+#define CIPHER_TEST_GCMP (6)
 /** Host Command ID : 802.11 crypto */
 #define HostCmd_CMD_802_11_CRYPTO             0x0078
 /** Get the current TSF */
@@ -2590,6 +2616,37 @@ typedef struct _tlvbuf_rx_pkt_coal_t {
 /** Minimum WPA passphrase length */
 #define MIN_WPA_PASSPHRASE_LENGTH   8
 
+/* CW_MODE_CTRL structure*/
+typedef struct {
+	t_u8 mode;
+	t_u8 channel;
+	t_u8 chanInfo;
+	t_u16 txPower;
+	t_u16 pktLength;
+	t_u32 rateInfo;
+} __ATTRIB_PACK__ cw_mode_ctrl;
+
+/** channel statictics */
+typedef struct _ChStat_t {
+    /** channle number */
+	t_u8 chan_num;
+    /** total network */
+	t_u16 total_networks;
+    /** busy duration */
+	t_u16 cca_busy_duration;
+} ChStat_t, *pChStat_t;
+
+#define MAX_CH_STATS    MAX_BG_CHANNEL
+/** Type definition of mlan_acs_scan */
+typedef struct _acs_result {
+    /** Best Channel Number */
+	t_u8 best_ch;
+    /** Channel Statistics Number */
+	t_u8 ch_stats_num;
+    /** Channel Statistics */
+	ChStat_t ch_stats[0];
+} acs_result, *pacs_result;
+
 /** BF Global Configuration */
 #define BF_GLOBAL_CONFIGURATION     0x00
 /** Performs NDP sounding for PEER specified */
@@ -2660,5 +2717,86 @@ typedef struct _snr_thr_cfg {
     /** SNR for peer */
 	t_u8 snr;
 } snr_thr_cfg;
+
+/**
+ *  Type definitions for TCLAS element
+ */
+#define TCLAS_CLASSIFIER_TYPE_4      4
+
+/**
+ *  IEEE TCLAS Classifier Type 4
+ *
+ *  Type definition for Classifier Type 4 in TCLAS element
+ *
+ */
+typedef struct _IEEEtypes_TCLAS_IPv4_t {
+    /** Version */
+	t_u8 version;
+    /** Source IP address */
+	t_u8 source_ip_addr[4];
+    /** Dest IP address */
+	t_u8 dest_ip_addr[4];
+    /** Source port */
+	t_u8 source_port[2];
+    /** Dest port */
+	t_u8 dest_port[2];
+    /** DSCP value */
+	t_u8 dscp;
+    /** Protocol value */
+	t_u8 protocol;
+    /** Reserved */
+	t_u8 reserved;
+} __ATTRIB_PACK__ IEEEtypes_TCLAS_IPv4_t;
+
+/**
+ *  IEEE TCLAS base
+ *
+ *  Type definition for common parameters for every
+ *    classifier type
+ *
+ */
+typedef struct _IEEEtypes_TCLAS_Base_t {
+    /** Element id */
+	IEEEtypes_ElementId_e element_id;
+    /** Element len */
+	t_u8 element_len;
+    /** User priority */
+	t_u8 user_priority;
+    /** Classifier type */
+	t_u8 classifier_type;
+    /** Classifier mask */
+	t_u8 classifier_mask;
+} __ATTRIB_PACK__ IEEEtypes_TCLAS_Base_t;
+
+/**
+ *  IEEE TCLAS element
+ *
+ *  Type definition for TCLAS element with different
+ *    classifier types
+ *
+ */
+typedef struct _IEEEtypes_TCLAS_t {
+    /** Base structure for TCLAS */
+	IEEEtypes_TCLAS_Base_t tclas_base;
+
+	union {
+	/** Classifier type 4 */
+		IEEEtypes_TCLAS_IPv4_t ipv4;
+	} __ATTRIB_PACK__ classifier;
+} __ATTRIB_PACK__ IEEEtypes_TCLAS_t;
+
+/**
+ *  TCLAS element TLV
+ *
+ *  Structure that defines TLV for TCLAS element with different
+ *    classifier types
+ *
+ */
+typedef struct tclasElemen_tlv {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** Tclas Ie */
+	IEEEtypes_TCLAS_t tclas_ie;
+} __ATTRIB_PACK__ tclas_element_tlv_t;
 
 #endif /* _MLANUTL_H_ */

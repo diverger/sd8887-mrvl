@@ -43,6 +43,7 @@ Change log:
 #if CFG80211_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 extern int dfs_offload;
 #endif
+
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -1119,13 +1120,10 @@ woal_uap_ht_tx_cfg(struct net_device *dev, struct ifreq *req)
 	if (!param.action) {
 		/* Get 11n tx parameters from MLAN */
 		ioctl_req->action = MLAN_ACT_GET;
-		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_BG;
 	} else {
 		/* Set HT Tx configurations */
 		cfg_11n->param.tx_cfg.httxcap = httx_cfg.httxcap;
 		PRINTM(MINFO, "SET: httxcap:0x%x\n", httx_cfg.httxcap);
-		cfg_11n->param.tx_cfg.misc_cfg = httx_cfg.misc_cfg;
-		PRINTM(MINFO, "SET: httxcap band:0x%x\n", httx_cfg.misc_cfg);
 		/* Update 11n tx parameters in MLAN */
 		ioctl_req->action = MLAN_ACT_SET;
 	}
@@ -1137,16 +1135,6 @@ woal_uap_ht_tx_cfg(struct net_device *dev, struct ifreq *req)
 	if (ioctl_req->action == MLAN_ACT_GET) {
 		httx_cfg.httxcap = cfg_11n->param.tx_cfg.httxcap;
 		PRINTM(MINFO, "GET: httxcap:0x%x\n", httx_cfg.httxcap);
-		cfg_11n->param.tx_cfg.httxcap = 0;
-		cfg_11n->param.tx_cfg.misc_cfg = BAND_SELECT_A;
-		status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-		if (status != MLAN_STATUS_SUCCESS) {
-			ret = -EFAULT;
-			goto done;
-		}
-		httx_cfg.misc_cfg = cfg_11n->param.tx_cfg.httxcap;
-		PRINTM(MINFO, "GET: httxcap for 5GHz:0x%x\n",
-		       httx_cfg.misc_cfg);
 	}
 	/* Copy to user */
 	if (copy_to_user(req->ifr_data + sizeof(ht_tx_cfg_para_hdr),
@@ -1599,7 +1587,7 @@ woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 				    ((tx_rate_config.rate_format ==
 				      MLAN_RATE_FORMAT_HT) &&
 				     (tx_rate_config.rate != 32) &&
-				     (tx_rate_config.rate > 15)
+				     (tx_rate_config.rate > 7)
 				    )
 				    ||
 				    ((tx_rate_config.rate_format ==
@@ -1663,155 +1651,6 @@ woal_uap_tx_rate_cfg(struct net_device *dev, struct ifreq *req)
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(mreq);
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief Set/Get RF antenna mode
- *
- *  @param dev      A pointer to net_device structure
- *  @param req      A pointer to ifreq structure
- *
- * @return           0 --success, otherwise fail
- */
-static int
-woal_uap_antenna_cfg(struct net_device *dev, struct ifreq *req)
-{
-	moal_private *priv = (moal_private *)netdev_priv(dev);
-	int ret = 0;
-	mlan_ds_radio_cfg *radio = NULL;
-	mlan_ioctl_req *mreq = NULL;
-	ant_cfg_t antenna_config;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	/* Sanity check */
-	if (req->ifr_data == NULL) {
-		PRINTM(MERROR, "uap_antenna_cfg() corrupt data\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	memset(&antenna_config, 0, sizeof(ant_cfg_t));
-	/* Get user data */
-	if (copy_from_user(&antenna_config, req->ifr_data, sizeof(ant_cfg_t))) {
-		PRINTM(MERROR, "Copy from user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	mreq = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
-	if (mreq == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	radio = (mlan_ds_radio_cfg *)mreq->pbuf;
-	radio->sub_command = MLAN_OID_ANT_CFG;
-	mreq->req_id = MLAN_IOCTL_RADIO_CFG;
-	if (!(antenna_config.action))
-		mreq->action = MLAN_ACT_GET;
-	else {
-		mreq->action = MLAN_ACT_SET;
-		radio->param.ant_cfg.tx_antenna = antenna_config.tx_mode;
-		radio->param.ant_cfg.rx_antenna = antenna_config.rx_mode;
-	}
-
-	status = woal_request_ioctl(priv, mreq, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-	if (mreq->action == MLAN_ACT_GET) {
-		antenna_config.tx_mode = radio->param.ant_cfg.tx_antenna;
-		antenna_config.rx_mode = radio->param.ant_cfg.rx_antenna;
-		if (copy_to_user
-		    (req->ifr_data, &antenna_config, sizeof(ant_cfg_t))) {
-			PRINTM(MERROR, "Copy to user failed\n");
-			ret = -EFAULT;
-		}
-	}
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(mreq);
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief Set/Get HT stream configurations
- *
- *  @param dev      A pointer to net_device structure
- *  @param req      A pointer to ifreq structure
- *
- * @return           0 --success, otherwise fail
- */
-static int
-woal_uap_htstream_cfg(struct net_device *dev, struct ifreq *req)
-{
-	moal_private *priv = (moal_private *)netdev_priv(dev);
-	int ret = 0;
-	mlan_ds_11n_cfg *cfg = NULL;
-	mlan_ioctl_req *ioctl_req = NULL;
-	htstream_cfg_t htstream_cfg;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	memset(&htstream_cfg, 0, sizeof(htstream_cfg_t));
-
-	/* Sanity check */
-	if (req->ifr_data == NULL) {
-		PRINTM(MERROR, "woal_uap_htstream_cfg corrupt data\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if (copy_from_user
-	    (&htstream_cfg, req->ifr_data, sizeof(htstream_cfg_t))) {
-		PRINTM(MERROR, "Copy from user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11n_cfg));
-	if (ioctl_req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	cfg = (mlan_ds_11n_cfg *)ioctl_req->pbuf;
-	cfg->sub_command = MLAN_OID_11N_CFG_STREAM_CFG;
-	ioctl_req->req_id = MLAN_IOCTL_11N_CFG;
-
-	if (!htstream_cfg.action) {
-		/* Get operation */
-		ioctl_req->action = MLAN_ACT_GET;
-	} else {
-		/* Update HT stream parameter in MLAN */
-		ioctl_req->action = MLAN_ACT_SET;
-		/* Set HT Stream configuration */
-		cfg->param.stream_cfg = htstream_cfg.stream_cfg;
-		PRINTM(MINFO, "SET: htstream_cfg:0x%x\n",
-		       cfg->param.stream_cfg);
-	}
-	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-	/* Copy to user */
-	if (ioctl_req->action == MLAN_ACT_GET) {
-		PRINTM(MINFO, "GET: htstream_cfg:0x%x\n",
-		       htstream_cfg.stream_cfg);
-		htstream_cfg.stream_cfg = cfg->param.stream_cfg;
-		if (copy_to_user(req->ifr_data,
-				 &htstream_cfg, sizeof(htstream_cfg_t))) {
-			PRINTM(MERROR, "Copy to user failed!\n");
-			ret = -EFAULT;
-			goto done;
-		}
-	}
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(ioctl_req);
 	LEAVE();
 	return ret;
 }
@@ -2045,12 +1884,6 @@ woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 	case UAP_TX_RATE_CFG:
 		ret = woal_uap_tx_rate_cfg(dev, req);
 		break;
-	case UAP_ANTENNA_CFG:
-		ret = woal_uap_antenna_cfg(dev, req);
-		break;
-	case UAP_HT_STREAM_CFG:
-		ret = woal_uap_htstream_cfg(dev, req);
-		break;
 	case UAP_CAC_TIMER_STATUS:
 		ret = woal_uap_cac_timer_status(dev, req);
 		break;
@@ -2227,142 +2060,6 @@ woal_uap_bss_ctrl_ioctl(struct net_device *dev, struct ifreq *req)
 	ret = woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, data);
 
 done:
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief uap report mic error ioctl handler
- *
- *  @param dev      A pointer to net_device structure
- *  @param req      A pointer to ifreq structure
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_uap_report_mic_ioctl(struct net_device *dev, struct ifreq *req)
-{
-	moal_private *priv = (moal_private *)netdev_priv(dev);
-	mlan_ioctl_req *ioctl_req = NULL;
-	mlan_ds_sec_cfg *sec = NULL;
-	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH];
-	int ret = 0;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	memset(mac_addr, 0, MLAN_MAC_ADDR_LENGTH);
-	/* Sanity check */
-	if (req->ifr_data == NULL) {
-		PRINTM(MERROR, "uap_report_mic_ioctl() corrupt data\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if (copy_from_user(mac_addr, req->ifr_data, MLAN_MAC_ADDR_LENGTH)) {
-		PRINTM(MERROR, "Copy from user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	PRINTM(MINFO, "ioctl report mic err station: " MACSTR "\n",
-	       MAC2STR(mac_addr));
-
-	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
-	if (ioctl_req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	sec = (mlan_ds_sec_cfg *)ioctl_req->pbuf;
-	sec->sub_command = MLAN_OID_SEC_CFG_REPORT_MIC_ERR;
-	ioctl_req->req_id = MLAN_IOCTL_SEC_CFG;
-	ioctl_req->action = MLAN_ACT_SET;
-	memcpy(sec->param.sta_mac, mac_addr, MLAN_MAC_ADDR_LENGTH);
-
-	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(ioctl_req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief uap set key ioctl handler
- *
- *  @param dev      A pointer to net_device structure
- *  @param req      A pointer to ifreq structure
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_uap_set_key_ioctl(struct net_device *dev, struct ifreq *req)
-{
-	moal_private *priv = (moal_private *)netdev_priv(dev);
-	mlan_ioctl_req *ioctl_req = NULL;
-	mlan_ds_sec_cfg *sec = NULL;
-	encrypt_key key;
-	int ret = 0;
-	t_u8 bcast_addr[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	memset(&key, 0, sizeof(encrypt_key));
-	/* Sanity check */
-	if (req->ifr_data == NULL) {
-		PRINTM(MERROR, "uap_set_key_ioctl() corrupt data\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	if (copy_from_user(&key, req->ifr_data, sizeof(encrypt_key))) {
-		PRINTM(MERROR, "Copy from user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	PRINTM(MIOCTL,
-	       "ioctl report set key: " MACSTR " key_index=%d, key_len=%d \n",
-	       MAC2STR(key.mac_addr), (int)key.key_index, (int)key.key_len);
-
-	if ((key.key_len > MLAN_MAX_KEY_LENGTH) || (key.key_index > 3)) {
-		ret = -EINVAL;
-		goto done;
-	}
-
-	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
-	if (ioctl_req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	sec = (mlan_ds_sec_cfg *)ioctl_req->pbuf;
-	sec->sub_command = MLAN_OID_SEC_CFG_ENCRYPT_KEY,
-		ioctl_req->req_id = MLAN_IOCTL_SEC_CFG;
-	ioctl_req->action = MLAN_ACT_SET;
-
-	memcpy(sec->param.encrypt_key.mac_addr, key.mac_addr,
-	       MLAN_MAC_ADDR_LENGTH);
-	sec->param.encrypt_key.key_index = key.key_index;
-	sec->param.encrypt_key.key_len = key.key_len;
-	memcpy(sec->param.encrypt_key.key_material, key.key_material,
-	       key.key_len);
-	if (0 == memcmp(sec->param.encrypt_key.mac_addr, bcast_addr, ETH_ALEN))
-		 sec->param.encrypt_key.key_flags = KEY_FLAG_GROUP_KEY;
-	else
-		sec->param.encrypt_key.key_flags = KEY_FLAG_SET_TX_KEY;
-
-	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(ioctl_req);
 	LEAVE();
 	return ret;
 }
@@ -3041,13 +2738,11 @@ woal_uap_set_11n_status(moal_private *priv, mlan_uap_bss_param *sys_cfg,
 	if (action == MLAN_ACT_DISABLE) {
 		if ((sys_cfg->supported_mcs_set[0] == 0)
 		    && (sys_cfg->supported_mcs_set[4] == 0)
-		    && (sys_cfg->supported_mcs_set[1] == 0)
 			) {
 			goto done;
 		} else {
 			sys_cfg->supported_mcs_set[0] = 0;
 			sys_cfg->supported_mcs_set[4] = 0;
-			sys_cfg->supported_mcs_set[1] = 0;
 		}
 	}
 
@@ -3055,13 +2750,6 @@ woal_uap_set_11n_status(moal_private *priv, mlan_uap_bss_param *sys_cfg,
 		woal_request_get_fw_info(priv, MOAL_IOCTL_WAIT, &fw_info);
 		sys_cfg->supported_mcs_set[0] = 0xFF;
 		sys_cfg->supported_mcs_set[4] = 0x01;
-		if (fw_info.usr_dev_mcs_support == HT_STREAM_MODE_2X2) {
-			sys_cfg->supported_mcs_set[1] = 0xFF;
-			sys_cfg->supported_mcs_set[12] |= MBIT(2);
-		} else {
-			sys_cfg->supported_mcs_set[1] = 0;
-			sys_cfg->supported_mcs_set[12] &= ~(MBIT(2) | MBIT(3));
-		}
 	}
 
 done:
@@ -3610,10 +3298,18 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 #endif
 			) {
 			/* about to start bss: issue channel check */
-			woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
+			status = woal_11h_channel_check_ioctl(priv,
+							      MOAL_IOCTL_WAIT);
+			if (status) {
+				PRINTM(MMSG, "11h channel check fails\n");
+				ret = -EINVAL;
+				goto done;
+			}
 		}
 		bss->sub_command = MLAN_OID_BSS_START;
-		bss->param.host_based = priv->uap_host_based;
+		if (priv->uap_host_based) {
+			bss->param.host_based |= UAP_FLAG_HOST_BASED;
+		}
 		break;
 	case UAP_BSS_STOP:
 		if (priv->bss_started == MFALSE) {
@@ -3709,12 +3405,6 @@ woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		break;
 	case UAP_RADIO_CTL:
 		ret = woal_uap_radio_ctl(dev, req);
-		break;
-	case UAP_REPORT_MIC_ERR:
-		ret = woal_uap_report_mic_ioctl(dev, req);
-		break;
-	case UAP_SET_KEY:
-		ret = woal_uap_set_key_ioctl(dev, req);
 		break;
 	case UAPHOSTPKTINJECT:
 		ret = woal_send_host_packet(dev, req);

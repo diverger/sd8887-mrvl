@@ -50,12 +50,7 @@ static t_u8 SupportedInfraBand[] = {
 /** Bands supported in Ad-Hoc mode */
 static t_u8 SupportedAdhocBand[] = {
 	BAND_B, BAND_B | BAND_G, BAND_G,
-	BAND_GN, BAND_B | BAND_G | BAND_GN, BAND_G | BAND_GN,
-	BAND_GN | BAND_GAC, BAND_B | BAND_G | BAND_GN | BAND_GAC,
-		BAND_G | BAND_GN | BAND_GAC,
 	BAND_A,
-	BAND_AN, BAND_A | BAND_AN,
-	BAND_AN | BAND_AAC, BAND_A | BAND_AN | BAND_AAC,
 };
 
 /********************************************************
@@ -1511,12 +1506,11 @@ woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 {
 	int ret = 0;
 	unsigned int i;
-	int data[4];
+	int data[3];
 	int user_data_len = wrq->u.data.length, copy_len;
 	t_u32 infra_band = 0;
 	t_u32 adhoc_band = 0;
 	t_u32 adhoc_channel = 0;
-	t_u32 adhoc_chan_bandwidth = 0;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_radio_cfg *radio_cfg = NULL;
 	mlan_status status = MLAN_STATUS_SUCCESS;
@@ -1561,15 +1555,6 @@ woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 		/* Adhoc Channel */
 		data[2] = radio_cfg->param.band_cfg.adhoc_channel;
 		wrq->u.data.length = 3;
-		if (radio_cfg->param.band_cfg.adhoc_start_band & BAND_GN
-		    || radio_cfg->param.band_cfg.adhoc_start_band & BAND_AN
-		    || radio_cfg->param.band_cfg.adhoc_start_band & BAND_GAC
-		    || radio_cfg->param.band_cfg.adhoc_start_band & BAND_AAC) {
-			/* secondary bandwidth */
-			data[3] =
-				radio_cfg->param.band_cfg.adhoc_chan_bandwidth;
-			wrq->u.data.length = 4;
-		}
 
 		if (copy_to_user
 		    (wrq->u.data.pointer, data,
@@ -1615,33 +1600,11 @@ woal_band_cfg(moal_private *priv, struct iwreq *wrq)
 				goto error;
 			}
 		}
-		if (user_data_len == 4) {
-			if (!(adhoc_band & (BAND_GN
-					    | BAND_GAC | BAND_AN | BAND_AAC))) {
-				PRINTM(MERROR,
-				       "11n is not enabled for adhoc, can not set HT/VHT channel bandwidth\n");
-				ret = -EINVAL;
-				goto error;
-			}
-			adhoc_chan_bandwidth = data[3];
-			if ((adhoc_chan_bandwidth != CHANNEL_BW_20MHZ) &&
-			    (adhoc_chan_bandwidth != CHANNEL_BW_40MHZ_ABOVE) &&
-			    (adhoc_chan_bandwidth != CHANNEL_BW_40MHZ_BELOW)
-			    && (adhoc_chan_bandwidth != CHANNEL_BW_80MHZ)
-				) {
-				PRINTM(MERROR,
-				       "Invalid secondary channel bandwidth, only allowed 0, 1, 3 or 4\n");
-				ret = -EINVAL;
-				goto error;
-			}
-		}
 		/* Set config_bands and adhoc_start_band values to MLAN */
 		req->action = MLAN_ACT_SET;
 		radio_cfg->param.band_cfg.config_bands = infra_band;
 		radio_cfg->param.band_cfg.adhoc_start_band = adhoc_band;
 		radio_cfg->param.band_cfg.adhoc_channel = adhoc_channel;
-		radio_cfg->param.band_cfg.adhoc_chan_bandwidth =
-			adhoc_chan_bandwidth;
 		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 		if (status != MLAN_STATUS_SUCCESS) {
 			ret = -EFAULT;
@@ -1875,147 +1838,6 @@ woal_mem_read_write(moal_private *priv, struct iwreq *wrq)
 			goto done;
 		}
 		wrq->u.data.length = 1;
-	}
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Set/Get network monitor configurations
- *
- *  @param priv         A pointer to moal_private structure
- *  @param wrq          A pointer to iwreq structure
- *
- *  @return             0 --success, otherwise fail
- */
-static int
-woal_net_monitor_ioctl(moal_private *priv, struct iwreq *wrq)
-{
-	int user_data_len = wrq->u.data.length;
-	int data[5] = { 0 }, copy_len;
-	int ret = 0;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_ds_misc_net_monitor *net_mon = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	copy_len = MIN(sizeof(data), sizeof(int) * user_data_len);
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		LEAVE();
-		return -ENOMEM;
-	}
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	net_mon = (mlan_ds_misc_net_monitor *)&misc->param.net_mon;
-	misc->sub_command = MLAN_OID_MISC_NET_MONITOR;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	if (!user_data_len) {
-		req->action = MLAN_ACT_GET;
-	} else if (user_data_len == 1 || user_data_len == 4
-		   || user_data_len == 5) {
-		if (copy_from_user(data, wrq->u.data.pointer, copy_len)) {
-			PRINTM(MERROR, "Copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		if (data[0] != MTRUE && data[0] != MFALSE) {
-			PRINTM(MERROR,
-			       "NET_MON: Activity should be enable(=1)/disable(=0)\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		net_mon->enable_net_mon = data[0];
-		if (data[0] == MTRUE) {
-			int i;
-			if (user_data_len != 4 && user_data_len != 5) {
-				PRINTM(MERROR,
-				       "NET_MON: Invalid number of args!\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			/* Supported filter flags */
-			if (!data[1] || data[1] &
-			    ~(MLAN_NETMON_DATA_FRAME |
-			      MLAN_NETMON_MANAGEMENT_FRAME |
-			      MLAN_NETMON_CONTROL_FRAME)) {
-				PRINTM(MERROR,
-				       "NET_MON: Invalid filter flag\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			/* Supported bands */
-			for (i = 0; i < sizeof(SupportedAdhocBand); i++)
-				if (data[2] == SupportedAdhocBand[i])
-					break;
-			if (i == sizeof(SupportedAdhocBand)) {
-				PRINTM(MERROR, "NET_MON: Invalid band\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			/* Supported channel */
-			if (data[3] < 1 || data[3] > MLAN_MAX_CHANNEL) {
-				PRINTM(MERROR,
-				       "NET_MON: Invalid channel number\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			if (user_data_len == 5) {
-				/* Secondary channel offset */
-				if (!(data[2] & (BAND_GN | BAND_AN))) {
-					PRINTM(MERROR,
-					       "No 11n in band, can not set "
-					       "secondary channel offset\n");
-					ret = -EINVAL;
-					goto done;
-				}
-				if ((data[4] != CHANNEL_BW_20MHZ) &&
-				    (data[4] != CHANNEL_BW_40MHZ_ABOVE) &&
-				    (data[4] != CHANNEL_BW_40MHZ_BELOW)
-				    && (data[4] != CHANNEL_BW_80MHZ)
-					) {
-					PRINTM(MERROR,
-					       "Invalid secondary channel bandwidth, "
-					       "only allowed 0, 1, 3 or 4\n");
-					ret = -EINVAL;
-					goto done;
-				}
-				net_mon->chan_bandwidth = data[4];
-			}
-			net_mon->filter_flag = data[1];
-			net_mon->band = data[2];
-			net_mon->channel = data[3];
-		}
-		req->action = MLAN_ACT_SET;
-	} else {
-		PRINTM(MERROR, "NET_MON: Invalid number of args!\n");
-		ret = -EINVAL;
-		goto done;
-	}
-
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	data[0] = net_mon->enable_net_mon;
-	data[1] = net_mon->filter_flag;
-	data[2] = net_mon->band;
-	data[3] = net_mon->channel;
-	data[4] = net_mon->chan_bandwidth;
-	wrq->u.data.length = 5;
-	if (copy_to_user
-	    (wrq->u.data.pointer, data, sizeof(int) * wrq->u.data.length)) {
-		PRINTM(MERROR, "Copy to user failed\n");
-		ret = -EFAULT;
-		goto done;
 	}
 
 done:
@@ -2674,7 +2496,7 @@ woal_set_get_txrate(moal_private *priv, struct iwreq *wrq)
 		else {
 			if ((rateindex != MLAN_RATE_INDEX_MCS32) &&
 			    ((rateindex < 0) ||
-			     (rateindex > MLAN_RATE_INDEX_MCS15))) {
+			     (rateindex > MLAN_RATE_INDEX_MCS7))) {
 				ret = -EINVAL;
 				goto done;
 			}
@@ -3287,74 +3109,6 @@ done:
 }
 
 /**
- *  @brief Control Coalescing status Enable/Disable
- *
- *  @param priv     Pointer to the moal_private driver data struct
- *  @param wrq      Pointer to user data
- *
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_coalescing_status_ioctl(moal_private *priv, struct iwreq *wrq)
-{
-	int ret = 0;
-	mlan_ds_misc_cfg *pcoal = NULL;
-	mlan_ioctl_req *req = NULL;
-	char buf[8];
-	struct iwreq *wreq = (struct iwreq *)wrq;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	pcoal = (mlan_ds_misc_cfg *)req->pbuf;
-
-	memset(buf, 0, sizeof(buf));
-	if (!wrq->u.data.length) {
-		req->action = MLAN_ACT_GET;
-	} else {
-		req->action = MLAN_ACT_SET;
-		if (copy_from_user(buf, wrq->u.data.pointer,
-				   MIN(sizeof(buf) - 1, wreq->u.data.length))) {
-			PRINTM(MINFO, "Copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		if (buf[0] == 1)
-			pcoal->param.coalescing_status =
-				MLAN_MISC_COALESCING_ENABLE;
-		else
-			pcoal->param.coalescing_status =
-				MLAN_MISC_COALESCING_DISABLE;
-	}
-
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-	pcoal->sub_command = MLAN_OID_MISC_COALESCING_STATUS;
-
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-	buf[0] = ((mlan_ds_misc_cfg *)req->pbuf)->param.coalescing_status;
-
-	if (copy_to_user(wrq->u.data.pointer, buf, wrq->u.data.length)) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Set/get user provisioned local power constraint
  *
  *  @param priv     A pointer to moal_private structure
@@ -3407,70 +3161,6 @@ woal_set_get_11h_local_pwr_constraint(moal_private *priv, struct iwreq *wrq)
 		}
 		wrq->u.data.length = 1;
 	}
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Set/get HT stream configurations
- *
- *  @param priv     A pointer to moal_private structure
- *  @param wrq      A pointer to iwreq structure
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_ht_stream_cfg_ioctl(moal_private *priv, struct iwreq *wrq)
-{
-	int ret = 0, data = 0;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_11n_cfg *cfg = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11n_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	cfg = (mlan_ds_11n_cfg *)req->pbuf;
-	if (wrq->u.data.length) {
-		if (copy_from_user(&data, wrq->u.data.pointer, sizeof(int))) {
-			PRINTM(MINFO, "Copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		if (data != HT_STREAM_MODE_1X1 && data != HT_STREAM_MODE_2X2) {
-			PRINTM(MINFO, "Invalid argument\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		cfg->param.stream_cfg = data;
-		req->action = MLAN_ACT_SET;
-	} else
-		req->action = MLAN_ACT_GET;
-
-	cfg->sub_command = MLAN_OID_11N_CFG_STREAM_CFG;
-	req->req_id = MLAN_IOCTL_11N_CFG;
-
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	/* Copy response to user */
-	data = (int)cfg->param.stream_cfg;
-	if (copy_to_user(wrq->u.data.pointer, &data, sizeof(int))) {
-		PRINTM(MINFO, "Copy to user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	wrq->u.data.length = 1;
 
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -3582,72 +3272,6 @@ woal_thermal_ioctl(moal_private *priv, struct iwreq *wrq)
 	data = (int)cfg->param.thermal;
 	if (copy_to_user(wrq->u.data.pointer, &data, sizeof(int))) {
 		PRINTM(MINFO, "Copy to user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	wrq->u.data.length = 1;
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Set/get hotspot enable state
- *
- *  @param priv     Pointer to the moal_private driver data struct
- *  @param wrq      Pointer to user data
- *
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_cfg_hotspot(moal_private *priv, struct iwreq *wrq)
-{
-	int ret = 0;
-	mlan_ioctl_req *req = NULL;
-	mlan_ds_misc_cfg *cfg = NULL;
-	int config;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	if (wrq->u.data.length > 1) {
-		PRINTM(MERROR, "Invalid no of arguments!\n");
-		ret = -EINVAL;
-		goto done;
-	}
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	cfg = (mlan_ds_misc_cfg *)req->pbuf;
-	if (wrq->u.data.length == 0)
-		req->action = MLAN_ACT_GET;
-	else {
-		if (copy_from_user(&config, wrq->u.data.pointer, sizeof(int))) {
-			PRINTM(MERROR, "copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-		cfg->param.hotspot_cfg = config;
-		req->action = MLAN_ACT_SET;
-	}
-
-	cfg->sub_command = MLAN_OID_MISC_HOTSPOT_CFG;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	config = cfg->param.hotspot_cfg;
-	if (copy_to_user(wrq->u.data.pointer, &config, sizeof(int))) {
 		ret = -EFAULT;
 		goto done;
 	}
@@ -3979,11 +3603,6 @@ woal_passphrase(moal_private *priv, struct iwreq *wrq)
 
 	ENTER();
 
-	if (!priv->phandle->card_info->embedded_supp) {
-		PRINTM(MERROR, "Not supported cmd on this card\n");
-		ret = -EOPNOTSUPP;
-		goto done;
-	}
 	if (!data_length || data_length >= sizeof(buf)) {
 		PRINTM(MERROR,
 		       "Argument missing or too long for setpassphrase\n");
@@ -4165,11 +3784,6 @@ woal_get_esupp_mode(moal_private *priv, struct iwreq *wrq)
 
 	ENTER();
 
-	if (!priv->phandle->card_info->embedded_supp) {
-		PRINTM(MERROR, "Not supported cmd on this card\n");
-		ret = -EOPNOTSUPP;
-		goto done;
-	}
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
 	if (req == NULL) {
 		ret = -ENOMEM;
@@ -4193,286 +3807,6 @@ woal_get_esupp_mode(moal_private *priv, struct iwreq *wrq)
 		goto done;
 	}
 	wrq->u.data.length = 3;
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/** AES key length */
-#define AES_KEY_LEN 16
-/**
- *  @brief Adhoc AES control
- *
- *  @param priv     A pointer to moal_private structure
- *  @param wrq      A pointer to the iwreq structure
- *
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_adhoc_aes_ioctl(moal_private *priv, struct iwreq *wrq)
-{
-	static char buf[256];
-	int ret = 0, action = -1;
-	unsigned int i;
-	t_u8 key_ascii[32];
-	t_u8 key_hex[16];
-	t_u8 *tmp = NULL;
-	mlan_bss_info bss_info;
-	mlan_ds_sec_cfg *sec = NULL;
-	mlan_ioctl_req *req = NULL;
-	t_u8 bcast_addr[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-	int data_length = wrq->u.data.length, copy_len;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-	ENTER();
-
-	memset(key_ascii, 0x00, sizeof(key_ascii));
-	memset(key_hex, 0x00, sizeof(key_hex));
-	memset(buf, 0x00, sizeof(buf));
-
-	/* Get current BSS information */
-	memset(&bss_info, 0, sizeof(bss_info));
-	woal_get_bss_info(priv, MOAL_IOCTL_WAIT, &bss_info);
-	if (bss_info.bss_mode != MLAN_BSS_MODE_IBSS ||
-	    bss_info.media_connected == MTRUE) {
-		PRINTM(MERROR, "STA is connected or not in IBSS mode.\n");
-		ret = -EOPNOTSUPP;
-		goto done;
-	}
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	copy_len = data_length;
-
-	if (data_length > 0) {
-		if (data_length >= sizeof(buf)) {
-			PRINTM(MERROR, "Too many arguments\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		if (copy_from_user(buf, wrq->u.data.pointer, copy_len)) {
-			PRINTM(MERROR, "Copy from user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-
-		if (data_length == 1) {
-			/* Get Adhoc AES Key */
-			req->req_id = MLAN_IOCTL_SEC_CFG;
-			req->action = MLAN_ACT_GET;
-			sec = (mlan_ds_sec_cfg *)req->pbuf;
-			sec->sub_command = MLAN_OID_SEC_CFG_ENCRYPT_KEY;
-			sec->param.encrypt_key.key_len = AES_KEY_LEN;
-			sec->param.encrypt_key.key_index =
-				MLAN_KEY_INDEX_UNICAST;
-			status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-			if (status != MLAN_STATUS_SUCCESS) {
-				ret = -EFAULT;
-				goto done;
-			}
-
-			memcpy(key_hex, sec->param.encrypt_key.key_material,
-			       sizeof(key_hex));
-			HEXDUMP("Adhoc AES Key (HEX)", key_hex,
-				sizeof(key_hex));
-
-			wrq->u.data.length = sizeof(key_ascii) + 1;
-
-			tmp = key_ascii;
-			for (i = 0; i < sizeof(key_hex); i++)
-				tmp += sprintf((char *)tmp, "%02x", key_hex[i]);
-		} else if (data_length >= 2) {
-			/* Parse the buf to get the cmd_action */
-			action = woal_atox(buf);
-			if (action < 1 || action > 2) {
-				PRINTM(MERROR, "Invalid action argument %d\n",
-				       action);
-				ret = -EINVAL;
-				goto done;
-			}
-
-			req->req_id = MLAN_IOCTL_SEC_CFG;
-			req->action = MLAN_ACT_SET;
-			sec = (mlan_ds_sec_cfg *)req->pbuf;
-			sec->sub_command = MLAN_OID_SEC_CFG_ENCRYPT_KEY;
-
-			if (action == 1) {
-				/* Set Adhoc AES Key  */
-				memcpy(key_ascii, &buf[2], sizeof(key_ascii));
-				woal_ascii2hex(key_hex, (char *)key_ascii,
-					       sizeof(key_hex));
-				HEXDUMP("Adhoc AES Key (HEX)", key_hex,
-					sizeof(key_hex));
-
-				sec->param.encrypt_key.key_len = AES_KEY_LEN;
-				sec->param.encrypt_key.key_index =
-					MLAN_KEY_INDEX_UNICAST;
-				sec->param.encrypt_key.key_flags =
-					KEY_FLAG_SET_TX_KEY |
-					KEY_FLAG_GROUP_KEY;
-				memcpy(sec->param.encrypt_key.mac_addr,
-				       (u8 *)bcast_addr, ETH_ALEN);
-				memcpy(sec->param.encrypt_key.key_material,
-				       key_hex, sec->param.encrypt_key.key_len);
-
-				status = woal_request_ioctl(priv, req,
-							    MOAL_IOCTL_WAIT);
-				if (status != MLAN_STATUS_SUCCESS) {
-					ret = -EFAULT;
-					goto done;
-				}
-			} else {
-				/* Clear Adhoc AES Key */
-				sec->param.encrypt_key.key_len = AES_KEY_LEN;
-				sec->param.encrypt_key.key_index =
-					MLAN_KEY_INDEX_UNICAST;
-				sec->param.encrypt_key.key_flags =
-					KEY_FLAG_REMOVE_KEY;
-				memcpy(sec->param.encrypt_key.mac_addr,
-				       (u8 *)bcast_addr, ETH_ALEN);
-				memset(sec->param.encrypt_key.key_material, 0,
-				       sizeof(sec->param.encrypt_key.
-					      key_material));
-
-				status = woal_request_ioctl(priv, req,
-							    MOAL_IOCTL_WAIT);
-				if (status != MLAN_STATUS_SUCCESS) {
-					ret = -EFAULT;
-					goto done;
-				}
-			}
-		}
-
-		HEXDUMP("Adhoc AES Key (ASCII)", key_ascii, sizeof(key_ascii));
-		wrq->u.data.length = sizeof(key_ascii);
-		if (wrq->u.data.pointer) {
-			if (copy_to_user(wrq->u.data.pointer, &key_ascii,
-					 sizeof(key_ascii))) {
-				PRINTM(MERROR, "copy_to_user failed\n");
-				ret = -EFAULT;
-				goto done;
-			}
-		}
-	}
-
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Get GTK/PTK
- *
- *  @param priv     A pointer to moal_private structure
- *  @param wrq      A pointer to the iwreq structure
- *
- *  @return         0 --success, otherwise fail
- */
-static int
-woal_get_key_ioctl(moal_private *priv, struct iwreq *wrq)
-{
-	int ret = 0;
-	unsigned int i;
-	t_u8 key_ascii[256];
-	t_u8 *tmp;
-	mlan_ds_sec_cfg *sec = NULL;
-	mlan_ioctl_req *req = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	memset(key_ascii, 0x00, sizeof(key_ascii));
-	tmp = key_ascii;
-
-	if (priv->media_connected == MFALSE) {
-		PRINTM(MERROR, "Can't get key in un-associated state\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	/* Get Unicast Key */
-	req->req_id = MLAN_IOCTL_SEC_CFG;
-	req->action = MLAN_ACT_GET;
-	sec = (mlan_ds_sec_cfg *)req->pbuf;
-	sec->sub_command = MLAN_OID_SEC_QUERY_KEY;
-	sec->param.encrypt_key.key_index = 0;
-	sec->param.encrypt_key.key_flags = 0;
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-	if (sec->param.encrypt_key.key_len) {
-		sprintf((char *)tmp, "\n%s", "PTK: ");
-		tmp += 5;
-		for (i = 0; i < sec->param.encrypt_key.key_len; i++)
-			tmp += sprintf((char *)tmp, "%02x",
-				       sec->param.encrypt_key.key_material[i]);
-	}
-
-	/* Get Multicase Key */
-	req->req_id = MLAN_IOCTL_SEC_CFG;
-	req->action = MLAN_ACT_GET;
-	sec = (mlan_ds_sec_cfg *)req->pbuf;
-	sec->sub_command = MLAN_OID_SEC_QUERY_KEY;
-	sec->param.encrypt_key.key_index = 0;
-	sec->param.encrypt_key.key_flags = KEY_FLAG_GROUP_KEY;
-	memset(sec->param.encrypt_key.mac_addr, 0x0, MLAN_MAC_ADDR_LENGTH);
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-	if (sec->param.encrypt_key.key_len) {
-		sprintf((char *)tmp, "\n%s", "GTK: ");
-		tmp += 5;
-		for (i = 0; i < sec->param.encrypt_key.key_len; i++)
-			tmp += sprintf((char *)tmp, "%02x",
-				       sec->param.encrypt_key.key_material[i]);
-	}
-
-	/* Get IGTK Key */
-	req->req_id = MLAN_IOCTL_SEC_CFG;
-	req->action = MLAN_ACT_GET;
-	sec = (mlan_ds_sec_cfg *)req->pbuf;
-	sec->sub_command = MLAN_OID_SEC_QUERY_KEY;
-	sec->param.encrypt_key.key_index = 0;
-	sec->param.encrypt_key.key_flags = KEY_FLAG_AES_MCAST_IGTK;
-	memset(sec->param.encrypt_key.mac_addr, 0x0, MLAN_MAC_ADDR_LENGTH);
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-	if (sec->param.encrypt_key.key_len) {
-		sprintf((char *)tmp, "\n%s", "IGTK: ");
-		tmp += 6;
-		for (i = 0; i < sec->param.encrypt_key.key_len; i++)
-			tmp += sprintf((char *)tmp, "%02x",
-				       sec->param.encrypt_key.key_material[i]);
-	}
-
-	wrq->u.data.length = sizeof(key_ascii) + 1;
-	if (wrq->u.data.pointer) {
-		if (copy_to_user
-		    (wrq->u.data.pointer, &key_ascii, tmp - key_ascii)) {
-			PRINTM(MERROR, "copy_to_user failed\n");
-			ret = -EFAULT;
-			goto done;
-		}
-	}
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -5711,7 +5045,6 @@ woal_set_get_ps_cfg(moal_private *priv, struct iwreq *wrq)
 
 	ENTER();
 
-	allowed++;		/* For ad-hoc awake period parameter */
 	allowed++;		/* For beacon missing timeout parameter */
 	allowed += 2;		/* For delay to PS and PS mode parameters */
 	copy_len = MIN(sizeof(data), sizeof(int) * data_length);
@@ -5759,15 +5092,6 @@ woal_set_get_ps_cfg(moal_private *priv, struct iwreq *wrq)
 			goto done;
 		}
 
-		if ((data[i] != SPECIAL_ADHOC_AWAKE_PD) &&
-		    ((data[i] < MIN_ADHOC_AWAKE_PD) ||
-		     (data[i] > MAX_ADHOC_AWAKE_PD))) {
-			PRINTM(MERROR,
-			       "Invalid argument for adhoc awake period\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		i++;
 		if ((data[i] != DISABLE_BCN_MISS_TO) &&
 		    ((data[i] < MIN_BCN_MISS_TO) ||
 		     (data[i] > MAX_BCN_MISS_TO))) {
@@ -6771,11 +6095,6 @@ woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 
 	ENTER();
 
-	if (wrq->u.data.length > 2) {
-		PRINTM(MERROR, "Invalid number of argument!\n");
-		ret = -EFAULT;
-		goto done;
-	}
 	if (wrq->u.data.length * sizeof(int) > sizeof(data)) {
 		PRINTM(MERROR, "Too many arguments\n");
 		ret = -EFAULT;
@@ -6798,17 +6117,9 @@ woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 			goto done;
 		}
 
-		if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-			radio->param.ant_cfg.tx_antenna = data[0];
-			radio->param.ant_cfg.rx_antenna = data[0];
-			if (wrq->u.data.length == 2)
-				radio->param.ant_cfg.rx_antenna = data[1];
-		} else {
-			radio->param.ant_cfg_1x1.antenna = data[0];
-			if (wrq->u.data.length == 2)
-				radio->param.ant_cfg_1x1.evaluate_time =
-					data[1];
-		}
+		radio->param.ant_cfg_1x1.antenna = data[0];
+		if (wrq->u.data.length == 2)
+			radio->param.ant_cfg_1x1.evaluate_time = data[1];
 		req->action = MLAN_ACT_SET;
 	} else
 		req->action = MLAN_ACT_GET;
@@ -6819,125 +6130,20 @@ woal_set_get_tx_rx_ant(moal_private *priv, struct iwreq *wrq)
 	}
 	if (!wrq->u.data.length) {
 		wrq->u.data.length = 1;
-		if (priv->phandle->feature_control & FEATURE_CTRL_STREAM_2X2) {
-			data[0] = radio->param.ant_cfg.tx_antenna;
-			data[1] = radio->param.ant_cfg.rx_antenna;
-			if (data[0] && data[1] && (data[0] != data[1]))
-				wrq->u.data.length = 2;
-		} else {
-			data[0] = (int)radio->param.ant_cfg_1x1.antenna;
-			data[1] = (int)radio->param.ant_cfg_1x1.evaluate_time;
-			data[2] = (int)radio->param.ant_cfg_1x1.current_antenna;
-			if (data[0] == 0xffff && data[2] > 0)
-				wrq->u.data.length = 3;
-			else if (data[0] == 0xffff)
-				wrq->u.data.length = 2;
-		}
+		data[0] = (int)radio->param.ant_cfg_1x1.antenna;
+		data[1] = (int)radio->param.ant_cfg_1x1.evaluate_time;
+		data[2] = (int)radio->param.ant_cfg_1x1.current_antenna;
+		if (data[0] == 0xffff && data[2] > 0)
+			wrq->u.data.length = 3;
+		else if (data[0] == 0xffff)
+			wrq->u.data.length = 2;
 		if (copy_to_user
 		    (wrq->u.data.pointer, data,
-		     wrq->u.data.length * sizeof(int)))
-		{
+		     wrq->u.data.length * sizeof(int))) {
 			ret = -EFAULT;
 			goto done;
 		}
 	}
-done:
-	if (status != MLAN_STATUS_PENDING)
-		kfree(req);
-	LEAVE();
-	return ret;
-}
-
-/**
- * @brief Configure gpio independent reset
- *
- * @param priv         A pointer to moal_private structure
- * @param wrq          A pointer to iwreq structure
- *
- * @return             0 --success, otherwise fail
- */
-static int
-woal_ind_rst_ioctl(moal_private *priv, struct iwreq *wrq)
-{
-	int data[2], data_length = wrq->u.data.length, copy_len;
-	int ret = 0;
-	mlan_ds_misc_cfg *misc = NULL;
-	mlan_ioctl_req *req = NULL;
-	mlan_status status = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	if (sizeof(int) * wrq->u.data.length > sizeof(data)) {
-		PRINTM(MERROR, "Too many arguments\n");
-		ret = -EINVAL;
-		goto done;
-	}
-	copy_len = MIN(sizeof(data), sizeof(int) * data_length);
-
-	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
-	if (req == NULL) {
-		ret = -ENOMEM;
-		goto done;
-	}
-	misc = (mlan_ds_misc_cfg *)req->pbuf;
-	memset(misc, 0, sizeof(mlan_ds_misc_cfg));
-
-	misc->sub_command = MLAN_OID_MISC_IND_RST_CFG;
-	req->req_id = MLAN_IOCTL_MISC_CFG;
-
-	if (data_length == 0) {
-		req->action = MLAN_ACT_GET;
-	} else if ((data_length == 1) || (data_length == 2)) {
-		req->action = MLAN_ACT_SET;
-
-		if (copy_from_user(data, wrq->u.data.pointer, copy_len)) {
-			/* copy_from_user failed  */
-			PRINTM(MERROR, "S_PARAMS: copy from user failed\n");
-			LEAVE();
-			return -EINVAL;
-		}
-
-		/* ir_mode */
-		if (data[0] < 0 || data[0] > 2) {
-			PRINTM(MERROR, "Invalid ir mode parameter (0/1/2)!\n");
-			ret = -EINVAL;
-			goto done;
-		}
-		misc->param.ind_rst_cfg.ir_mode = data[0];
-
-		/* gpio_pin */
-		if (data_length == 2) {
-			if ((data[1] != 0xFF) && (data[1] < 0 || data[1] > 15)) {
-				PRINTM(MERROR,
-				       "Invalid gpio pin no (0-15 , 0xFF for default)!\n");
-				ret = -EINVAL;
-				goto done;
-			}
-			misc->param.ind_rst_cfg.gpio_pin = data[1];
-		}
-
-	} else {
-		ret = -EINVAL;
-		goto done;
-	}
-
-	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
-	if (status != MLAN_STATUS_SUCCESS) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	data[0] = misc->param.ind_rst_cfg.ir_mode;
-	data[1] = misc->param.ind_rst_cfg.gpio_pin;
-	wrq->u.data.length = 2;
-
-	if (copy_to_user(wrq->u.data.pointer, data, sizeof(int) *
-			 wrq->u.data.length)) {
-		PRINTM(MERROR, "QCONFIG: copy to user failed\n");
-		ret = -EFAULT;
-		goto done;
-	}
-
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -7040,9 +6246,6 @@ woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_PORT_CTRL:
 			ret = woal_port_ctrl(priv, wrq);
 			break;
-		case WOAL_COALESCING_STATUS:
-			ret = woal_coalescing_status_ioctl(priv, wrq);
-			break;
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
 		case WOAL_SET_GET_BSS_ROLE:
@@ -7053,17 +6256,11 @@ woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_SET_GET_11H_LOCAL_PWR_CONSTRAINT:
 			ret = woal_set_get_11h_local_pwr_constraint(priv, wrq);
 			break;
-		case WOAL_HT_STREAM_CFG:
-			ret = woal_ht_stream_cfg_ioctl(priv, wrq);
-			break;
 		case WOAL_MAC_CONTROL:
 			ret = woal_mac_control_ioctl(priv, wrq);
 			break;
 		case WOAL_THERMAL:
 			ret = woal_thermal_ioctl(priv, wrq);
-			break;
-		case WOAL_CFG_HOTSPOT:
-			ret = woal_cfg_hotspot(priv, wrq);
 			break;
 		default:
 			ret = -EOPNOTSUPP;
@@ -7149,9 +6346,6 @@ woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		case WOAL_SLEEP_PARAMS:
 			ret = woal_sleep_params_ioctl(priv, wrq);
 			break;
-		case WOAL_NET_MONITOR:
-			ret = woal_net_monitor_ioctl(priv, wrq);
-			break;
 #if defined(DFS_TESTING_SUPPORT)
 		case WOAL_DFS_TESTING:
 			ret = woal_dfs_testing(priv, wrq);
@@ -7165,9 +6359,6 @@ woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 			break;
 		case WOAL_SET_GET_TX_RX_ANT:
 			ret = woal_set_get_tx_rx_ant(priv, wrq);
-			break;
-		case WOAL_IND_RST_CFG:
-			ret = woal_ind_rst_ioctl(priv, wrq);
 			break;
 		default:
 			ret = -EINVAL;
@@ -7183,12 +6374,6 @@ woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 		switch (wrq->u.data.flags) {
 		case WOAL_PASSPHRASE:
 			ret = woal_passphrase(priv, wrq);
-			break;
-		case WOAL_ADHOC_AES:
-			ret = woal_adhoc_aes_ioctl(priv, wrq);
-			break;
-		case WOAL_GET_KEY:
-			ret = woal_get_key_ioctl(priv, wrq);
 			break;
 		case WOAL_ASSOCIATE:
 			ret = woal_associate_ssid_bssid(priv, wrq);

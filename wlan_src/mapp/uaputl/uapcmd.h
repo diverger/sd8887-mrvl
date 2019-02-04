@@ -3,24 +3,20 @@
  *  @brief This file contains declaration referring to
  *  functions defined in uapcmd.c
  *
- * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
- * MARVELL CONFIDENTIAL
- * The source code contained or described herein and all documents related to
- * the source code ("Material") are owned by Marvell International Ltd or its
- * suppliers or licensors. Title to the Material remains with Marvell International Ltd
- * or its suppliers and licensors. The Material contains trade secrets and
- * proprietary and confidential information of Marvell or its suppliers and
- * licensors. The Material is protected by worldwide copyright and trade secret
- * laws and treaty provisions. No part of the Material may be used, copied,
- * reproduced, modified, published, uploaded, posted, transmitted, distributed,
- * or disclosed in any way without Marvell's prior express written permission.
+ * This software file (the "File") is distributed by Marvell International
+ * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ * (the "License").  You may use, redistribute and/or modify this File in
+ * accordance with the terms and conditions of the License, a copy of which
+ * is available along with the File in the gpl.txt file or by writing to
+ * the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ * 02111-1307 or on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
  *
- * No license under any patent, copyright, trade secret or other intellectual
- * property right is granted to or conferred upon you by disclosure or delivery
- * of the Materials, either expressly, by implication, inducement, estoppel or
- * otherwise. Any license under such intellectual property rights must be
- * express and approved by Marvell in writing.
+ * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ * this warranty disclaimer.
  *
  */
 /************************************************************************
@@ -45,6 +41,7 @@ int apcmd_sys_cfg_rates_ext(int argc, char *argv[]);
 int apcmd_sys_cfg_tx_power(int argc, char *argv[]);
 int apcmd_sys_cfg_bcast_ssid_ctl(int argc, char *argv[]);
 int apcmd_sys_cfg_preamble_ctl(int argc, char *argv[]);
+int apcmd_sys_cfg_antenna_ctl(int argc, char *argv[]);
 int apcmd_sys_cfg_rts_threshold(int argc, char *argv[]);
 int apcmd_sys_cfg_frag_threshold(int argc, char *argv[]);
 int apcmd_sys_cfg_radio_ctl(int argc, char *argv[]);

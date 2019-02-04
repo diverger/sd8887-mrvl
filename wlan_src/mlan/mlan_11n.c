@@ -2,25 +2,20 @@
  *
  *  @brief This file contains functions for 11n handling.
  *
- *  (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2018, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  *
  */
 
@@ -307,53 +302,6 @@ wlan_11n_ioctl_tx_bf_cfg(IN pmlan_adapter pmadapter,
 			       (t_void *)&cfg->param.tx_bf);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
-
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief Set/get HT stream configurations
- *
- *  @param pmadapter    A pointer to mlan_adapter structure
- *  @param pioctl_req   A pointer to ioctl request buffer
- *
- *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
- */
-static mlan_status
-wlan_11n_ioctl_stream_cfg(IN pmlan_adapter pmadapter,
-			  IN pmlan_ioctl_req pioctl_req)
-{
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-	mlan_ds_11n_cfg *cfg = MNULL;
-	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
-
-	ENTER();
-
-	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		cfg->param.stream_cfg = pmpriv->usr_dev_mcs_support;
-	} else if (pioctl_req->action == MLAN_ACT_SET) {
-		switch (cfg->param.stream_cfg) {
-		case HT_STREAM_MODE_2X2:
-			if (pmadapter->hw_dev_mcs_support == HT_STREAM_MODE_1X1) {
-				PRINTM(MERROR,
-				       "HW does not support this mode\n");
-				ret = MLAN_STATUS_FAILURE;
-			} else
-				pmpriv->usr_dev_mcs_support =
-					cfg->param.stream_cfg;
-			break;
-		case HT_STREAM_MODE_1X1:
-			pmpriv->usr_dev_mcs_support = cfg->param.stream_cfg;
-			break;
-		default:
-			PRINTM(MERROR, "Invalid stream mode\n");
-			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
-			ret = MLAN_STATUS_FAILURE;
-			break;
-		}
-	}
 
 	LEAVE();
 	return ret;
@@ -1441,14 +1389,7 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 		RESETHT_TXSTBC(ht_cap->ht_cap_info);
 
 	/* No user config for Delayed BACK yet */
-	if (priv->adapter->psdio_device->v15_fw_api) {
-		RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
-	} else {
-		if (GET_DELAYEDBACK(priv->adapter->hw_dot_11n_dev_cap))
-			SETHT_DELAYEDBACK(ht_cap->ht_cap_info);
-		else
-			RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
-	}
+	RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
 
 	/* Need change to support 8k AMSDU receive */
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
@@ -1515,12 +1456,7 @@ wlan_reset_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 		RESETHT_TXSTBC(ht_cap->ht_cap_info);
 
 	/* No user config for Delayed BACK yet */
-	if (priv->adapter->psdio_device->v15_fw_api) {
-		RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
-	} else {
-		if (!GET_DELAYEDBACK(priv->adapter->hw_dot_11n_dev_cap))
-			RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
-	}
+	RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
 
 	/* Need change to support 8k AMSDU receive */
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
@@ -1684,18 +1620,8 @@ wlan_show_dot11ndevcap(pmlan_adapter pmadapter, t_u32 cap)
 	PRINTM(MINFO, "GET_HW_SPEC: LDPC coded packet receive %s\n",
 	       (ISSUPP_RXLDPC(cap) ? "supported" : "not supported"));
 
-	if (pmadapter->psdio_device->v15_fw_api) {
-		PRINTM(MINFO,
-		       "GET_HW_SPEC: Number of Tx BA streams supported = %d\n",
-		       ISSUPP_GETTXBASTREAM(cap));
-	} else {
-		PRINTM(MINFO,
-		       "GET_HW_SPEC: Number of Delayed Block Ack streams = %d\n",
-		       GET_DELAYEDBACK(cap));
-		PRINTM(MINFO,
-		       "GET_HW_SPEC: Number of Immediate Block Ack streams = %d\n",
-		       GET_IMMEDIATEBACK(cap));
-	}
+	PRINTM(MINFO, "GET_HW_SPEC: Number of Tx BA streams supported = %d\n",
+	       ISSUPP_GETTXBASTREAM(cap));
 	PRINTM(MINFO, "GET_HW_SPEC: 40 Mhz channel width %s\n",
 	       (ISSUPP_CHANWIDTH40(cap) ? "supported" : "not supported"));
 	PRINTM(MINFO, "GET_HW_SPEC: 20 Mhz channel width %s\n",
@@ -1896,10 +1822,6 @@ wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 						      padd_ba_rsp->
 						      peer_mac_addr);
 #endif /* UAP_SUPPORT */
-			if (priv->bss_mode == MLAN_BSS_MODE_IBSS)
-				disable_station_ampdu(priv, tid,
-						      padd_ba_rsp->
-						      peer_mac_addr);
 			if (ra_list && ra_list->is_tdls_link)
 				disable_station_ampdu(priv, tid,
 						      padd_ba_rsp->
@@ -2535,7 +2457,6 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 {
 	pmlan_adapter pmadapter = pmpriv->adapter;
 	MrvlIETypes_HTCap_t *pht_cap;
-	MrvlIETypes_HTInfo_t *pht_info;
 	MrvlIEtypes_ChanListParamSet_t *pchan_list;
 	MrvlIETypes_2040BSSCo_t *p2040_bss_co;
 	MrvlIETypes_ExtCap_t *pext_cap;
@@ -2607,27 +2528,6 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	}
 
 	if (pbss_desc->pht_info) {
-		if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
-			pht_info = (MrvlIETypes_HTInfo_t *)*ppbuffer;
-			memset(pmadapter, pht_info, 0,
-			       sizeof(MrvlIETypes_HTInfo_t));
-			pht_info->header.type = wlan_cpu_to_le16(HT_OPERATION);
-			pht_info->header.len = sizeof(HTInfo_t);
-
-			memcpy(pmadapter,
-			       (t_u8 *)pht_info + sizeof(MrvlIEtypesHeader_t),
-			       (t_u8 *)pbss_desc->pht_info +
-			       sizeof(IEEEtypes_Header_t),
-			       pht_info->header.len);
-
-			if (!ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap))
-				RESET_CHANWIDTH40(pht_info->ht_info.field2);
-
-			*ppbuffer += sizeof(MrvlIETypes_HTInfo_t);
-			ret_len += sizeof(MrvlIETypes_HTInfo_t);
-			pht_info->header.len =
-				wlan_cpu_to_le16(pht_info->header.len);
-		}
 
 		pchan_list = (MrvlIEtypes_ChanListParamSet_t *)*ppbuffer;
 		memset(pmadapter, pchan_list, 0,
@@ -2662,9 +2562,8 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 				GET_SECONDARYCHAN(pbss_desc->pht_info->ht_info.
 						  field2);
 			pbss_desc->curr_bandwidth = BW_40MHZ;
-			if (pmpriv->adapter->psdio_device->v15_update)
-				pchan_list->chan_scan_param[0].bandcfg.
-					chanWidth = CHAN_BW_40MHZ;
+			pchan_list->chan_scan_param[0].bandcfg.chanWidth =
+				CHAN_BW_40MHZ;
 		}
 		pchan_list->chan_scan_param[0].bandcfg.scanMode =
 			SCAN_MODE_USER;
@@ -2795,9 +2694,6 @@ wlan_11n_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		break;
 	case MLAN_OID_11N_CFG_TX_BF_CFG:
 		status = wlan_11n_ioctl_tx_bf_cfg(pmadapter, pioctl_req);
-		break;
-	case MLAN_OID_11N_CFG_STREAM_CFG:
-		status = wlan_11n_ioctl_stream_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_11N_CFG_COEX_RX_WINSIZE:
 		status = wlan_11n_ioctl_coex_rx_winsize(pmadapter, pioctl_req);
@@ -3177,12 +3073,9 @@ wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
 		LEAVE();
 		return count;
 	}
-	if (priv->adapter->psdio_device->v15_fw_api) {
-		bastream_max =
-			ISSUPP_GETTXBASTREAM(priv->adapter->hw_dot_11n_dev_cap);
-		if (bastream_max == 0)
-			bastream_max = MLAN_MAX_TX_BASTREAM_DEFAULT;
-	}
+	bastream_max = ISSUPP_GETTXBASTREAM(priv->adapter->hw_dot_11n_dev_cap);
+	if (bastream_max == 0)
+		bastream_max = MLAN_MAX_TX_BASTREAM_DEFAULT;
 
 	while (ptxtbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
 		ptbl->tid = (t_u16)ptxtbl->tid;
@@ -3193,10 +3086,7 @@ wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
 		ptxtbl = ptxtbl->pnext;
 		ptbl++;
 		count++;
-		if ((priv->adapter->psdio_device->v15_fw_api &&
-		     (count >= bastream_max)) ||
-		    (!priv->adapter->psdio_device->v15_fw_api &&
-		     (count >= MLAN_MAX_TX_BASTREAM_SUPPORTED_NOV15)))
+		if (count >= bastream_max)
 			break;
 	}
 	wlan_release_ralist_lock(priv);

@@ -2,24 +2,20 @@
   *
   * @brief Program to prepare command buffer
   *
-  * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+  * Copyright (C) 2008-2018, Marvell International Ltd.
   *
-  * MARVELL CONFIDENTIAL
-  * The source code contained or described herein and all documents related to
-  * the source code ("Material") are owned by Marvell International Ltd or its
-  * suppliers or licensors. Title to the Material remains with Marvell International Ltd
-  * or its suppliers and licensors. The Material contains trade secrets and
-  * proprietary and confidential information of Marvell or its suppliers and
-  * licensors. The Material is protected by worldwide copyright and trade secret
-  * laws and treaty provisions. No part of the Material may be used, copied,
-  * reproduced, modified, published, uploaded, posted, transmitted, distributed,
-  * or disclosed in any way without Marvell's prior express written permission.
+  * This software file (the "File") is distributed by Marvell International
+  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+  * (the "License").  You may use, redistribute and/or modify this File in
+  * accordance with the terms and conditions of the License, a copy of which
+  * is available by writing to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+  * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
   *
-  * No license under any patent, copyright, trade secret or other intellectual
-  * property right is granted to or conferred upon you by disclosure or delivery
-  * of the Materials, either expressly, by implication, inducement, estoppel or
-  * otherwise. Any license under such intellectual property rights must be
-  * express and approved by Marvell in writing.
+  * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+  * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+  * this warranty disclaimer.
   *
   */
 
@@ -168,8 +164,9 @@ scantable_get_ssid_from_ie(t_u8 *ie_buf,
 	IEEEtypes_Generic_t *pie_gen;
 
 	retval = scantable_find_elem(ie_buf, ie_buf_len, SSID, &pie_gen);
-
-	memcpy(pssid, pie_gen->data, MIN(pie_gen->ieee_hdr.len, ssid_buf_max));
+	if (retval == MLAN_STATUS_SUCCESS)
+		memcpy(pssid, pie_gen->data,
+		       MIN(pie_gen->ieee_hdr.len, ssid_buf_max));
 
 	return retval;
 }
@@ -751,7 +748,7 @@ process_getscantable(int argc, char *argv[])
 							255 -
 							curr->fixed_buf.
 							fixed_fields.rssi;
-						if (new_ss > curr_ss) {
+						if (prev && new_ss > curr_ss) {
 							// Insert the node to current position in list
 							scan_list_node->next =
 								curr;
@@ -761,7 +758,7 @@ process_getscantable(int argc, char *argv[])
 						}
 						prev = curr;
 					}
-					if (curr == NULL) {
+					if (prev && (curr == NULL)) {
 
 						// Insert the node to tail of the list
 						prev->next = scan_list_node;

@@ -9,12 +9,12 @@
 	Goto source code directory wlan_src/.
 	make [clean] build
 	The driver and utility binaries can be found in ../bin_xxxx directory.
-	The driver code supports Linux kernel up to 4.14.
+	The driver code supports Linux kernel up to 4.16.
 
 2) FOR DRIVER INSTALL
 
 	a) Copy firmware image sd8786_uapsta.bin | sd8787_uapsta.bin | ... to
-	   /system/etc/firmware/mrvl/ directory, create the directory if it doesn't exist.
+	   /lib/firmware/mrvl/ directory, create the directory if it doesn't exist.
 	b) Install WLAN driver,
 	   There are drv_mode, max_sta_bss, max_uap_bss etc. module parameters.
 		The bit settings of drv_mode are,
@@ -28,6 +28,7 @@
 		sta_name: Name of the STA interface (default: "mlan")
 		max_uap_bss: Maximum number of uAP BSS (default 1, max 2)
 		uap_name: Name of the uAP interface (default: "uap")
+		uap_max_sta: Maximum number of STA for UAP/GO (default 0, max 10)
 		max_wfd_bss: Maximum number of WIFIDIRECT BSS (default 1, max 1)
 		wfd_name: Name of the WIFIDIRECT interface (default: "wfd")
 		max_vir_bss: Number of Virtual interfaces (default 0)
@@ -72,6 +73,7 @@
 	  hw_test=0|1 <Disable hardware test (default) | Enable hardware test>
 	  fw_serial=0|1 <support parallel download FW | support serial download FW (default)>
 	  req_fw_nowait=0|1 <use request_firmware API (default) | use request_firmware_nowait API>
+	  antcfg=0|1|2|0xffff <default | Tx/Rx antenna 1 | Tx/Rx antenna 2 | enable antenna diversity>
 	  init_cfg=<init config (MAC addresses, registers etc.) file name>
 		e.g. copy init_cfg.conf to firmware directory, init_cfg=mrvl/init_cfg.conf
 	  cal_data_cfg=<CAL data config file name>
@@ -80,6 +82,7 @@
 		e.g. copy txpwrlimit_cfg_set.conf to firmware directory, txpwrlimit_cfg=mrvl/txpwrlimit_cfg_set.conf
 	  init_hostcmd_cfg=<init hostcmd config file name>
 		e.g. copy init_hostcmd_cfg.conf to firmware directory, init_hostcmd_cfg=mrvl/init_hostcmd_cfg.conf
+	  sdio_rx_aggr=1|2 <Enable SDIO rx aggr (default) | Disable SDIO rx aggr>
 	  cfg80211_wext=<bit mask of CFG80211 and WEXT control>
 		Bit 0: STA WEXT
 		Bit 1: uAP WEXT
@@ -97,17 +100,6 @@
 	  low_power_mode_enable=0|1 <disable low power mode (default)| enable low power mode>
 	  When low power mode is enabled, the output power will be clipped at ~+10dBm and the
 	  expected PA current is expected to be in the 80-90 mA range for b/g/n modes
-      indrstcfg=<2-byte IR configuration>
-      gpio pin (high byte): GPIO pin no to be used as trigger for out band reset
-        (0xFF: default pin configuration)
-      ir_mode (low byte) : independent reset mode
-        (0: disable, 1: enable out band, 2: enable in band)
-      For example, to enable out band reset via gpio_pin 14
-       indrstcfg=0x0e01
-      To enable out band reset via default gpio_pin
-       indrstcfg=0xff01
-      To enable in band reset and disable out band reset
-       indrstcfg=0x02
 
 	Note: On some platforms (e.g. PXA910/920) double quotation marks ("") need to used
 	for module parameters.
@@ -226,6 +218,12 @@
 		echo "sdcmd52rw= 1 3 0xf" > /proc/mwlan/config  # write 0xf to func 1 address 3
 
 	Use dmesg or cat /var/log/debug to check driver debug messages.
+	To log driver debug messages to file,
+	a) Edit /etc/syslog.conf, add one line "*.debug		/var/log/debug"
+	   on kernel 2.6.24 or later, edit /etc/rsyslog.conf instead
+	b) touch /var/log/debug (if the file doesn't exist)
+	c) service syslog restart
+	   on kernel 2.6.24 or later, service rsyslog restart
 
 	Update /proc/sys/kernel/printk to change message log levels.
 	For example,
@@ -248,7 +246,7 @@ SYNOPSIS
 	iwpriv mlanX version
 	iwpriv mlanX verext
 	iwpriv mlanX getsignal [m] [n]
-	iwpriv mlanX antcfg [m] [n]
+	iwpriv mlanX antcfg [m]
 	iwpriv mlanX regioncode [n]
 	iwpriv mlanX cfpcode [m] [n]
 	iwpriv mlanX wwscfg [m]
@@ -270,13 +268,11 @@ SYNOPSIS
 	iwpriv mlanX deauth [n]
 	iwpriv mlanX radioctrl
 	iwpriv mlanX reassoctrl [n]
-	iwpriv mlanX adhocaes
-	iwpriv mlanX bandcfg [l] [m] [n] [o]
+	iwpriv mlanX bandcfg [l] [m] [n]
 	iwpriv mlanX getlog
 	iwpriv mlanX 11dcfg
 	iwpriv mlanX 11dclrtbl
 	iwpriv mlanX wmmcfg [n]
-	iwpriv mlanX hotspotcfg [n]
 	iwpriv mlanX txpowercfg [<RateIndex> [<MinPwr> [<MaxPwr> <step>]]]
 	iwpriv mlanX qoscfg
 	iwpriv mlanX getdatarate
@@ -296,18 +292,14 @@ SYNOPSIS
 	iwpriv mlanX sleeppd [n]
 	iwpriv mlanX pscfg [k] [d] [l] ...
         iwpriv mlanX fwwakeupmethod [n] [g]
-	iwpriv mlanX getkey
 	iwpriv mlanX associate "<bssid> <ssid>"
 	iwpriv mlanX sleepparams [<p1> <p2> <p3> <p4> <p5> <p6>]
-	iwpriv mlanX netmon [<act> [<filter> <band> <chan> [offset]]]
 	iwpriv mlanX authtype [n]
 	iwpriv mlanX powercons [n]
-	iwpriv mlanX htstreamcfg [n]
 	iwpriv mlanX ipaddr ["<op>;<ipaddr>"]
 	iwpriv mlanX macctrl [n]
 	iwpriv mlanX dfstesting [<user_cac_pd> <user_nop_pd> <no_chan_change> <fixed_chan_num>]
 	iwpriv mlanX thermal
-    iwpriv mlanX indrstcfg <ir_mode> [gpio_pin]
 
 DESCRIPTION
 	Those commands are used to send additional commands to the Marvell MLAN
@@ -355,23 +347,18 @@ getsignal
 		NF info: beacon last -99, beacon average -92, data last -98, data average -92
 
 antcfg
-	This command is used to set/get the mode of Tx/Rx path.
+	This command is used to set/get the mode of Tx/Rx antenna.
 
 	where value of m is:
-		Bit 0   -- Tx Path A
-		Bit 1   -- Tx Path B
-		Bit 0-1 -- Tx Path A+B
-
-	where value of n is:
-		Bit 0   -- Rx Path A
-		Bit 1   -- Rx Path B
-		Bit 0-1 -- Rx Path A+B
-	The Tx path setting (m) is used if Rx path (n) is not provided.
+		Bit 0   -- Tx/Rx antenna 1
+		Bit 1   -- Tx/Rx antenna 2
+		...
+		0xFFFF  -- Tx/Rx antenna diversity
 
 	Examples:
-		iwpriv mlan0 antcfg             : Get Tx and Rx path
-		iwpriv mlan0 antcfg 3           : Set Tx and Rx path to A+B
-		iwpriv mlan0 antcfg 1 3         : Set Tx path to A and Rx path to A+B
+		iwpriv mlan0 antcfg             : Get Tx/Rx antenna mode
+		iwpriv mlan0 antcfg 1           : Set Tx/Rx antenna 1
+		iwpriv mlan0 antcfg 0xFFFF      : Set Tx/Rx antenna diversity
 
 regioncode
 	This command is used to set/get the region code in the station.
@@ -1042,24 +1029,12 @@ reassoctrl
 		iwpriv mlan0 reassoctrl         : Get re-association status
 		iwpriv mlan0 reassoctrl 1       : Turn re-association on
 
-adhocaes
-	This command is used to set/get the AES key, when the station is in ad-hoc mode.
-	Note: This command is only available in disconnected state.
-
-	where value can be any 16 byte value.
-
-	Examples:
-		iwpriv mlan0 adhocaes           : Get ad-hoc aes key
-		iwpriv mlan0 adhocaes "1;12345678901234567890123456789012"
-		                                : Set ad-hoc aes key
-		iwpriv mlan0 adhocaes 2         : Clear ad-hoc aes key
-
 bandcfg
 	This command is used to set/get infra/ad-hoc band.
 	Note: This command is only available in disconnected state.
 
 	Usage:
-		iwpriv mlanX bandcfg [l] [m] [n] [o]
+		iwpriv mlanX bandcfg [l] [m] [n]
 
 	where the parameters:
 		[l]: Infrastructure band
@@ -1075,24 +1050,13 @@ bandcfg
 		     bit 0: B
 		     bit 1: G
 		     bit 2: A
-		     bit 3: GN
-		     bit 4: AN
-			 bit 5: AC 2.4G
-			 bit 6: AC 5G
 		[n]: Ad-hoc start channel
-		[o]: 0 - Bandwidth 20Mhz
-		     1 - HT Bandwidth 40Mhz above
-		     3 - HT Bandwidth 40Mhz below
-			 4 - VHT Bandwidth 80Mhz
 	Examples:
 		iwpriv mlan0 bandcfg            : Get infra/ad-hoc band and ad-hoc
 		                                  start channel configurations
 		iwpriv mlan0 bandcfg 1          : Set infra band to B only
 		iwpriv mlan0 bandcfg 3 2 6      : Set infra band to B/G, ad-hoc start band
 		                                  to G and ad-hoc start channel to 6
-		iwpriv mlan0 bandcfg 7 11 6 1   : Set infra band to B/G/A, ad-hoc start band
-		                                  to B/G/GN, ad-hoc start channel to 6 and
-		                                  secondary channel to above
 
 getlog
 	This command is used to get the statistics available in the station.
@@ -1125,18 +1089,6 @@ wmmcfg
 		iwpriv mlan0 wmmcfg 1           : Enable WMM
 		iwpriv mlan0 wmmcfg             : Get WMM status
 
-hotspotcfg
-	This command is used to get/set the HotSpot configuration.
-
-	WHere
-		<n> - Configuration bitset
-	This is a bitmap and should be used as following
-		Bit 31-10: Reserved set to 0
-		Bit 9: TDLS support indication enable/disable
-		Bit 8: Interworking indication enable/disable
-		Bit 7-1: Reserved set to 0
-		Bit 0: HotSpot feature enable/disable
-
 txpowercfg
 	This command is used to get/set the Tx power configuration.
 
@@ -1162,14 +1114,6 @@ txpowercfg
 			17	MCS5 (BW20)
 			18	MCS6 (BW20)
 			19	MCS7 (BW20)
-			20	MCS8 (BW20)
-			21	MCS9 (BW20)
-			22	MCS10 (BW20)
-			23	MCS11 (BW20)
-			24	MCS12 (BW20)
-			25	MCS13 (BW20)
-			26	MCS14 (BW20)
-			27	MCS15 (BW20)
 			140	MCS0 (BW40)
 			141	MCS1 (BW40)
 			142	MCS2 (BW40)
@@ -1178,14 +1122,6 @@ txpowercfg
 			145	MCS5 (BW40)
 			146	MCS6 (BW40)
 			147	MCS7 (BW40)
-  			148	MCS0 (BW40)
-			149	MCS1 (BW40)
-			150	MCS2 (BW40)
-			151	MCS3 (BW40)
-			152	MCS4 (BW40)
-			153	MCS5 (BW40)
-			154	MCS6 (BW40)
-			155	MCS7 (BW40)
 			0xff	Default
 		<MinPwr> - Minimum power level in dBm
 		<MaxPwr> - Maximum power level in dBm
@@ -1466,8 +1402,6 @@ pscfg
 		                                -1: Disable,
 		                              1-49: Value in beacon intervals,
 		                             >= 50: Value in TUs )
-		[a]: Ad-hoc awake period (0: Unchanged, 1-31: Beacon interval, 255: Firmware
-		                          will go to sleep after beacon send out)
 		[b]: Beacon miss timeout (0: Unchanged, 1-50: Value in milliseconds, 65535: Disable)
 		[p]: Delay to PS (0-65535: Value in milliseconds, default 1000ms)
 		[m]: PS mode (0: Unchanged, 1: Auto mode, 2: PS-Poll mode, 3: PS Null mode)
@@ -1478,11 +1412,8 @@ pscfg
 		iwpriv mlan0 pscfg 3 4          : Set PS keep alive null packet interval to 3 seconds
 		                                  and DTIM interval to 4, all the other configurations
 		                                  are unchanged
-		iwpriv mlan0 pscfg 0 0xfffe 10 0 20
-		                                : Disable DTIM interval, set local listen interval to
-		                                  10 beacon intervals and beacon miss interval to 20,
-		                                  all the other configurations are unchanged
-		iwpriv mlan0 pscfg 0 0 0 0 0 50 : Set delay to PS to 50 ms, keep the others unchanged
+		iwpriv mlan0 pscfg 0 0 0 0 50 2 : Set delay to PS to 50 ms and PS mode to PS-Poll mode,
+		                                  keep the others unchanged
 
 fwwakeupmethod
 	This command is used to set/get the firmware wakeup method.
@@ -1528,43 +1459,6 @@ sleepparams
 		iwpriv mlan0 sleepparams                      : Get current sleepclock configuration
 		iwpriv mlan0 sleepparams 10 1000 2000 1 0 128 : Set sleepclock configuration
 
-netmon
-	This command is used to set/get network monitor configuration.
-	Note: The configuration should be issued when STA is disconnected.
-
-	Usage:
-		iwpriv mlanX netmon [<act> [<filter> <band> <chan> [offset]]]
-
-	Where the parameters are:
-		<act>    : (1/0) enable/disable the network monitor activity
-		<filter> : network monitor filer flag
-		    bit 0: (1/0) enable/disable management frame
-		    bit 1: (1/0) enable/disable control frame
-		    bit 2: (1/0) enable/disable data frame
-		<band>   : 802.11 band
-		    bit 0: B
-		    bit 1: G
-		    bit 2: A
-		    bit 3: GN
-		    bit 4: AN
-			 bit 5: AC 2.4G
-			 bit 6: AC 5G
-		<chan>   : channel to monitor
-		[offset] : secondary channel bandwidth
-			0 - Bandwidth 20Mhz
-			1 - HT Bandwidth 40Mhz sec channel above
-			3 - HT Bandwidth 40Mhz sec channel below
-			4 - VHT Bandwidth 80Mhz
-
-	Examples:
-		iwpriv mlan0 netmon             : Get the current network monitor configuration
-		iwpriv mlan0 netmon 0           : Disable network monitor activity
-		iwpriv mlan0 netmon 1 4 11 6    : Enable network monitor activity, set filter
-		                                  data frame, band B/G/GN and channel 6
-		iwpriv mlan0 netmon 1 7 20 64 1 : Enable network monitor activity, set filter
-		                                  management, control and data frame, band A/AN,
-		                                  channel 64 and secondary channel above
-
 authtype
 	This command is used to set/get authentication type.
 
@@ -1592,22 +1486,6 @@ powercons
 	Examples:
 		iwpriv mlanX powercons          : get the current setting
 		iwpriv mlanX powercons 12       : set local power constraint to 12 dbm
-
-htstreamcfg
-	This command is used to set/get HT stream configuration.
-	The setting only takes effect in next association.
-
-	Usage:
-		iwpriv mlanX htstreamcfg [n]
-
-	where <n>
-		0x11: HT stream 1x1 mode
-		0x22: HT stream 2x2 mode
-
-	Examples:
-		iwpriv mlan0 htstreamcfg        : Get current setting
-		iwpriv mlan0 htstreamcfg 0x11   : Set HT stream 1x1 mode
-		iwpriv mlan0 htstreamcfg 0x22   : Set HT stream 2x2 mode
 
 ipaddr
 	This command is used to set/get IP address.
@@ -1683,27 +1561,6 @@ thermal
 
 	Examples:
 		iwpriv mlan0 thermal            : Get thermal reading
-
-indrstcfg
-    This command is used to set/get settings for independent reset mode
-
-    Usage:
-        iwpriv mlanX indrstcfg <ir_mode> [gpio_pin]
-
-    where <ir_mode>  is independent reset mode
-                     0 = disable independent reset
-                     1 = enable out band and disable in band
-                     2 = enable in band and disable out band
-    where <gpio_pin> is user-configured gpio pin number to be used for oob mode
-                     0xFF = use FW default gpio assignment
-                     0-15 = gpio pin number
-
-    Examples:
-        iwpriv mlan0 indrstcfg              : Get current settings
-        iwpriv mlan0 indrstcfg 1 14         : Enable oob_mode with gpio pin 14
-        iwpriv mlan0 indrstcfg 1 0xff       : Enable oob_mode with default gpio pin
-        iwpriv mlan0 indrstcfg 0            : Disable ir_mode
-        iwpriv mlan0 indrstcfg 2            : Enable in band reset mode
 
 
 ===============================================================================

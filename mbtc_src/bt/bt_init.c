@@ -279,7 +279,8 @@ parse_cfg_get_line(u8 *data, u32 size, u8 *line_pos)
 	src = data + pos;
 	dest = line_pos;
 
-	while (pos < size && *src != '\x0A' && *src != '\0') {
+	while ((dest - line_pos < MAX_LINE_LEN - 1) && pos < size &&
+	       *src != '\x0A' && *src != '\0') {
 		if (*src != ' ' && *src != '\t')	/* parse space */
 			*dest++ = *src++;
 		else

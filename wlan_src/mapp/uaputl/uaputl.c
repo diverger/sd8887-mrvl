@@ -3,27 +3,20 @@
  *  @brief Program to send AP commands to the driver/firmware of the uAP
  *         driver.
  *
- *   Usage: uaputl.exe [-option params]
- *   or		uaputl.exe [command] [params]
+ * Copyright (C) 2008-2018, Marvell International Ltd.
  *
- * (C) Copyright 2008-2018 Marvell International Ltd. All Rights Reserved
+ * This software file (the "File") is distributed by Marvell International
+ * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ * (the "License").  You may use, redistribute and/or modify this File in
+ * accordance with the terms and conditions of the License, a copy of which
+ * is available along with the File in the gpl.txt file or by writing to
+ * the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ * 02111-1307 or on the worldwide web at http://www.gnu.org/licenses/gpl.txt.
  *
- * MARVELL CONFIDENTIAL
- * The source code contained or described herein and all documents related to
- * the source code ("Material") are owned by Marvell International Ltd or its
- * suppliers or licensors. Title to the Material remains with Marvell International Ltd
- * or its suppliers and licensors. The Material contains trade secrets and
- * proprietary and confidential information of Marvell or its suppliers and
- * licensors. The Material is protected by worldwide copyright and trade secret
- * laws and treaty provisions. No part of the Material may be used, copied,
- * reproduced, modified, published, uploaded, posted, transmitted, distributed,
- * or disclosed in any way without Marvell's prior express written permission.
- *
- * No license under any patent, copyright, trade secret or other intellectual
- * property right is granted to or conferred upon you by disclosure or delivery
- * of the Materials, either expressly, by implication, inducement, estoppel or
- * otherwise. Any license under such intellectual property rights must be
- * express and approved by Marvell in writing.
+ * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ * this warranty disclaimer.
  *
  */
 /****************************************************************************
@@ -63,10 +56,6 @@ int debug_level = MSG_NONE;
 
 /** Convert character to integer */
 #define CHAR2INT(x) (((x) >= 'A') ? ((x) - 'A' + 10) : ((x) - '0'))
-
-/** Supported stream modes */
-#define HT_STREAM_MODE_1X1   0x11
-#define HT_STREAM_MODE_2X2   0x22
 
 static int get_bss_config(t_u8 *buf);
 
@@ -506,6 +495,7 @@ parse_domain_file(char *country, int band, ieeetypes_subband_set_t *sub_bands,
 	int j = -1, reset_j = 0;
 	t_u8 no_of_sub_band = 0;
 	char *strp = NULL;
+	int ret = 0;
 
 	fp = fopen("config/80211d_domain.conf", "r");
 	if (fp == NULL) {
@@ -518,7 +508,9 @@ parse_domain_file(char *country, int band, ieeetypes_subband_set_t *sub_bands,
      */
 	memset(str, 0, 64);
 	while (!feof(fp)) {
-		fscanf(fp, "%63s", str);
+		ret = fscanf(fp, "%63s", str);
+		if (ret <= 0)
+			break;
 		if (cflag) {
 			strncpy(domain_name, str, sizeof(domain_name) - 1);
 			cflag = 0;
@@ -546,7 +538,9 @@ parse_domain_file(char *country, int band, ieeetypes_subband_set_t *sub_bands,
      * Search domain specific information
      */
 	while (!feof(fp)) {
-		fscanf(fp, "%63s", str);
+		ret = fscanf(fp, "%63s", str);
+		if (ret <= 0)
+			break;
 
 		if (feof(fp)
 			) {
@@ -1540,7 +1534,7 @@ get_fw_info(fw_info *pfw_info)
 void
 print_ht_tx_usage(void)
 {
-	printf("\nUsage : httxcfg [<txcfg>] [<band>]");
+	printf("\nUsage : httxcfg [<txcfg>]");
 	printf("\nOptions: txcfg : This is a bitmap and should be used as following");
 	printf("\n                      Bit 15-7: Reserved set to 0");
 	printf("\n                      Bit 6: Short GI in 40 Mhz enable/disable");
@@ -1549,10 +1543,6 @@ print_ht_tx_usage(void)
 	printf("\n                      Bit 3-2: Reserved set to 0");
 	printf("\n                      Bit 1: 20/40 Mhz enable disable.");
 	printf("\n                      Bit 0: Reserved set to 0");
-	printf("\n          band : This is the band info for <txcfg> settings.");
-	printf("\n                      0: Settings for both 2.4G and 5G bands");
-	printf("\n                      1: Settings for 2.4G band");
-	printf("\n                      2: Settings for 5G band\n");
 	return;
 }
 
@@ -1584,18 +1574,9 @@ apcmd_sys_cfg_ht_tx(int argc, char *argv[])
 	/* Check arguments */
 	if (argc == 0) {
 		param.action = ACTION_GET;
-	} else if (argc <= 2) {
+	} else if (argc == 1) {
 		param.action = ACTION_SET;
 		param.tx_cfg.httxcap = (t_u16)A2HEXDECIMAL(argv[0]);
-		if (argc == 2) {
-			if (atoi(argv[1]) != BAND_SELECT_BG &&
-			    atoi(argv[1]) != BAND_SELECT_A &&
-			    atoi(argv[1]) != BAND_SELECT_BOTH) {
-				printf("ERR:Invalid band selection\n");
-				return UAP_FAILURE;
-			}
-			param.tx_cfg.misc_cfg = (t_u32)A2HEXDECIMAL(argv[1]);
-		}
 	} else {
 		print_ht_tx_usage();
 		return UAP_FAILURE;
@@ -1622,9 +1603,7 @@ apcmd_sys_cfg_ht_tx(int argc, char *argv[])
 
 	/* Handle response */
 	if (param.action == ACTION_GET) {
-		printf("HT Tx cfg: \n");
-		printf("    BG band:  0x%08x\n", param.tx_cfg.httxcap);
-		printf("    A band :  0x%08x\n", param.tx_cfg.misc_cfg);
+		printf("HT Tx cfg: 0x%08x\n", param.tx_cfg.httxcap);
 	}
 
 	/* Close socket */
@@ -3381,14 +3360,6 @@ print_txratecfg_usage(void)
 	printf("\n  5   MCS5");
 	printf("\n  6   MCS6");
 	printf("\n  7   MCS7");
-	printf("\n  8   MCS8");
-	printf("\n  9   MCS9");
-	printf("\n  10  MCS10");
-	printf("\n  11  MCS11");
-	printf("\n  12  MCS12");
-	printf("\n  13  MCS13");
-	printf("\n  14  MCS14");
-	printf("\n  15  MCS15");
 	printf("\n  32  MCS32");
 	printf("\n  If <format> is 2 (VHT), ");
 	printf("\n  0   MCS0");
@@ -3570,203 +3541,6 @@ apcmd_tx_rate_cfg(int argc, char *argv[])
 			printf("    Unknown rate format.\n");
 		}
 	}
-	/* Close socket */
-	close(sockfd);
-	return UAP_SUCCESS;
-}
-
-/**
- *  @brief Show usage information for the antcfg
- *   command
- *
- *  @return         N/A
- */
-void
-print_antcfg_usage(void)
-{
-	printf("\nUsage : antcfg [<TX_MODE> <RX_MODE>]\n");
-	printf("\n         MODE    : 1       - Antenna A");
-	printf("\n                   2       - Antenna B");
-	printf("\n                   3       - Antenna A+B");
-	printf("\n                   empty   - Get current antenna settings\n");
-	return;
-}
-
-/**
- *  @brief Creates a RF Antenna Mode Config request and sends to the driver
- *
- *   Usage: "antcfg [MODE]"
- *
- *  @param argc     Number of arguments
- *  @param argv     Pointer to the arguments
- *  @return         UAP_SUCCESS/UAP_FAILURE
- */
-int
-apcmd_antcfg(int argc, char *argv[])
-{
-	int opt;
-	ant_cfg_t antenna_config;
-	struct ifreq ifr;
-	t_s32 sockfd;
-
-	while ((opt = getopt_long(argc, argv, "+", cmd_options, NULL)) != -1) {
-		switch (opt) {
-		default:
-			print_antcfg_usage();
-			return UAP_SUCCESS;
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	/* Check arguments */
-	if (argc > 2) {
-		printf("ERR:wrong arguments!\n");
-		print_antcfg_usage();
-		return UAP_FAILURE;
-	}
-	if (argc) {
-		if ((ISDIGIT(argv[0]) == 0) || (atoi(argv[0]) < 1) ||
-		    (atoi(argv[0]) > 3)) {
-			printf("ERR:Illegal ANTENNA parameter %s. Must be either '1', '2' or '3'.\n", argv[0]);
-			print_antcfg_usage();
-			return UAP_FAILURE;
-		}
-		if (argc == 2) {
-			if ((ISDIGIT(argv[1]) == 0) || (atoi(argv[1]) < 1) ||
-			    (atoi(argv[1]) > 3)) {
-				printf("ERR:Illegal RX ANTENNA parameter %s. Must be either '1', '2' or '3'.\n", argv[1]);
-				print_antcfg_usage();
-				return UAP_FAILURE;
-			}
-		}
-	}
-	memset(&antenna_config, 0, sizeof(ant_cfg_t));
-	antenna_config.subcmd = UAP_ANTENNA_CFG;
-	if (argc) {
-		antenna_config.action = ACTION_SET;
-		if (argc == 1) {
-			antenna_config.tx_mode = atoi(argv[0]);
-			antenna_config.rx_mode = atoi(argv[0]);
-		} else {
-			antenna_config.tx_mode = atoi(argv[0]);
-			antenna_config.rx_mode = atoi(argv[1]);
-		}
-	}
-	/* Open socket */
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("ERR:Cannot open socket\n");
-		return UAP_FAILURE;
-	}
-	/* Initialize the ifr structure */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, strlen(dev_name));
-	ifr.ifr_ifru.ifru_data = (void *)&antenna_config;
-	/* Perform ioctl */
-	errno = 0;
-	if (ioctl(sockfd, UAP_IOCTL_CMD, &ifr)) {
-		printf("ERR:UAP_IOCTL_CMD fail\n");
-		close(sockfd);
-		return UAP_FAILURE;
-	}
-	if (argc) {
-		printf("Antenna mode setting successful\n");
-	} else {
-		printf("TX Antenna mode is %d.\n", antenna_config.tx_mode);
-		printf("RX Antenna mode is %d.\n", antenna_config.rx_mode);
-	}
-	/* Close socket */
-	close(sockfd);
-	return UAP_SUCCESS;
-}
-
-/**
- *  @brief Show usage information for the htstreamcfg
- *   command
- *
- *  $return         N/A
- */
-void
-print_htstreamcfg_usage(void)
-{
-	printf("\nUsage : htstreamcfg [<n>]\n");
-	printf("\n        Where  <n>  ");
-	printf("\n                 0x11: HT stream 1x1 mode");
-	printf("\n                 0x22: HT stream 2x2 mode\n");
-	return;
-}
-
-/**
- *  @brief Set/get HT stream configurations
- *  @param argc     Number of arguments
- *  @param argv     Pointer to the arguments
- *  @return         UAP_SUCCESS/UAP_FAILURE
- */
-int
-apcmd_htstreamcfg(int argc, char *argv[])
-{
-	int opt;
-	htstream_cfg_t htstream_cfg;
-	struct ifreq ifr;
-	t_s32 sockfd;
-
-	while ((opt = getopt_long(argc, argv, "+", cmd_options, NULL)) != -1) {
-		switch (opt) {
-		default:
-			print_htstreamcfg_usage();
-			return UAP_SUCCESS;
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	/* Check arguments */
-
-	memset(&htstream_cfg, 0, sizeof(htstream_cfg));
-	if (argc == 0) {
-		htstream_cfg.action = ACTION_GET;
-	} else if (argc == 1) {
-		if ((t_u32)A2HEXDECIMAL(argv[0]) != HT_STREAM_MODE_1X1
-		    && (t_u32)A2HEXDECIMAL(argv[0]) != HT_STREAM_MODE_2X2) {
-			printf("ERR:Invalid argument\n");
-			return UAP_FAILURE;
-		}
-		htstream_cfg.action = ACTION_SET;
-		htstream_cfg.stream_cfg = (t_u32)A2HEXDECIMAL(argv[0]);
-	} else {
-		print_htstreamcfg_usage();
-		return UAP_FAILURE;
-	}
-	htstream_cfg.subcmd = UAP_HT_STREAM_CFG;
-
-	/* Open socket */
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("ERR:Cannot open socket\n");
-		return UAP_FAILURE;
-	}
-	/* Initialize the ifr structure */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, IFNAMSIZ - 1);
-	ifr.ifr_ifru.ifru_data = (void *)&htstream_cfg;
-	/* Perform ioctl */
-	errno = 0;
-	if (ioctl(sockfd, UAP_IOCTL_CMD, &ifr)) {
-		perror("");
-		printf("ERR: HT STREAM configuration failed\n");
-		close(sockfd);
-		return UAP_FAILURE;
-	}
-
-	/* Handle response */
-	if (htstream_cfg.action == ACTION_GET) {
-		if (htstream_cfg.stream_cfg == HT_STREAM_MODE_1X1)
-			printf("HT stream is in 1x1 mode\n");
-		else if (htstream_cfg.stream_cfg == HT_STREAM_MODE_2X2)
-			printf("HT stream is in 2x2 mode\n");
-		else
-			printf("HT stream is unknown mode\n");
-	}
-
 	/* Close socket */
 	close(sockfd);
 	return UAP_SUCCESS;
@@ -5020,6 +4794,65 @@ apcmd_sys_config_profile(int argc, char *argv[])
 			endian_convert_tlv_header_out(tlv);
 		}
 
+		if (strcmp(args[0], "RxAntenna") == 0) {
+			if ((ISDIGIT(args[1]) != UAP_SUCCESS) ||
+			    (atoi(args[1]) < 0) || (atoi(args[1]) > 1)) {
+				printf("ERR: Invalid Antenna value\n");
+				ret = UAP_FAILURE;
+				goto done;
+			}
+			tlvbuf_antenna_ctl *tlv = NULL;
+			/* Append a new TLV */
+			tlv_len = sizeof(tlvbuf_antenna_ctl);
+			tmp_buffer = realloc(buffer, cmd_len + tlv_len);
+			if (!tmp_buffer) {
+				printf("ERR:Cannot append channel TLV!\n");
+				ret = UAP_FAILURE;
+				goto done;
+			} else {
+				buffer = tmp_buffer;
+				tmp_buffer = NULL;
+			}
+			cmd_buf = (apcmdbuf_sys_configure *)buffer;
+			tlv = (tlvbuf_antenna_ctl *)(buffer + cmd_len);
+			cmd_len += tlv_len;
+			cmd_buf->action = ACTION_SET;
+			tlv->tag = MRVL_ANTENNA_CTL_TLV_ID;
+			tlv->length = 2;
+			tlv->which_antenna = 0;
+			tlv->antenna_mode = atoi(args[1]);
+			endian_convert_tlv_header_out(tlv);
+		}
+
+		if (strcmp(args[0], "TxAntenna") == 0) {
+			if ((ISDIGIT(args[1]) != UAP_SUCCESS) ||
+			    (atoi(args[1]) < 0) || (atoi(args[1]) > 1)) {
+				printf("ERR: Invalid Antenna value\n");
+				ret = UAP_FAILURE;
+				goto done;
+			}
+			tlvbuf_antenna_ctl *tlv = NULL;
+			/* Append a new TLV */
+			tlv_len = sizeof(tlvbuf_antenna_ctl);
+			tmp_buffer = realloc(buffer, cmd_len + tlv_len);
+			if (!tmp_buffer) {
+				printf("ERR:Cannot append channel TLV!\n");
+				ret = UAP_FAILURE;
+				goto done;
+			} else {
+				buffer = tmp_buffer;
+				tmp_buffer = NULL;
+			}
+			cmd_buf = (apcmdbuf_sys_configure *)buffer;
+			tlv = (tlvbuf_antenna_ctl *)(buffer + cmd_len);
+			cmd_len += tlv_len;
+			cmd_buf->action = ACTION_SET;
+			tlv->tag = MRVL_ANTENNA_CTL_TLV_ID;
+			tlv->length = 2;
+			tlv->which_antenna = 1;
+			tlv->antenna_mode = atoi(args[1]);
+			endian_convert_tlv_header_out(tlv);
+		}
 		if (strcmp(args[0], "Rate") == 0) {
 			if (is_input_valid(RATE, arg_num - 1, args + 1) !=
 			    UAP_SUCCESS) {
@@ -5859,17 +5692,10 @@ apcmd_sys_config_profile(int argc, char *argv[])
 					DEFAULT_MCS_SET_0;
 				tlv->ht_cap.supported_mcs_set[4] =
 					DEFAULT_MCS_SET_4;
-				if (0 == get_fw_info(&fw)) {
-					if ((fw.hw_dev_mcs_support & 0x0f) >= 2)
-						tlv->ht_cap.
-							supported_mcs_set[1] =
-							DEFAULT_MCS_SET_1;
-				}
 			} else {
 				/* disable mcs rate */
 				tlv->ht_cap.supported_mcs_set[0] = 0;
 				tlv->ht_cap.supported_mcs_set[4] = 0;
-				tlv->ht_cap.supported_mcs_set[1] = 0;
 			}
 			endian_convert_tlv_header_out(tlv);
 		}
@@ -8347,75 +8173,6 @@ apcmd_memaccess(int argc, char *argv[])
 }
 
 /**
- *  @brief Creates a sys_debug request to send data packet directly to driver
- *  @param pkt_type packet type 0 or 5.
- *  @param control  management packet tx control field.
- *  @param file     packet data file.
- *  @return         UAP_SUCCESS/UAP_FAILURE
- */
-int
-apcmd_debug_data_packet_inject(int pkt_type, int control, char *file)
-{
-	struct ifreq ifr;
-	t_s32 sockfd;
-	t_u8 *buf = NULL;
-	t_u32 data_len;
-	FILE *fp = NULL;
-	pkt_header *header = NULL;
-
-	/* Check if file exists */
-	fp = fopen(file, "r");
-	if (fp == NULL) {
-		printf("\nERR:Data file can not be opened %s.\n", file);
-		return UAP_FAILURE;
-	}
-	buf = (t_u8 *)malloc(MRVDRV_SIZE_OF_PKT_BUFFER);
-	if (buf == NULL) {
-		printf("Error: allocate memory for packet buffer failed\n");
-		return UAP_FAILURE;
-	}
-	memset(buf, 0, MRVDRV_SIZE_OF_PKT_BUFFER);
-	header = (pkt_header *)buf;
-	data_len = fparse_for_hex(fp, buf + sizeof(pkt_header));
-	fclose(fp);
-	if (data_len > (MRVDRV_SIZE_OF_PKT_BUFFER - sizeof(pkt_header))) {
-		printf("ERR: Config file is too big %d\n", data_len);
-		free(buf);
-		return UAP_FAILURE;
-	}
-	header->tx_pkt_type = pkt_type;
-	header->tx_control = control;
-	header->pkt_len = data_len;
-
-	/* Open socket */
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("ERR:Cannot open socket\n");
-		free(buf);
-		return UAP_FAILURE;
-	}
-
-	/* Initialize the ifr structure */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, IFNAMSIZ - 1);
-	ifr.ifr_ifru.ifru_data = (void *)buf;
-	/* Perform ioctl */
-	errno = 0;
-	if (ioctl(sockfd, UAPHOSTPKTINJECT, &ifr)) {
-		perror("");
-		printf("ERR:ioctl is not supported by %s\n", dev_name);
-		close(sockfd);
-		free(buf);
-		return UAP_FAILURE;
-	}
-	/* Close socket */
-	close(sockfd);
-
-	if (buf)
-		free(buf);
-	return UAP_SUCCESS;
-}
-
-/**
  *  @brief Show usage information for the bss_config command
  *
  *  $return         N/A
@@ -8948,6 +8705,25 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 			}
 		}
 
+		if (strcmp(args[0], "RxAntenna") == 0) {
+			if ((ISDIGIT(args[1]) != UAP_SUCCESS) ||
+			    (atoi(args[1]) < 0) || (atoi(args[1]) > 1)) {
+				printf("ERR: Invalid Antenna value\n");
+				retval = UAP_FAILURE;
+				goto done;
+			}
+			bss->rx_antenna = atoi(args[1]);
+		}
+
+		if (strcmp(args[0], "TxAntenna") == 0) {
+			if ((ISDIGIT(args[1]) != UAP_SUCCESS) ||
+			    (atoi(args[1]) < 0) || (atoi(args[1]) > 1)) {
+				printf("ERR: Invalid Antenna value\n");
+				retval = UAP_FAILURE;
+				goto done;
+			}
+			bss->tx_antenna = atoi(args[1]);
+		}
 		if (strcmp(args[0], "Rate") == 0) {
 			if (is_input_valid(RATE, arg_num - 1, args + 1) !=
 			    UAP_SUCCESS) {
@@ -9422,16 +9198,10 @@ parse_bss_config(int argc, char *argv[], bss_config_t *bss)
 				/* enable mcs rate */
 				bss->supported_mcs_set[0] = DEFAULT_MCS_SET_0;
 				bss->supported_mcs_set[4] = DEFAULT_MCS_SET_4;
-				if (0 == get_fw_info(&fw)) {
-					if ((fw.hw_dev_mcs_support & 0x0f) >= 2)
-						bss->supported_mcs_set[1] =
-							DEFAULT_MCS_SET_1;
-				}
 			} else {
 				/* disable mcs rate */
 				bss->supported_mcs_set[0] = 0;
 				bss->supported_mcs_set[4] = 0;
-				bss->supported_mcs_set[1] = 0;
 			}
 		}
 		if (strcmp(args[0], "HTCapInfo") == 0) {
@@ -10429,197 +10199,6 @@ apcmd_coex_config(int argc, char *argv[])
 	}
 	free(buf);
 	return ret;
-}
-
-/**
- *  @brief Show usage information for the mic_err command
- *
- *  @return         N/A
- */
-void
-print_mic_err_usage(void)
-{
-	printf("\nUsage : mic_err <STA_MAC_ADDRESS>\n");
-	return;
-}
-
-/**
- *  @brief report station mic error to the driver
- *
- *   Usage: "mic_err <STA_MAC_ADDRESS>"
- *
- *  @param argc     Number of arguments
- *  @param argv     Pointer to the arguments
- *  @return         UAP_SUCCESS/UAP_FAILURE
- */
-int
-apcmd_mic_err(int argc, char *argv[])
-{
-	int ret = UAP_SUCCESS;
-	int opt;
-	struct ifreq ifr;
-	t_s32 sockfd;
-	t_u8 mac_addr[ETH_ALEN];
-
-	while ((opt = getopt_long(argc, argv, "+", cmd_options, NULL)) != -1) {
-		switch (opt) {
-		default:
-			print_mic_err_usage();
-			return UAP_SUCCESS;
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	/* Check arguments */
-	if (argc != 1) {
-		printf("ERR:wrong arguments! Must provide STA_MAC_ADDRESS.\n");
-		print_mic_err_usage();
-		return UAP_FAILURE;
-	}
-	memset(mac_addr, 0, ETH_ALEN);
-
-	if ((ret = mac2raw(argv[0], mac_addr)) != UAP_SUCCESS) {
-		printf("ERR: %s Address\n", ret == UAP_FAILURE ? "Invalid MAC" :
-		       ret ==
-		       UAP_RET_MAC_BROADCAST ? "Broadcast" : "Multicast");
-		return UAP_FAILURE;
-	}
-#if DEBUG
-	/* Dump mac address */
-	hexdump("report mic error", (void *)mac_addr, ETH_ALEN, ' ');
-#endif
-	/* Open socket */
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("ERR:Cannot open socket\n");
-		return UAP_FAILURE;
-	}
-	/* Initialize the ifr structure */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, IFNAMSIZ - 1);
-	ifr.ifr_ifru.ifru_data = (void *)mac_addr;
-	/* Perform ioctl */
-	errno = 0;
-	if (ioctl(sockfd, UAP_REPORT_MIC_ERR, &ifr)) {
-		perror("");
-		printf("ERR:UAP_REPORT_MIC_ERR is not supported by %s\n",
-		       dev_name);
-		close(sockfd);
-		return UAP_FAILURE;
-	}
-	printf("MIC error reporting successful!\n");
-	/* Close socket */
-	close(sockfd);
-	return UAP_SUCCESS;
-}
-
-/**
- *  @brief Show usage information for the sta_deauth_ext command
- *
- *  @return         N/A
- */
-void
-print_set_key_usage(void)
-{
-	printf("\nUsage : key_material <MAC_ADDRESS> <KEY> [KEY_ID]\n");
-	printf("\n MAC_ADDRESS: station mac address or ff:ff:ff:ff:ff:ff");
-	printf("\n KEY: hex string, valid length 32 or 64\n");
-	return;
-}
-
-/**
- *  @brief Creates a set key request and sends to the driver
- *
- *   Usage: "set_key <MAC_ADDRESS><KEY>[KEY_ID]"
- *
- *  @param argc     Number of arguments
- *  @param argv     Pointer to the arguments
- *  @return         UAP_SUCCESS/UAP_FAILURE
- */
-int
-apcmd_set_key(int argc, char *argv[])
-{
-	int ret = UAP_SUCCESS;
-	int opt;
-	struct ifreq ifr;
-	t_s32 sockfd;
-	encrypt_key key;
-	int key_id = 0;
-
-	while ((opt = getopt_long(argc, argv, "+", cmd_options, NULL)) != -1) {
-		switch (opt) {
-		default:
-			print_set_key_usage();
-			return UAP_SUCCESS;
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	/* Check arguments */
-	if (argc < 2 || argc > 3) {
-		print_set_key_usage();
-		return UAP_FAILURE;
-	}
-	memset(&key, 0, sizeof(encrypt_key));
-
-	ret = mac2raw(argv[0], key.mac_addr);
-
-	if ((ret != UAP_SUCCESS) && (ret != UAP_RET_MAC_BROADCAST)) {
-		printf("ERR: %s Address\n",
-		       ret == UAP_FAILURE ? "Invalid MAC" : "Multicast");
-		return UAP_FAILURE;
-	}
-	if ((strlen(argv[1]) != 32) && (strlen(argv[1]) != 64)) {
-		printf("ERR: key must be hex string with length 32 or 64");
-		print_set_key_usage();
-		return UAP_FAILURE;
-	}
-	if (UAP_FAILURE == ishexstring(argv[1])) {
-		printf("ERR:Only hex digits are allowed\n");
-		print_set_key_usage();
-		return UAP_FAILURE;
-	}
-	if (argc == 3) {
-		if ((ISDIGIT(argv[2]) == 0) || (atoi(argv[2]) < 0) ||
-		    (atoi(argv[2]) > 3)) {
-			printf("ERR:Illegal key id %s. Must be either '0', '1', '2', or '3'.\n", argv[2]);
-			print_set_key_usage();
-			return UAP_FAILURE;
-		}
-		key_id = atoi(argv[2]);
-	}
-
-	key.key_len = strlen(argv[1]) / 2;
-	string2raw(argv[1], key.key_material);
-	key.key_index = key_id;
-
-#if DEBUG
-	/* dump key buffer */
-	hexdump("set key", (void *)&key, sizeof(encrypt_key), ' ');
-#endif
-
-	/* Open socket */
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("ERR:Cannot open socket\n");
-		return UAP_FAILURE;
-	}
-	/* Initialize the ifr structure */
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_ifrn.ifrn_name, dev_name, IFNAMSIZ - 1);
-	ifr.ifr_ifru.ifru_data = (void *)&key;
-	/* Perform ioctl */
-	errno = 0;
-	if (ioctl(sockfd, UAP_SET_KEY, &ifr)) {
-		perror("");
-		printf("ERR:UAP_SET_KEY is not supported by %s\n", dev_name);
-		close(sockfd);
-		return UAP_FAILURE;
-	}
-	printf("Key setting successful.\n");
-	/* Close socket */
-	close(sockfd);
-	return UAP_SUCCESS;
 }
 
 /**
@@ -11957,9 +11536,8 @@ static command_table ap_command[] = {
 	 "Set/get uAP broadcast ssid"},
 	{"sys_cfg_preamble_ctl", apcmd_sys_cfg_preamble_ctl,
 	 "Get uAP preamble"},
-	{"antcfg", apcmd_antcfg, "Set/get uAP tx/rx antenna"},
-	{"htstreamcfg", apcmd_htstreamcfg,
-	 "Set/get uAP HT stream configurations"},
+	{"sys_cfg_antenna_ctl", apcmd_sys_cfg_antenna_ctl,
+	 "Set/get uAP tx/rx antenna"},
 	{"sys_cfg_rts_threshold", apcmd_sys_cfg_rts_threshold,
 	 "Set/get uAP rts threshold"},
 	{"sys_cfg_frag_threshold", apcmd_sys_cfg_frag_threshold,
@@ -12020,8 +11598,6 @@ static command_table ap_command[] = {
 	{"pscfg", apcmd_pscfg, "\t\tSet/get uAP power mode"},
 	{"bss_config", apcmd_bss_config, "\tSet/get BSS configuration"},
 	{"sta_deauth_ext", apcmd_sta_deauth_ext, "\tDeauth client"},
-	{"mic_err", apcmd_mic_err, "\t\tReport station mic error"},
-	{"key_material", apcmd_set_key, "\tSet key"},
 	{"coex_config", apcmd_coex_config,
 	 "\tSet/get uAP BT coex configuration"},
 	{"hscfg", apcmd_hscfg, "\t\tSet/get uAP host sleep parameters."},
@@ -12624,8 +12200,7 @@ is_input_valid(valid_inputs cmd, int argc, char *argv[])
 						      1) &&
 						     (A2HEXDECIMAL(argv[1]) !=
 						      32) &&
-						     (A2HEXDECIMAL(argv[1]) >
-						      15)
+						     (A2HEXDECIMAL(argv[1]) > 7)
 						    )) {
 							printf("ERR:Incorrect TxRate %s.\n", argv[1]);
 							ret = UAP_FAILURE;
@@ -13349,6 +12924,7 @@ print_tlv(t_u8 *buf, t_u16 len)
 	tlvbuf_bcast_ssid_ctl *bcast_tlv;
 	tlvbuf_preamble_ctl *preamble_tlv;
 	tlvbuf_bss_status *bss_status_tlv;
+	tlvbuf_antenna_ctl *antenna_tlv;
 	tlvbuf_rts_threshold *rts_tlv;
 	tlvbuf_mcbc_data_rate *mcbcrate_tlv;
 	tlvbuf_pkt_fwd_ctl *pkt_fwd_tlv;
@@ -13502,6 +13078,12 @@ print_tlv(t_u8 *buf, t_u16 len)
 			printf("BSS status = %s\n",
 			       (bss_status_tlv->bss_status ==
 				0) ? "stopped" : "started");
+			break;
+		case MRVL_ANTENNA_CTL_TLV_ID:
+			antenna_tlv = (tlvbuf_antenna_ctl *)pcurrent_tlv;
+			printf("%s antenna = %s\n",
+			       (antenna_tlv->which_antenna == 0) ? "Rx" : "Tx",
+			       (antenna_tlv->antenna_mode == 0) ? "A" : "B");
 			break;
 		case MRVL_RTS_THRESHOLD_TLV_ID:
 			rts_tlv = (tlvbuf_rts_threshold *)pcurrent_tlv;
